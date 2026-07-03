@@ -17,4 +17,3 @@ jobs:
           script: |
             cd /home/kachowdk/assistant-web
             git pull origin main
-            composer install --no-dev --optimize-autoloader
