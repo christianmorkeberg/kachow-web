@@ -15,5 +15,5 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/kachowdk/assistant-web
+            cd /home/kachowdk/assistant.kachow.dk
             git pull origin main
