@@ -145,17 +145,16 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
             </div>
         </header>
 
-        <?php if ($googleStatus !== ''): ?>
-            <div class="banner <?= $googleStatus === 'connected' ? 'ok' : 'warn' ?>">
-                <?php if ($googleStatus === 'connected'): ?>
-                    Google Calendar connected.
-                <?php elseif ($googleStatus === 'denied'): ?>
+        <?php if ($googleStatus === 'denied' || $googleStatus === 'error'): ?>
+            <div class="banner warn">
+                <?php if ($googleStatus === 'denied'): ?>
                     Calendar connection was cancelled.
                 <?php else: ?>
                     Couldn't connect Google Calendar. Please try again.
                 <?php endif; ?>
             </div>
         <?php endif; ?>
+        <?php /* Success is shown by the "Connected" badge in the top bar — no banner. */ ?>
 
         <main id="messages" class="messages" aria-live="polite"></main>
 
