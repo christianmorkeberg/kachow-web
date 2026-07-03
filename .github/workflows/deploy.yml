@@ -17,4 +17,4 @@ jobs:
           port: 33
           script: |
             cd /home/kachowdk/assistant.kachow.dk
-            git pull origin main
+            git pull origin master
