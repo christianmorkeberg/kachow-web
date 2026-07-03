@@ -119,7 +119,7 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     <title>Kachow Assistant</title>
     <link rel="manifest" href="/assets/manifest.json">
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/assets/icon.svg">
+    <link rel="apple-touch-icon" href="/assets/icon-192.png">
     <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>

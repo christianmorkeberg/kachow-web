@@ -1,14 +1,17 @@
 'use strict';
 
-// Minimal service worker: precache the static shell for installability and
-// offline asset loading. Never caches /api/ (dynamic, auth-scoped) or the
-// authenticated HTML pages — those always go to the network.
+// Service worker for the static shell. Uses NETWORK-FIRST for our assets so a
+// deploy is picked up on the next load (no hard refresh), with a cache fallback
+// for offline. Never touches /api/ (dynamic, auth-scoped) or navigations — those
+// always go straight to the network.
 
-const CACHE = 'kachow-static-v1';
+const CACHE = 'kachow-static-v2';
 const ASSETS = [
     '/assets/styles.css',
     '/assets/app.js',
     '/assets/icon.svg',
+    '/assets/icon-192.png',
+    '/assets/icon-512.png',
     '/assets/manifest.json',
 ];
 
@@ -33,17 +36,20 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(req.url);
     if (url.origin !== self.location.origin) return;
 
-    // Never intercept API calls or navigations — keep auth/data always fresh.
+    // Keep auth/data and page loads always fresh.
     if (url.pathname.startsWith('/api/') || req.mode === 'navigate') return;
 
-    // Cache-first for our known static assets.
+    // Network-first for our known static assets: fresh when online (so deploys
+    // land automatically), cached copy when offline.
     if (ASSETS.includes(url.pathname)) {
         event.respondWith(
-            caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-                const copy = res.clone();
-                caches.open(CACHE).then((c) => c.put(req, copy));
-                return res;
-            }))
+            fetch(req)
+                .then((res) => {
+                    const copy = res.clone();
+                    caches.open(CACHE).then((c) => c.put(req, copy));
+                    return res;
+                })
+                .catch(() => caches.match(req))
         );
     }
 });
