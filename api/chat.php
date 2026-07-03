@@ -27,6 +27,7 @@ use App\Data\UserInstructions;
 use App\Data\Users;
 use App\Data\Wishlist;
 use App\Data\Workouts;
+use App\Mail\NativeMailer;
 use App\Tools\ToolRegistry;
 
 header('Content-Type: application/json');
@@ -92,7 +93,8 @@ try {
         new Calendar($oauth),
         $instructions,
         $users,
-        new Invites()
+        new Invites(),
+        NativeMailer::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions);
