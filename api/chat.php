@@ -20,6 +20,7 @@ use App\Auth\GoogleOAuth;
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Calendar;
+use App\Data\Connections;
 use App\Data\Conversations;
 use App\Data\Invites;
 use App\Data\RememberTokens;
@@ -94,7 +95,8 @@ try {
         $instructions,
         $users,
         new Invites(),
-        NativeMailer::fromEnv()
+        NativeMailer::fromEnv(),
+        new Connections()
     );
     $gemini = GeminiClient::fromEnv();
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions);
