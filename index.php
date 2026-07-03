@@ -126,7 +126,7 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <?php if (!$loggedIn): ?>
     <main class="auth">
         <form class="card" method="post" action="index.php" autocomplete="on">
-            <h1 class="brand">⚡ Kachow</h1>
+            <h1 class="brand">⚡ Kachow :)</h1>
             <p class="muted">Sign in to your assistant</p>
             <?php if ($loginError !== null): ?>
                 <p class="error"><?= $e($loginError) ?></p>
