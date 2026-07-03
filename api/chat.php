@@ -22,6 +22,7 @@ use App\Auth\Session;
 use App\Data\Calendar;
 use App\Data\Conversations;
 use App\Data\RememberTokens;
+use App\Data\UserInstructions;
 use App\Data\Users;
 use App\Data\Wishlist;
 use App\Data\Workouts;
@@ -82,10 +83,16 @@ try {
         $conversationId = $conversations->start($userId);
     }
 
-    $oauth    = GoogleOAuth::fromEnv($users);
-    $registry = ToolRegistry::createStandard(new Workouts(), new Wishlist(), new Calendar($oauth));
-    $gemini   = GeminiClient::fromEnv();
-    $loop     = new AssistantLoop($gemini, $registry, $conversations);
+    $oauth        = GoogleOAuth::fromEnv($users);
+    $instructions = new UserInstructions();
+    $registry     = ToolRegistry::createStandard(
+        new Workouts(),
+        new Wishlist(),
+        new Calendar($oauth),
+        $instructions
+    );
+    $gemini = GeminiClient::fromEnv();
+    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions);
 
     $reply = $loop->handle($userId, $conversationId, $message);
 
