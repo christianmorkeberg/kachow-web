@@ -149,6 +149,7 @@ button.ghost {
 }
 .banner.ok { color: var(--ok); border-color: #1f5a44; background: #0e2a20; }
 .banner.warn { color: var(--warn); border-color: #5a4a1f; background: #2a230e; }
+.banner.info { color: var(--accent); border-color: #1e4a63; background: #0c2536; }
 
 .messages {
     flex: 1;

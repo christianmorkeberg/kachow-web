@@ -12,6 +12,7 @@ require __DIR__ . '/bootstrap.php';
 use App\Auth\GoogleOAuth;
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\Connections;
 use App\Data\RememberTokens;
 use App\Data\Users;
 
@@ -92,6 +93,20 @@ if ($loggedIn) {
     }
 }
 
+// Incoming pending connection requests, to surface as a banner.
+$pendingRequests = [];
+if ($loggedIn) {
+    try {
+        foreach ((new Connections())->listForUser((int) $session->userId()) as $c) {
+            if ($c['status'] === 'pending' && $c['direction'] === 'incoming') {
+                $pendingRequests[] = $c;
+            }
+        }
+    } catch (\Throwable $e) {
+        $pendingRequests = [];
+    }
+}
+
 $googleStatus = (string) ($_GET['google'] ?? '');
 $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
@@ -155,6 +170,16 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
             </div>
         <?php endif; ?>
         <?php /* Success is shown by the "Connected" badge in the top bar — no banner. */ ?>
+
+        <?php foreach ($pendingRequests as $req):
+            $who = (string) ($req['person']['name'] ?? '') ?: (string) ($req['person']['email'] ?? 'Someone');
+        ?>
+            <div class="banner info">
+                <strong><?= $e($who) ?></strong> wants to connect<?php if (!empty($req['they_share'])): ?>
+                    and share their <?= $e(implode(', ', $req['they_share'])) ?><?php endif; ?>.
+                Say &ldquo;accept <?= $e($who) ?>&rsquo;s request&rdquo; below to connect.
+            </div>
+        <?php endforeach; ?>
 
         <main id="messages" class="messages" aria-live="polite"></main>
 
