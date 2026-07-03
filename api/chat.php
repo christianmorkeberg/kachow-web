@@ -26,9 +26,11 @@ use App\Data\Invites;
 use App\Data\RememberTokens;
 use App\Data\UserInstructions;
 use App\Data\Users;
+use App\Data\Vinyls;
 use App\Data\Wishlist;
 use App\Data\Workouts;
 use App\Mail\NativeMailer;
+use App\Music\Discogs;
 use App\Support\Markdown;
 use App\Tools\ToolRegistry;
 
@@ -97,7 +99,9 @@ try {
         $users,
         new Invites(),
         NativeMailer::fromEnv(),
-        new Connections()
+        new Connections(),
+        new Vinyls(),
+        Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions);
