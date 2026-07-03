@@ -29,6 +29,7 @@ use App\Data\Users;
 use App\Data\Wishlist;
 use App\Data\Workouts;
 use App\Mail\NativeMailer;
+use App\Support\Markdown;
 use App\Tools\ToolRegistry;
 
 header('Content-Type: application/json');
@@ -105,6 +106,7 @@ try {
 
     respond(200, [
         'reply'           => $reply,
+        'reply_html'      => Markdown::toHtml($reply),
         'conversation_id' => $conversationId,
     ]);
 } catch (\Throwable $e) {

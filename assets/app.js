@@ -28,11 +28,16 @@
         if (hint) hint.remove();
     }
 
-    function addMessage(text, role) {
+    function addMessage(text, role, html) {
         clearEmptyHint();
         const el = document.createElement('div');
         el.className = 'msg ' + role;
-        el.textContent = text;
+        if (role === 'assistant' && typeof html === 'string' && html) {
+            // Server-rendered, HTML-escaped markdown (see Support\Markdown).
+            el.innerHTML = html;
+        } else {
+            el.textContent = text;
+        }
         messages.appendChild(el);
         messages.scrollTop = messages.scrollHeight;
         return el;
@@ -80,7 +85,7 @@
                 conversationId = data.conversation_id;
                 localStorage.setItem(CONV_KEY, String(conversationId));
             }
-            addMessage(data.reply || '(no reply)', 'assistant');
+            addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
         } catch (err) {
             typing.remove();
             addMessage('Network error. Please try again.', 'error');
