@@ -140,7 +140,7 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
                 <?php else: ?>
                     <a class="badge" href="index.php?action=connect_google">📅 Connect Calendar</a>
                 <?php endif; ?>
-                <span class="muted email"><?= $e((string) ($currentUser['email'] ?? '')) ?></span>
+                <span class="muted email"><?= $e((string) ($currentUser['name'] ?? '') ?: (string) ($currentUser['email'] ?? '')) ?></span>
                 <a class="link" href="index.php?action=logout">Log out</a>
             </div>
         </header>

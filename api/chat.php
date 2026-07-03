@@ -21,6 +21,7 @@ use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Calendar;
 use App\Data\Conversations;
+use App\Data\Invites;
 use App\Data\RememberTokens;
 use App\Data\UserInstructions;
 use App\Data\Users;
@@ -89,7 +90,9 @@ try {
         new Workouts(),
         new Wishlist(),
         new Calendar($oauth),
-        $instructions
+        $instructions,
+        $users,
+        new Invites()
     );
     $gemini = GeminiClient::fromEnv();
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions);
