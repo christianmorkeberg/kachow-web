@@ -13,6 +13,9 @@
     const CONV_KEY = 'kachow.conversation_id';
     let conversationId = Number(localStorage.getItem(CONV_KEY)) || null;
     let busy = false;
+    // Hands-free voice mode: once on, the mic stays armed across turns until the
+    // user manually switches back to text (by typing) or taps the mic off.
+    let voiceMode = false;
 
     function showEmptyHint() {
         if (!messages.children.length) {
@@ -93,7 +96,11 @@
         } finally {
             busy = false;
             sendBtn.disabled = false;
-            input.focus();
+            if (voiceMode) {
+                resumeVoiceWhenReady(); // stay hands-free — re-arm the mic for the next turn
+            } else {
+                input.focus();
+            }
         }
     }
 
@@ -105,7 +112,12 @@
         send(text);
     });
 
-    input.addEventListener('input', autogrow);
+    input.addEventListener('input', function () {
+        autogrow();
+        // Real typing = manual switch to text mode. (Mic dictation sets .value
+        // programmatically, which does NOT fire 'input', so it won't trip this.)
+        if (voiceMode) exitVoiceMode();
+    });
     input.addEventListener('keydown', function (ev) {
         // Enter sends; Shift+Enter makes a newline.
         if (ev.key === 'Enter' && !ev.shiftKey) {
@@ -162,19 +174,82 @@
         });
     }
 
-    // ---------- Voice: speech-to-text (dictate a message) ----------
+    // ---------- Voice: speech-to-text + hands-free voice mode ----------
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const micBtn = document.getElementById('mic');
-    let listening = false;
+    let recog = null;
+    let listening = false;     // a recognition session is currently live
+    let stoppedByTap = false;  // this session is ending because the user tapped off
+    let lastStart = 0;
+    let rapidFails = 0;
+
+    // The red pill tracks voiceMode (the whole hands-free session), not each short
+    // recognition session — that's why it now stays lit instead of flickering.
+    function paintMic() {
+        if (micBtn) micBtn.classList.toggle('listening', voiceMode);
+    }
+
+    // Returns true if a session actually started. On iOS, start() outside a user
+    // gesture can throw — the caller treats a false as "can't auto-continue".
+    function startListening() {
+        if (!recog || listening) return false;
+        input.value = '';
+        lastStart = Date.now();
+        try { recog.start(); listening = true; return true; }
+        catch (e) { return false; }
+    }
+
+    function enterVoiceMode() {
+        voiceMode = true;
+        rapidFails = 0;
+        paintMic();
+        startListening();
+    }
+
+    function exitVoiceMode() {
+        voiceMode = false;
+        paintMic();
+        if (listening && recog) { stoppedByTap = true; recog.stop(); }
+    }
+
+    // Re-arm after the assistant's turn, but only once any spoken reply has
+    // finished (so the mic doesn't hear the TTS). Polls speechSynthesis because
+    // utterance 'end' events are unreliable in some browsers.
+    function resumeVoiceWhenReady() {
+        if (!voiceMode) return;
+        const go = function () {
+            if (voiceMode && !listening && !startListening()) exitVoiceMode();
+        };
+        if (!synth || !ttsOn) { go(); return; }
+        let waited = 0;
+        const t = setInterval(function () {
+            if ((!synth.speaking && !synth.pending) || waited >= 20000) {
+                clearInterval(t);
+                go();
+            }
+            waited += 150;
+        }, 150);
+    }
+
+    // Keep voice mode alive through silences, but bail if starts keep failing
+    // instantly (e.g. iOS wants a fresh tap each turn) so we never busy-loop.
+    function keepListeningAlive() {
+        const quick = Date.now() - lastStart < 350;
+        rapidFails = quick ? rapidFails + 1 : 0;
+        if (rapidFails >= 3) { exitVoiceMode(); return; }
+        setTimeout(function () {
+            if (voiceMode && !busy && !listening && !startListening()) exitVoiceMode();
+        }, 400);
+    }
 
     if (SR && micBtn) {
-        const recog = new SR();
+        recog = new SR();
         recog.lang = navigator.language || 'en-US';
         recog.interimResults = true;
         recog.continuous = false;
-        let stoppedByTap = false;
 
         recog.addEventListener('result', function (ev) {
+            rapidFails = 0;
             let text = '';
             for (let i = 0; i < ev.results.length; i++) {
                 text += ev.results[i][0].transcript;
@@ -184,26 +259,29 @@
         });
         recog.addEventListener('end', function () {
             listening = false;
-            micBtn.classList.remove('listening');
-            // Ended on its own (natural pause) → auto-send. Tapped to stop → leave
-            // the text in the box so you can review/edit before sending.
-            if (!stoppedByTap && input.value.trim()) form.requestSubmit();
-            stoppedByTap = false;
+            if (stoppedByTap) { stoppedByTap = false; return; }
+            if (input.value.trim()) {
+                form.requestSubmit();      // natural pause → send; re-arm after the reply
+            } else if (voiceMode) {
+                keepListeningAlive();      // heard nothing yet → keep waiting
+            }
         });
-        recog.addEventListener('error', function () {
+        recog.addEventListener('error', function (ev) {
             listening = false;
-            micBtn.classList.remove('listening');
+            const err = ev && ev.error;
+            if (err === 'not-allowed' || err === 'service-not-allowed') {
+                exitVoiceMode();           // mic permission denied — stop trying
+                stoppedByTap = false;
+                return;
+            }
+            if (voiceMode && !stoppedByTap) keepListeningAlive();
+            stoppedByTap = false;
         });
 
         micBtn.hidden = false;
         micBtn.addEventListener('click', function () {
-            if (listening) { stoppedByTap = true; recog.stop(); input.focus(); return; }
-            input.value = '';
-            try {
-                recog.start();
-                listening = true;
-                micBtn.classList.add('listening');
-            } catch (e) { /* start() throws if already running — ignore */ }
+            if (voiceMode) { exitVoiceMode(); input.focus(); return; }
+            enterVoiceMode();
         });
     }
 
