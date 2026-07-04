@@ -228,13 +228,23 @@ button.iconbtn {
     font-size: 15px;
     padding: 5px 10px;
     cursor: pointer;
+    opacity: .5;                 /* muted look when off (works despite emoji color) */
 }
-button.iconbtn.on { color: var(--accent); border-color: #1e4a63; }
+button.iconbtn.on {
+    opacity: 1;
+    border-color: #1e4a63;
+    background: rgba(56, 189, 248, .15);
+}
 
 .composer .mic { font-size: 18px; }
 .composer .mic.listening {
-    color: var(--error);
-    border-color: #5a2020;
-    animation: mic-pulse 1s ease-in-out infinite;
+    /* Filled pill + pulsing ring — visible even though iOS ignores CSS color on
+       the emoji glyph. */
+    background: var(--error);
+    border-color: var(--error);
+    animation: mic-pulse 1.2s ease-in-out infinite;
 }
-@keyframes mic-pulse { 50% { opacity: .4; } }
+@keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, .55); }
+    50%      { box-shadow: 0 0 0 7px rgba(248, 113, 113, 0); }
+}

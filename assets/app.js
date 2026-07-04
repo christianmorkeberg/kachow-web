@@ -130,9 +130,11 @@
 
     function renderTts() {
         if (!ttsBtn) return;
+        // Swap the glyph, not just the color — iOS ignores CSS color on emoji.
+        ttsBtn.textContent = ttsOn ? '🔊' : '🔇';
         ttsBtn.classList.toggle('on', ttsOn);
         ttsBtn.setAttribute('aria-pressed', ttsOn ? 'true' : 'false');
-        ttsBtn.title = ttsOn ? 'Voice replies on' : 'Read replies aloud';
+        ttsBtn.title = ttsOn ? 'Voice replies on — tap to mute' : 'Read replies aloud';
     }
 
     // `speak` is hoisted, so send() can call it even though it's defined here.
@@ -170,6 +172,7 @@
         recog.lang = navigator.language || 'en-US';
         recog.interimResults = true;
         recog.continuous = false;
+        let stoppedByTap = false;
 
         recog.addEventListener('result', function (ev) {
             let text = '';
@@ -182,8 +185,10 @@
         recog.addEventListener('end', function () {
             listening = false;
             micBtn.classList.remove('listening');
-            // Auto-send whatever was dictated (stopping = done talking).
-            if (input.value.trim()) form.requestSubmit();
+            // Ended on its own (natural pause) → auto-send. Tapped to stop → leave
+            // the text in the box so you can review/edit before sending.
+            if (!stoppedByTap && input.value.trim()) form.requestSubmit();
+            stoppedByTap = false;
         });
         recog.addEventListener('error', function () {
             listening = false;
@@ -192,7 +197,7 @@
 
         micBtn.hidden = false;
         micBtn.addEventListener('click', function () {
-            if (listening) { recog.stop(); return; }
+            if (listening) { stoppedByTap = true; recog.stop(); input.focus(); return; }
             input.value = '';
             try {
                 recog.start();
