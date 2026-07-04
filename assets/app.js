@@ -9,6 +9,7 @@
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send');
     const newChatBtn = document.getElementById('newChat');
+    const AVATAR_SRC = '/assets/hummingbird_no_background.gif';
 
     const CONV_KEY = 'kachow.conversation_id';
     let conversationId = Number(localStorage.getItem(CONV_KEY)) || null;
@@ -33,14 +34,32 @@
 
     function addMessage(text, role, html) {
         clearEmptyHint();
-        const el = document.createElement('div');
-        el.className = 'msg ' + role;
+
+        const bubble = document.createElement('div');
+        bubble.className = 'msg ' + role;
         if (role === 'assistant' && typeof html === 'string' && html) {
             // Server-rendered, HTML-escaped markdown (see Support\Markdown).
-            el.innerHTML = html;
+            bubble.innerHTML = html;
         } else {
-            el.textContent = text;
+            bubble.textContent = text;
         }
+
+        // Assistant messages carry the hummingbird avatar next to the bubble.
+        // Returns the row so callers (e.g. the typing placeholder) can style/remove
+        // the whole unit, avatar included.
+        let el = bubble;
+        if (role === 'assistant') {
+            el = document.createElement('div');
+            el.className = 'row assistant';
+            const avatar = document.createElement('img');
+            avatar.className = 'avatar';
+            avatar.src = AVATAR_SRC;
+            avatar.alt = '';
+            avatar.setAttribute('aria-hidden', 'true');
+            el.appendChild(avatar);
+            el.appendChild(bubble);
+        }
+
         messages.appendChild(el);
         messages.scrollTop = messages.scrollHeight;
         return el;

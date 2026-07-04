@@ -109,6 +109,9 @@ if ($loggedIn) {
 
 $googleStatus = (string) ($_GET['google'] ?? '');
 $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+
+$displayName    = (string) ($currentUser['name'] ?? '') ?: (string) ($currentUser['email'] ?? '');
+$displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0, 1)) : '?';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -152,12 +155,18 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
             <div class="topbar-actions">
                 <button type="button" id="ttsToggle" class="badge iconbtn" title="Read replies aloud" aria-pressed="false" hidden>🔊</button>
                 <?php if ($calendarConnected): ?>
-                    <span class="badge ok" title="Google Calendar connected">📅 Connected</span>
+                    <span class="badge ok" title="Google Calendar connected">📅<span class="label"> Connected</span></span>
                 <?php else: ?>
-                    <a class="badge" href="index.php?action=connect_google">📅 Connect Calendar</a>
+                    <a class="badge" href="index.php?action=connect_google" title="Connect Google Calendar">📅<span class="label"> Connect Calendar</span></a>
                 <?php endif; ?>
-                <span class="muted email"><?= $e((string) ($currentUser['name'] ?? '') ?: (string) ($currentUser['email'] ?? '')) ?></span>
-                <a class="link" href="index.php?action=logout">Log out</a>
+                <span class="who muted" title="<?= $e($displayName) ?>">
+                    <span class="who-full"><?= $e($displayName) ?></span>
+                    <span class="who-initial"><?= $e($displayInitial) ?></span>
+                </span>
+                <a class="link logout" href="index.php?action=logout" title="Log out" aria-label="Log out">
+                    <span class="label">Log out</span>
+                    <span class="icon" aria-hidden="true">🚪</span>
+                </a>
             </div>
         </header>
 

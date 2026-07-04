@@ -125,8 +125,22 @@ button.ghost {
     flex-wrap: wrap;
     justify-content: flex-end;
 }
-.email { font-size: 13px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who { font-size: 13px; display: inline-flex; align-items: center; }
+.who-full { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-initial {
+    display: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--panel-2);
+    border: 1px solid #26375c;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--text);
+}
 .link { color: var(--accent); text-decoration: none; font-size: 14px; }
+.logout .icon { display: none; font-size: 18px; }
 .badge {
     display: inline-flex;
     align-items: center;
@@ -178,8 +192,25 @@ button.ghost {
     border: 1px solid #22335a;
     border-bottom-left-radius: 4px;
 }
+/* Assistant avatar + bubble sit in a row; the row is the flex item. */
+.row.assistant {
+    align-self: flex-start;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    max-width: 90%;
+}
+.row.assistant .msg.assistant { align-self: auto; max-width: 100%; }
+.avatar {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;      /* show the whole bird; it's transparent, no crop */
+    flex: 0 0 auto;
+    margin-top: -2px;
+}
 .msg.error { align-self: flex-start; background: #2a1414; border: 1px solid #5a2020; color: #fecaca; }
-.msg.typing { color: var(--muted); font-style: italic; }
+.msg.typing,
+.row.typing .msg { color: var(--muted); font-style: italic; }
 .empty { margin: auto; color: var(--muted); text-align: center; }
 
 /* Rendered markdown inside assistant bubbles */
@@ -247,4 +278,16 @@ button.iconbtn.on {
 @keyframes mic-pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, .55); }
     50%      { box-shadow: 0 0 0 7px rgba(248, 113, 113, 0); }
+}
+
+/* ---------- Compact top bar on narrow phones ---------- */
+@media (max-width: 480px) {
+    .topbar { padding-left: 12px; padding-right: 12px; }
+    .topbar-actions { gap: 8px; }
+    .badge .label { display: none; }        /* calendar → icon only */
+    .who-full { display: none; }            /* name → first initial only */
+    .who-initial { display: inline-flex; }
+    .logout .label { display: none; }       /* log out → door icon */
+    .logout .icon { display: inline; }
+    .avatar { width: 32px; height: 32px; }
 }
