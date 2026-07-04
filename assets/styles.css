@@ -219,3 +219,22 @@ button.ghost {
     resize: none;
     max-height: 140px;
 }
+
+/* ---------- Voice controls ---------- */
+button.iconbtn {
+    background: transparent;
+    color: var(--text);
+    font-weight: 400;
+    font-size: 15px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+button.iconbtn.on { color: var(--accent); border-color: #1e4a63; }
+
+.composer .mic { font-size: 18px; }
+.composer .mic.listening {
+    color: var(--error);
+    border-color: #5a2020;
+    animation: mic-pulse 1s ease-in-out infinite;
+}
+@keyframes mic-pulse { 50% { opacity: .4; } }

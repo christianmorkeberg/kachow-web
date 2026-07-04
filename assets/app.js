@@ -86,6 +86,7 @@
                 localStorage.setItem(CONV_KEY, String(conversationId));
             }
             addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
+            speak(data.reply || '');
         } catch (err) {
             typing.remove();
             addMessage('Network error. Please try again.', 'error');
@@ -120,6 +121,86 @@
         showEmptyHint();
         input.focus();
     });
+
+    // ---------- Voice: text-to-speech (read replies aloud) ----------
+    const synth = window.speechSynthesis;
+    const ttsBtn = document.getElementById('ttsToggle');
+    const TTS_KEY = 'kachow.tts';
+    let ttsOn = localStorage.getItem(TTS_KEY) === '1';
+
+    function renderTts() {
+        if (!ttsBtn) return;
+        ttsBtn.classList.toggle('on', ttsOn);
+        ttsBtn.setAttribute('aria-pressed', ttsOn ? 'true' : 'false');
+        ttsBtn.title = ttsOn ? 'Voice replies on' : 'Read replies aloud';
+    }
+
+    // `speak` is hoisted, so send() can call it even though it's defined here.
+    function speak(text) {
+        if (!ttsOn || !synth || !text) return;
+        synth.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = navigator.language || 'en-US';
+        synth.speak(u);
+    }
+
+    if (synth && ttsBtn) {
+        ttsBtn.hidden = false;
+        renderTts();
+        ttsBtn.addEventListener('click', function () {
+            ttsOn = !ttsOn;
+            localStorage.setItem(TTS_KEY, ttsOn ? '1' : '0');
+            if (ttsOn) {
+                // Warm up within this user gesture — iOS won't speak later otherwise.
+                synth.speak(new SpeechSynthesisUtterance(' '));
+            } else {
+                synth.cancel();
+            }
+            renderTts();
+        });
+    }
+
+    // ---------- Voice: speech-to-text (dictate a message) ----------
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById('mic');
+    let listening = false;
+
+    if (SR && micBtn) {
+        const recog = new SR();
+        recog.lang = navigator.language || 'en-US';
+        recog.interimResults = true;
+        recog.continuous = false;
+
+        recog.addEventListener('result', function (ev) {
+            let text = '';
+            for (let i = 0; i < ev.results.length; i++) {
+                text += ev.results[i][0].transcript;
+            }
+            input.value = text;
+            autogrow();
+        });
+        recog.addEventListener('end', function () {
+            listening = false;
+            micBtn.classList.remove('listening');
+            // Auto-send whatever was dictated (stopping = done talking).
+            if (input.value.trim()) form.requestSubmit();
+        });
+        recog.addEventListener('error', function () {
+            listening = false;
+            micBtn.classList.remove('listening');
+        });
+
+        micBtn.hidden = false;
+        micBtn.addEventListener('click', function () {
+            if (listening) { recog.stop(); return; }
+            input.value = '';
+            try {
+                recog.start();
+                listening = true;
+                micBtn.classList.add('listening');
+            } catch (e) { /* start() throws if already running — ignore */ }
+        });
+    }
 
     showEmptyHint();
 

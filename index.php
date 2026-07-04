@@ -150,6 +150,7 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         <header class="topbar">
             <span class="brand">⚡ Kachow</span>
             <div class="topbar-actions">
+                <button type="button" id="ttsToggle" class="badge iconbtn" title="Read replies aloud" aria-pressed="false" hidden>🔊</button>
                 <?php if ($calendarConnected): ?>
                     <span class="badge ok" title="Google Calendar connected">📅 Connected</span>
                 <?php else: ?>
@@ -186,6 +187,7 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         <form id="composer" class="composer">
             <button type="button" id="newChat" class="ghost" title="Start a new conversation">＋</button>
             <textarea id="input" rows="1" placeholder="Message your assistant…" autocomplete="off"></textarea>
+            <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden>🎤</button>
             <button type="submit" id="send">Send</button>
         </form>
     </div>
