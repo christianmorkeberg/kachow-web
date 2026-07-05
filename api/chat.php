@@ -23,6 +23,7 @@ use App\Data\Calendar;
 use App\Data\Connections;
 use App\Data\Conversations;
 use App\Data\Invites;
+use App\Data\Memories;
 use App\Data\RememberTokens;
 use App\Data\UserInstructions;
 use App\Data\Users;
@@ -91,6 +92,7 @@ try {
 
     $oauth        = GoogleOAuth::fromEnv($users);
     $instructions = new UserInstructions();
+    $memories     = new Memories();
     $registry     = ToolRegistry::createStandard(
         new Workouts(),
         new Wishlist(),
@@ -101,10 +103,11 @@ try {
         NativeMailer::fromEnv(),
         new Connections(),
         new Vinyls(),
+        $memories,
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
-    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions);
+    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories);
 
     $reply = $loop->handle($userId, $conversationId, $message);
 
