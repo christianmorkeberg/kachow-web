@@ -16,6 +16,22 @@
 
 * { box-sizing: border-box; }
 
+/* Dark, thin scrollbars to match the theme (default Windows ones are light/chunky). */
+* {
+    scrollbar-width: thin;                       /* Firefox */
+    scrollbar-color: #2f4470 transparent;        /* Firefox: thumb, track */
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: #2f4470;
+    border-radius: 8px;
+    border: 2px solid transparent;               /* inset the thumb a touch */
+    background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: #3d5896; }
+::-webkit-scrollbar-corner { background: transparent; }
+
 html, body {
     margin: 0;
     height: 100%;
