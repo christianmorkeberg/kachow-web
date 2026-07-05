@@ -9,7 +9,9 @@
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send');
     const newChatBtn = document.getElementById('newChat');
-    const AVATAR_SRC = '/assets/hummingbird_no_background.gif';
+    // Still frame normally; the animated GIF only while the assistant is "thinking".
+    const AVATAR_STILL = '/assets/hummingbird_still.png';
+    const AVATAR_FLYING = '/assets/hummingbird_no_background.gif';
 
     const CONV_KEY = 'kachow.conversation_id';
     let conversationId = Number(localStorage.getItem(CONV_KEY)) || null;
@@ -100,7 +102,7 @@
             el.className = 'row assistant';
             const avatar = document.createElement('img');
             avatar.className = 'avatar';
-            avatar.src = AVATAR_SRC;
+            avatar.src = AVATAR_STILL;
             avatar.alt = '';
             avatar.setAttribute('aria-hidden', 'true');
             el.appendChild(avatar);
@@ -125,6 +127,9 @@
 
         const typing = addMessage('…', 'assistant');
         typing.classList.add('typing');
+        // Flap the wings only while thinking — swap the still frame for the GIF.
+        const typingAvatar = typing.querySelector('.avatar');
+        if (typingAvatar) typingAvatar.src = AVATAR_FLYING;
 
         try {
             const res = await fetch('/api/chat.php', {
