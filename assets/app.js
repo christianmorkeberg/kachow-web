@@ -17,7 +17,8 @@
     // Hands-free voice mode: once on, the mic stays armed across turns until the
     // user manually switches back to text (by typing) or taps the mic off.
     let voiceMode = false;
-    let quickActions = null; // cached suggestions for the empty-screen chips
+    let quickActions = null;   // cached suggestions for the empty-screen chips
+    let deviceLocation = null; // {lat, lon} from the browser, for weather etc.
 
     function showEmptyHint() {
         if (messages.children.length) return;
@@ -133,6 +134,7 @@
                 body: JSON.stringify({
                     message: text,
                     conversation_id: conversationId || undefined,
+                    location: deviceLocation || undefined,
                 }),
             });
 
@@ -352,6 +354,16 @@
 
     showEmptyHint();
     fetchQuickActions();
+
+    // Ask for location once (browser remembers the choice); used for weather etc.
+    // Silent if denied/unavailable — the assistant just falls back to named places.
+    if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            function (pos) { deviceLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude }; },
+            function () { /* denied or unavailable — fine */ },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+        );
+    }
 
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {

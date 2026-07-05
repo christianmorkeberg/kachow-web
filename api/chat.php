@@ -35,6 +35,7 @@ use App\Mail\NativeMailer;
 use App\Music\Discogs;
 use App\Support\Markdown;
 use App\Tools\ToolRegistry;
+use App\Weather\Dmi;
 
 header('Content-Type: application/json');
 
@@ -79,6 +80,13 @@ if ($message === '') {
 }
 $conversationId = isset($input['conversation_id']) ? (int) $input['conversation_id'] : 0;
 
+// Optional device location (browser geolocation) for location-based tools.
+$location = null;
+if (isset($input['location']['lat'], $input['location']['lon'])
+    && is_numeric($input['location']['lat']) && is_numeric($input['location']['lon'])) {
+    $location = ['lat' => (float) $input['location']['lat'], 'lon' => (float) $input['location']['lon']];
+}
+
 try {
     $conversations = new Conversations();
 
@@ -106,12 +114,13 @@ try {
         new Vinyls(),
         $memories,
         new ShoppingLists(),
+        Dmi::fromEnv(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories);
 
-    $reply = $loop->handle($userId, $conversationId, $message);
+    $reply = $loop->handle($userId, $conversationId, $message, $location);
 
     respond(200, [
         'reply'           => $reply,
