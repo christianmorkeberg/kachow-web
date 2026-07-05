@@ -251,6 +251,30 @@ button.ghost {
 }
 .chip:hover { border-color: var(--accent); color: #fff; }
 
+/* ---------- Interactive cards (workout plan; reusable) ---------- */
+.plan-card {
+    align-self: stretch;
+    max-width: 100%;
+    background: var(--panel);
+    border: 1px solid #22335a;
+    border-radius: 14px;
+    padding: 12px 14px;
+}
+.plan-card-title { font-weight: 700; margin-bottom: 8px; }
+.plan-day + .plan-day { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1e2d4d; }
+.plan-day-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.plan-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.plan-items li label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.plan-items input[type="checkbox"] {
+    width: 20px; height: 20px;
+    accent-color: var(--accent);
+    flex: 0 0 auto;
+    cursor: pointer;
+}
+.plan-items li.done span { text-decoration: line-through; color: var(--muted); }
+.plan-empty { color: var(--muted); font-size: 14px; }
+.plan-logged { font-size: 12px; color: var(--ok); margin-left: 4px; }
+
 /* Rendered markdown inside assistant bubbles */
 .msg.assistant > :first-child { margin-top: 0; }
 .msg.assistant > :last-child { margin-bottom: 0; }

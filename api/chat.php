@@ -30,6 +30,7 @@ use App\Data\UserInstructions;
 use App\Data\Users;
 use App\Data\Vinyls;
 use App\Data\Wishlist;
+use App\Data\WorkoutPlans;
 use App\Data\Workouts;
 use App\Mail\NativeMailer;
 use App\Music\Discogs;
@@ -102,8 +103,9 @@ try {
     $oauth        = GoogleOAuth::fromEnv($users);
     $instructions = new UserInstructions();
     $memories     = new Memories();
+    $workouts     = new Workouts();
     $registry     = ToolRegistry::createStandard(
-        new Workouts(),
+        $workouts,
         new Wishlist(),
         new Calendar($oauth),
         $instructions,
@@ -115,6 +117,7 @@ try {
         $memories,
         new ShoppingLists(),
         Dmi::fromEnv(),
+        new WorkoutPlans(null, $workouts),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
@@ -126,6 +129,7 @@ try {
         'reply'           => $reply,
         'reply_html'      => Markdown::toHtml($reply),
         'conversation_id' => $conversationId,
+        'card'            => $loop->lastRender(),
     ]);
 } catch (\Throwable $e) {
     // Log detail server-side; never leak internals to the client.

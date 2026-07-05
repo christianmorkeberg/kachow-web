@@ -114,6 +114,92 @@
         return el;
     }
 
+    // Render an interactive card (currently: workout plan with tickboxes).
+    function renderCard(card) {
+        if (!card || card.kind !== 'workout_plan') return;
+        clearEmptyHint();
+
+        const wrap = document.createElement('div');
+        wrap.className = 'plan-card';
+
+        if (card.title) {
+            const h = document.createElement('div');
+            h.className = 'plan-card-title';
+            h.textContent = card.title + (typeof card.remaining === 'number' ? ' · ' + card.remaining + ' left' : '');
+            wrap.appendChild(h);
+        }
+
+        const days = Array.isArray(card.days) ? card.days : [];
+        days.forEach(function (day) {
+            const dayEl = document.createElement('div');
+            dayEl.className = 'plan-day';
+
+            const head = document.createElement('div');
+            head.className = 'plan-day-head';
+            head.textContent = day.weekday + ' · ' + day.date + (day.plan_title ? ' — ' + day.plan_title : '');
+            dayEl.appendChild(head);
+
+            const items = Array.isArray(day.items) ? day.items : [];
+            if (!items.length) {
+                const empty = document.createElement('div');
+                empty.className = 'plan-empty';
+                empty.textContent = 'No exercises planned.';
+                dayEl.appendChild(empty);
+            } else {
+                const ul = document.createElement('ul');
+                ul.className = 'plan-items';
+                items.forEach(function (it) {
+                    const li = document.createElement('li');
+                    if (it.done) li.classList.add('done');
+                    const label = document.createElement('label');
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.checked = !!it.done;
+                    cb.addEventListener('change', function () { togglePlanItem(cb, it.id); });
+                    const span = document.createElement('span');
+                    span.textContent = it.label;
+                    label.appendChild(cb);
+                    label.appendChild(span);
+                    li.appendChild(label);
+                    ul.appendChild(li);
+                });
+                dayEl.appendChild(ul);
+            }
+            wrap.appendChild(dayEl);
+        });
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function togglePlanItem(cb, itemId) {
+        const want = cb.checked;
+        const li = cb.closest('li');
+        cb.disabled = true;
+        fetch('/api/workout-plan.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ item_id: itemId, done: want }),
+        })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(function (data) {
+                cb.disabled = false;
+                if (li) li.classList.toggle('done', want);
+                if (want && data && data.also_logged && li) {
+                    const tag = document.createElement('span');
+                    tag.className = 'plan-logged';
+                    tag.textContent = 'logged ✓';
+                    li.appendChild(tag);
+                    setTimeout(function () { tag.remove(); }, 2500);
+                }
+            })
+            .catch(function () {
+                cb.disabled = false;
+                cb.checked = !want; // revert on failure
+            });
+    }
+
     function autogrow() {
         input.style.height = 'auto';
         input.style.height = Math.min(input.scrollHeight, 140) + 'px';
@@ -162,6 +248,7 @@
             }
             addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
             speak(data.reply || '');
+            if (data.card) renderCard(data.card);
         } catch (err) {
             typing.remove();
             addMessage('Network error. Please try again.', 'error');
