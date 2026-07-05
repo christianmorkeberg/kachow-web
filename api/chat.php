@@ -25,6 +25,7 @@ use App\Data\Conversations;
 use App\Data\Invites;
 use App\Data\Memories;
 use App\Data\RememberTokens;
+use App\Data\ShoppingLists;
 use App\Data\UserInstructions;
 use App\Data\Users;
 use App\Data\Vinyls;
@@ -104,6 +105,7 @@ try {
         new Connections(),
         new Vinyls(),
         $memories,
+        new ShoppingLists(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
