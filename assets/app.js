@@ -17,14 +17,60 @@
     // Hands-free voice mode: once on, the mic stays armed across turns until the
     // user manually switches back to text (by typing) or taps the mic off.
     let voiceMode = false;
+    let quickActions = null; // cached suggestions for the empty-screen chips
 
     function showEmptyHint() {
-        if (!messages.children.length) {
-            const hint = document.createElement('div');
-            hint.className = 'empty';
-            hint.textContent = 'Ask about your workouts, wishlist, or calendar.';
-            messages.appendChild(hint);
+        if (messages.children.length) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'empty';
+        const hint = document.createElement('div');
+        hint.className = 'empty-hint';
+        hint.textContent = 'Ask about your shopping list, workouts, or calendar.';
+        wrap.appendChild(hint);
+        const chips = document.createElement('div');
+        chips.className = 'chips';
+        wrap.appendChild(chips);
+        messages.appendChild(wrap);
+        renderChips(chips);
+    }
+
+    // Quick-action chips: frequent-first suggestions from the server.
+    function renderChips(container) {
+        if (!quickActions || !quickActions.length) return;
+        container.innerHTML = '';
+        quickActions.forEach(function (text) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'chip';
+            b.textContent = text;
+            b.addEventListener('click', function () { onChip(text); });
+            container.appendChild(b);
+        });
+    }
+
+    function onChip(text) {
+        const t = String(text).trim();
+        // Templates end in "…" (or "..."): drop into the box to finish; others send.
+        if (/(…|\.\.\.)$/.test(t)) {
+            input.value = t.replace(/\s*(…|\.\.\.)\s*$/, '') + ' ';
+            autogrow();
+            input.focus();
+        } else {
+            send(text);
         }
+    }
+
+    function fetchQuickActions() {
+        fetch('/api/quick-actions.php', { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (data && Array.isArray(data.actions)) {
+                    quickActions = data.actions;
+                    const chips = messages.querySelector('.empty .chips');
+                    if (chips) renderChips(chips);
+                }
+            })
+            .catch(function () { /* non-fatal */ });
     }
 
     function clearEmptyHint() {
@@ -305,6 +351,7 @@
     }
 
     showEmptyHint();
+    fetchQuickActions();
 
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {

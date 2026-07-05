@@ -227,7 +227,29 @@ button.ghost {
 .msg.error { align-self: flex-start; background: #2a1414; border: 1px solid #5a2020; color: #fecaca; }
 .msg.typing,
 .row.typing .msg { color: var(--muted); font-style: italic; }
-.empty { margin: auto; color: var(--muted); text-align: center; }
+.empty { margin: auto; color: var(--muted); text-align: center; padding: 0 12px; }
+.empty-hint { margin-bottom: 4px; }
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 18px;
+    max-width: 540px;
+}
+.chip {
+    background: var(--panel-2);
+    border: 1px solid #26375c;
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); color: #fff; }
 
 /* Rendered markdown inside assistant bubbles */
 .msg.assistant > :first-child { margin-top: 0; }
