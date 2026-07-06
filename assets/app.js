@@ -114,11 +114,30 @@
         return el;
     }
 
-    // Render an interactive card (currently: workout plan with tickboxes).
+    // Render an interactive checklist card. Supports workout plans (days of
+    // exercises → /api/workout-plan.php) and shopping lists (items → /api/shopping-list.php).
     function renderCard(card) {
-        if (!card || card.kind !== 'workout_plan') return;
-        clearEmptyHint();
+        if (!card || !card.kind) return;
 
+        let sections, endpoint, doneKey;
+        if (card.kind === 'workout_plan') {
+            endpoint = '/api/workout-plan.php';
+            doneKey = 'done';
+            sections = (card.days || []).map(function (d) {
+                return {
+                    head: d.weekday + ' · ' + d.date + (d.plan_title ? ' — ' + d.plan_title : ''),
+                    items: d.items || [],
+                };
+            });
+        } else if (card.kind === 'shopping_list') {
+            endpoint = '/api/shopping-list.php';
+            doneKey = 'checked';
+            sections = [{ head: null, items: card.items || [] }];
+        } else {
+            return;
+        }
+
+        clearEmptyHint();
         const wrap = document.createElement('div');
         wrap.className = 'plan-card';
 
@@ -129,33 +148,31 @@
             wrap.appendChild(h);
         }
 
-        const days = Array.isArray(card.days) ? card.days : [];
-        days.forEach(function (day) {
-            const dayEl = document.createElement('div');
-            dayEl.className = 'plan-day';
-
-            const head = document.createElement('div');
-            head.className = 'plan-day-head';
-            head.textContent = day.weekday + ' · ' + day.date + (day.plan_title ? ' — ' + day.plan_title : '');
-            dayEl.appendChild(head);
-
-            const items = Array.isArray(day.items) ? day.items : [];
-            if (!items.length) {
+        sections.forEach(function (sec) {
+            const secEl = document.createElement('div');
+            secEl.className = 'plan-day';
+            if (sec.head) {
+                const head = document.createElement('div');
+                head.className = 'plan-day-head';
+                head.textContent = sec.head;
+                secEl.appendChild(head);
+            }
+            if (!sec.items.length) {
                 const empty = document.createElement('div');
                 empty.className = 'plan-empty';
-                empty.textContent = 'No exercises planned.';
-                dayEl.appendChild(empty);
+                empty.textContent = 'Nothing here yet.';
+                secEl.appendChild(empty);
             } else {
                 const ul = document.createElement('ul');
                 ul.className = 'plan-items';
-                items.forEach(function (it) {
+                sec.items.forEach(function (it) {
                     const li = document.createElement('li');
                     if (it.done) li.classList.add('done');
                     const label = document.createElement('label');
                     const cb = document.createElement('input');
                     cb.type = 'checkbox';
                     cb.checked = !!it.done;
-                    cb.addEventListener('change', function () { togglePlanItem(cb, it.id); });
+                    cb.addEventListener('change', function () { toggleCardItem(cb, it.id, endpoint, doneKey); });
                     const span = document.createElement('span');
                     span.textContent = it.label;
                     label.appendChild(cb);
@@ -163,24 +180,26 @@
                     li.appendChild(label);
                     ul.appendChild(li);
                 });
-                dayEl.appendChild(ul);
+                secEl.appendChild(ul);
             }
-            wrap.appendChild(dayEl);
+            wrap.appendChild(secEl);
         });
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
 
-    function togglePlanItem(cb, itemId) {
+    function toggleCardItem(cb, itemId, endpoint, doneKey) {
         const want = cb.checked;
         const li = cb.closest('li');
         cb.disabled = true;
-        fetch('/api/workout-plan.php', {
+        const body = { item_id: itemId };
+        body[doneKey] = want;
+        fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({ item_id: itemId, done: want }),
+            body: JSON.stringify(body),
         })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
             .then(function (data) {
