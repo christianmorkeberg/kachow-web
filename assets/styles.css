@@ -232,24 +232,25 @@ button.ghost {
 .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
     justify-content: center;
     margin-top: 18px;
     max-width: 540px;
 }
 .chip {
-    background: var(--panel-2);
-    border: 1px solid #26375c;
-    color: var(--text);
+    background: transparent;
+    border: 1px solid #263452;
+    color: var(--muted);
     border-radius: 999px;
-    padding: 8px 14px;
+    padding: 7px 13px;
     font: inherit;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     line-height: 1.2;
     cursor: pointer;
+    transition: border-color .15s ease, color .15s ease;
 }
-.chip:hover { border-color: var(--accent); color: #fff; }
+.chip:hover { border-color: #3a4d75; color: var(--text); }
 
 /* ---------- Interactive cards (workout plan; reusable) ---------- */
 .plan-card {
@@ -375,4 +376,9 @@ button.iconbtn.on {
     .logout .label { display: none; }       /* log out → door icon */
     .logout .icon { display: inline; }
     .avatar { width: 32px; height: 32px; }
+
+    /* Quick-action chips: keep them small and well-spaced so they don't
+       collide when they wrap on a narrow phone. */
+    .chips { gap: 8px 8px; max-width: 100%; }
+    .chip { font-size: 12.5px; padding: 6px 11px; }
 }
