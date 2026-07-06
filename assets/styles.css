@@ -264,13 +264,36 @@ button.ghost {
 .plan-day + .plan-day { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1e2d4d; }
 .plan-day-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .plan-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.plan-items li label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.plan-items li label { display: flex; align-items: center; gap: 11px; cursor: pointer; }
 .plan-items input[type="checkbox"] {
-    width: 20px; height: 20px;
-    accent-color: var(--accent);
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px; height: 22px;
     flex: 0 0 auto;
+    margin: 0;
+    border: 2px solid #3a4d75;
+    border-radius: 6px;
+    background: var(--panel-2);
     cursor: pointer;
+    position: relative;
+    transition: background .15s ease, border-color .15s ease;
 }
+.plan-items input[type="checkbox"]:hover { border-color: var(--accent); }
+.plan-items input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+/* Drawn checkmark (rotated border) in the dark ink colour, visible on the blue fill. */
+.plan-items input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 6px; top: 2px;
+    width: 6px; height: 11px;
+    border: solid var(--accent-ink);
+    border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg);
+}
+.plan-items input[type="checkbox"]:disabled { opacity: .5; cursor: default; }
 .plan-items li.done span { text-decoration: line-through; color: var(--muted); }
 .plan-empty { color: var(--muted); font-size: 14px; }
 .plan-logged { font-size: 12px; color: var(--ok); margin-left: 4px; }
