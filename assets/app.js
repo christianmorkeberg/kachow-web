@@ -192,6 +192,16 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
+    // Deterministic colour per calendar name, so an event's dot is stable across
+    // renders and two calendars rarely collide.
+    const CAL_PALETTE = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#fb7185', '#22d3ee', '#f59e0b'];
+    function calColor(name) {
+        const s = String(name || '');
+        let h = 0;
+        for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+        return CAL_PALETTE[h % CAL_PALETTE.length];
+    }
+
     // Read-only calendar agenda: days, each with a list of events (time + title).
     function renderAgenda(card) {
         clearEmptyHint();
@@ -237,19 +247,43 @@
 
                 const body = document.createElement('span');
                 body.className = 'agenda-body';
+
                 const title = document.createElement('span');
                 title.className = 'agenda-title';
-                title.textContent = ev.summary;
+                if (ev.calendar) {
+                    // A colour dot keyed to the calendar name — same calendar, same colour.
+                    const dot = document.createElement('span');
+                    dot.className = 'cal-dot';
+                    dot.style.background = calColor(ev.calendar);
+                    title.appendChild(dot);
+                }
+                title.appendChild(document.createTextNode(ev.summary));
                 body.appendChild(title);
-                if (ev.location) {
-                    const loc = document.createElement('span');
-                    loc.className = 'agenda-meta';
-                    loc.textContent = ev.location;
-                    body.appendChild(loc);
+
+                // Meta line: which calendar it's from, then location if any.
+                const metaBits = [];
+                if (ev.calendar) metaBits.push(ev.calendar);
+                if (ev.location) metaBits.push(ev.location);
+                if (metaBits.length) {
+                    const meta = document.createElement('span');
+                    meta.className = 'agenda-meta';
+                    meta.textContent = metaBits.join(' · ');
+                    body.appendChild(meta);
                 }
 
                 li.appendChild(time);
                 li.appendChild(body);
+
+                // Tap an event to drop a reference to it into the composer, so a
+                // follow-up like "move to 4pm" / "delete it" is unambiguous.
+                li.tabIndex = 0;
+                li.title = 'Tap to ask about this event';
+                const pick = function () { prefillEvent(d, ev); };
+                li.addEventListener('click', pick);
+                li.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+                });
+
                 ul.appendChild(li);
             });
             dayEl.appendChild(ul);
@@ -258,6 +292,21 @@
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Put a plain-language reference to an event into the composer, ready for the
+    // user to finish (e.g. "… delete it" / "… move to 16:00"). Enough detail
+    // (title + day + start time) for the assistant to find the right event.
+    function prefillEvent(day, ev) {
+        const start = ev.all_day ? (day.weekday + ' ' + day.label + ' (all day)')
+                                 : (day.weekday + ' ' + day.label + ' at ' + String(ev.time).split('–')[0]);
+        input.value = 'My "' + ev.summary + '" event on ' + start + ' — ';
+        autogrow();
+        if (voiceMode) exitVoiceMode();
+        input.focus();
+        // Land the caret at the end so they type straight after the dash.
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch (e) { /* ignore */ }
     }
 
     function toggleCardItem(cb, itemId, endpoint, doneKey) {
