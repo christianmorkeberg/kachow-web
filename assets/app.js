@@ -121,6 +121,7 @@
 
         // Calendar agenda is display-only (read from Google), so it has its own renderer.
         if (card.kind === 'agenda') { renderAgenda(card); return; }
+        if (card.kind === 'weather') { renderWeather(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -321,6 +322,164 @@
         try { input.setSelectionRange(len, len); } catch (e) { /* ignore */ }
     }
 
+    // Loose weather-intent check (EN + DA) so we can show a themed waiting animation.
+    function looksLikeWeather(text) {
+        return /(weather|forecast|temperature|rain|snow|sunny|sun\b|windy|cloud|storm|degrees|umbrella|vejr|regn|sne|solen|solskin|temperatur|vind|blæs|skyet|grader|paraply|byge)/i.test(String(text || ''));
+    }
+
+    // Replace the "…" thinking bubble with a row of bobbing sky glyphs.
+    function showWeatherWait(row) {
+        var bubble = row.querySelector('.msg');
+        if (!bubble) return;
+        bubble.classList.add('wx-wait');
+        bubble.textContent = '';
+        ['☀️', '⛅', '🌧️', '🌙', '⭐'].forEach(function (g, i) {
+            var s = document.createElement('span');
+            s.className = 'wx-wait-glyph';
+            s.textContent = g;
+            s.style.animationDelay = (i * 0.16) + 's';
+            bubble.appendChild(s);
+        });
+    }
+
+    // Pick a weather glyph + animation class from cloud cover, rain, and day/night.
+    // Returns { glyph, anim } where anim drives a small CSS animation.
+    function wxSymbol(cloudPct, precipMm, isNight) {
+        var p = (precipMm == null) ? 0 : precipMm;
+        if (p >= 2)   return { glyph: '🌧️', anim: 'rain' };
+        if (p >= 0.2) return { glyph: isNight ? '🌧️' : '🌦️', anim: 'rain' };
+        if (cloudPct == null) return isNight ? { glyph: '🌙', anim: 'glow' } : { glyph: '☀️', anim: 'spin' };
+        if (cloudPct >= 85) return { glyph: '☁️', anim: 'drift' };
+        if (cloudPct >= 45) return isNight ? { glyph: '☁️', anim: 'drift' } : { glyph: '⛅', anim: 'drift' };
+        return isNight ? { glyph: '🌙', anim: 'glow' } : { glyph: '☀️', anim: 'spin' };
+    }
+
+    function wxSymbolEl(cloudPct, precipMm, isNight, cls) {
+        var s = wxSymbol(cloudPct, precipMm, isNight);
+        var el = document.createElement('span');
+        el.className = (cls || 'wx-sym') + ' wx-' + s.anim;
+        el.textContent = s.glyph;
+        el.setAttribute('aria-hidden', 'true');
+        return el;
+    }
+
+    function hourOf(str) {
+        // "2026-07-10 15:00" or "15:00" -> 15
+        var m = String(str).match(/(\d{1,2}):\d{2}\s*$/);
+        return m ? parseInt(m[1], 10) : 12;
+    }
+    function isNightHour(h) { return h < 6 || h >= 21; }
+    function fmtTemp(t) { return (t == null) ? '–' : Math.round(t) + '°'; }
+
+    // Weather card: an optional "now" hero, an optional hourly strip, and daily rows.
+    function renderWeather(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card weather-card';
+
+        if (card.title) {
+            var h = document.createElement('div');
+            h.className = 'plan-card-title';
+            h.textContent = card.title;
+            wrap.appendChild(h);
+        }
+
+        // Current conditions hero.
+        if (card.current) {
+            var c = card.current;
+            var night = isNightHour(new Date().getHours());
+            var hero = document.createElement('div');
+            hero.className = 'wx-now';
+            hero.appendChild(wxSymbolEl(null, c.precip_mm, night, 'wx-now-sym'));
+
+            var main = document.createElement('div');
+            main.className = 'wx-now-main';
+            var temp = document.createElement('div');
+            temp.className = 'wx-now-temp';
+            temp.textContent = fmtTemp(c.temp_c);
+            main.appendChild(temp);
+
+            var bits = [];
+            if (c.wind_ms != null) bits.push('💨 ' + Math.round(c.wind_ms) + ' m/s' + (c.wind_from ? ' ' + c.wind_from : ''));
+            if (c.humidity_pct != null) bits.push('💧 ' + Math.round(c.humidity_pct) + '%');
+            if (c.precip_mm != null && c.precip_mm > 0) bits.push('🌧️ ' + c.precip_mm + ' mm');
+            if (bits.length) {
+                var stats = document.createElement('div');
+                stats.className = 'wx-now-stats';
+                stats.textContent = bits.join('   ');
+                main.appendChild(stats);
+            }
+            hero.appendChild(main);
+            wrap.appendChild(hero);
+        }
+
+        // Hourly strip (forecast).
+        var hourly = card.hourly || [];
+        if (hourly.length) {
+            var strip = document.createElement('div');
+            strip.className = 'wx-hourly';
+            hourly.forEach(function (hr) {
+                var hh = hourOf(hr.time);
+                var cell = document.createElement('div');
+                cell.className = 'wx-hour';
+                var t = document.createElement('div');
+                t.className = 'wx-hour-time';
+                t.textContent = (hh < 10 ? '0' + hh : hh) + ':00';
+                cell.appendChild(t);
+                cell.appendChild(wxSymbolEl(hr.cloud_pct, hr.precip_mm, isNightHour(hh)));
+                var tp = document.createElement('div');
+                tp.className = 'wx-hour-temp';
+                tp.textContent = fmtTemp(hr.temp_c);
+                cell.appendChild(tp);
+                if (hr.precip_mm != null && hr.precip_mm >= 0.1) {
+                    var pr = document.createElement('div');
+                    pr.className = 'wx-hour-precip';
+                    pr.textContent = hr.precip_mm + 'mm';
+                    cell.appendChild(pr);
+                }
+                strip.appendChild(cell);
+            });
+            wrap.appendChild(strip);
+        }
+
+        // Daily rows (forecast).
+        var days = card.days || [];
+        if (days.length) {
+            var list = document.createElement('div');
+            list.className = 'wx-days';
+            days.forEach(function (d) {
+                var row = document.createElement('div');
+                row.className = 'wx-day';
+
+                var name = document.createElement('span');
+                name.className = 'wx-day-name';
+                name.textContent = (d.weekday || '').slice(0, 3);
+                row.appendChild(name);
+
+                row.appendChild(wxSymbolEl(d.cloud_avg_pct, d.precip_mm, false));
+
+                var range = document.createElement('span');
+                range.className = 'wx-day-temp';
+                range.textContent = fmtTemp(d.temp_min_c) + ' / ' + fmtTemp(d.temp_max_c);
+                row.appendChild(range);
+
+                var extra = document.createElement('span');
+                extra.className = 'wx-day-extra';
+                var ex = [];
+                if (d.precip_mm != null && d.precip_mm > 0) ex.push('🌧️ ' + d.precip_mm + ' mm');
+                if (d.wind_max_ms != null) ex.push('💨 ' + Math.round(d.wind_max_ms));
+                extra.textContent = ex.join('  ');
+                row.appendChild(extra);
+
+                list.appendChild(row);
+            });
+            wrap.appendChild(list);
+        }
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
     function toggleCardItem(cb, itemId, endpoint, doneKey) {
         const want = cb.checked;
         const li = cb.closest('li');
@@ -367,6 +526,9 @@
         // Flap the wings only while thinking — swap the still frame for the GIF.
         const typingAvatar = typing.querySelector('.avatar');
         if (typingAvatar) typingAvatar.src = AVATAR_FLYING;
+        // Weather questions can be slow (DMI retries), so show a playful sky
+        // animation in the thinking bubble instead of the plain "…".
+        if (looksLikeWeather(text)) showWeatherWait(typing);
 
         try {
             const res = await fetch('/api/chat.php', {
