@@ -192,14 +192,24 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    // Deterministic colour per calendar name, so an event's dot is stable across
-    // renders and two calendars rarely collide.
-    const CAL_PALETTE = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#fb7185', '#22d3ee', '#f59e0b'];
-    function calColor(name) {
-        const s = String(name || '');
-        let h = 0;
-        for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
-        return CAL_PALETTE[h % CAL_PALETTE.length];
+    // Well-spread hues so distinct calendars are easy to tell apart.
+    const CAL_PALETTE = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#f87171', '#fb923c', '#a3e635'];
+
+    // Assign colours by first-appearance order within a card, so the calendars
+    // actually shown get maximally-different colours (no hash collisions).
+    function makeCalColorMap(days) {
+        const map = {};
+        let next = 0;
+        (days || []).forEach(function (d) {
+            (d.events || []).forEach(function (ev) {
+                const name = ev.calendar;
+                if (name && !(name in map)) {
+                    map[name] = CAL_PALETTE[next % CAL_PALETTE.length];
+                    next++;
+                }
+            });
+        });
+        return map;
     }
 
     // Read-only calendar agenda: days, each with a list of events (time + title).
@@ -225,6 +235,8 @@
             messages.scrollTop = messages.scrollHeight;
             return;
         }
+
+        const calColors = makeCalColorMap(days);
 
         days.forEach(function (d) {
             const dayEl = document.createElement('div');
@@ -254,7 +266,7 @@
                     // A colour dot keyed to the calendar name — same calendar, same colour.
                     const dot = document.createElement('span');
                     dot.className = 'cal-dot';
-                    dot.style.background = calColor(ev.calendar);
+                    dot.style.background = calColors[ev.calendar];
                     title.appendChild(dot);
                 }
                 title.appendChild(document.createTextNode(ev.summary));
