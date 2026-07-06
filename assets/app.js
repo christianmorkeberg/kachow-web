@@ -119,6 +119,9 @@
     function renderCard(card) {
         if (!card || !card.kind) return;
 
+        // Calendar agenda is display-only (read from Google), so it has its own renderer.
+        if (card.kind === 'agenda') { renderAgenda(card); return; }
+
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
             endpoint = '/api/workout-plan.php';
@@ -183,6 +186,74 @@
                 secEl.appendChild(ul);
             }
             wrap.appendChild(secEl);
+        });
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Read-only calendar agenda: days, each with a list of events (time + title).
+    function renderAgenda(card) {
+        clearEmptyHint();
+        const wrap = document.createElement('div');
+        wrap.className = 'plan-card agenda-card';
+
+        if (card.title) {
+            const h = document.createElement('div');
+            h.className = 'plan-card-title';
+            h.textContent = card.title;
+            wrap.appendChild(h);
+        }
+
+        const days = card.days || [];
+        if (!days.length) {
+            const empty = document.createElement('div');
+            empty.className = 'plan-empty';
+            empty.textContent = 'Nothing scheduled.';
+            wrap.appendChild(empty);
+            messages.appendChild(wrap);
+            messages.scrollTop = messages.scrollHeight;
+            return;
+        }
+
+        days.forEach(function (d) {
+            const dayEl = document.createElement('div');
+            dayEl.className = 'plan-day';
+
+            const head = document.createElement('div');
+            head.className = 'plan-day-head';
+            head.textContent = d.weekday + ' · ' + d.label;
+            dayEl.appendChild(head);
+
+            const ul = document.createElement('ul');
+            ul.className = 'agenda-items';
+            (d.events || []).forEach(function (ev) {
+                const li = document.createElement('li');
+                if (ev.all_day) li.classList.add('all-day');
+
+                const time = document.createElement('span');
+                time.className = 'agenda-time';
+                time.textContent = ev.time;
+
+                const body = document.createElement('span');
+                body.className = 'agenda-body';
+                const title = document.createElement('span');
+                title.className = 'agenda-title';
+                title.textContent = ev.summary;
+                body.appendChild(title);
+                if (ev.location) {
+                    const loc = document.createElement('span');
+                    loc.className = 'agenda-meta';
+                    loc.textContent = ev.location;
+                    body.appendChild(loc);
+                }
+
+                li.appendChild(time);
+                li.appendChild(body);
+                ul.appendChild(li);
+            });
+            dayEl.appendChild(ul);
+            wrap.appendChild(dayEl);
         });
 
         messages.appendChild(wrap);
