@@ -122,6 +122,7 @@
         // Calendar agenda is display-only (read from Google), so it has its own renderer.
         if (card.kind === 'agenda') { renderAgenda(card); return; }
         if (card.kind === 'weather') { renderWeather(card); return; }
+        if (card.kind === 'work_hours') { renderWorkHours(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -340,6 +341,64 @@
             s.style.animationDelay = (i * 0.16) + 's';
             bubble.appendChild(s);
         });
+    }
+
+    // Read-only work-hours card: a big total + the day's sessions (in–out).
+    function renderWorkHours(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card work-card';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = (card.title || 'Work') + (card.range && card.range !== card.title ? ' · ' + card.range : '');
+        wrap.appendChild(head);
+
+        var total = document.createElement('div');
+        total.className = 'work-total';
+        total.textContent = card.total || '0m';
+        if (card.ongoing) {
+            var live = document.createElement('span');
+            live.className = 'work-live';
+            live.textContent = 'on the clock';
+            total.appendChild(live);
+        }
+        wrap.appendChild(total);
+
+        var sessions = card.sessions || [];
+        if (sessions.length) {
+            var list = document.createElement('ul');
+            list.className = 'work-sessions';
+            sessions.forEach(function (s) {
+                var li = document.createElement('li');
+                var when = document.createElement('span');
+                when.className = 'work-when';
+                when.textContent = s.day + '  ' + s.in + ' – ' + (s.out || (s.ongoing ? 'now' : '?'));
+                var dur = document.createElement('span');
+                dur.className = 'work-dur';
+                dur.textContent = s.duration;
+                li.appendChild(when);
+                li.appendChild(dur);
+                list.appendChild(li);
+            });
+            wrap.appendChild(list);
+        } else {
+            var empty = document.createElement('div');
+            empty.className = 'plan-empty';
+            empty.textContent = 'No time logged yet.';
+            wrap.appendChild(empty);
+        }
+
+        if ((card.needs_fix || []).length) {
+            var warn = document.createElement('div');
+            warn.className = 'work-warn';
+            var f = card.needs_fix[0];
+            warn.textContent = '⚠ No clock-out for ' + f.day + ' (in at ' + f.in + '). Tell me when you left.';
+            wrap.appendChild(warn);
+        }
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
     }
 
     // Pick a weather glyph + animation class from cloud cover, rain, and day/night.

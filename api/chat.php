@@ -19,6 +19,7 @@ use App\Assistant\GeminiClient;
 use App\Auth\GoogleOAuth;
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\ApiTokens;
 use App\Data\Calendar;
 use App\Data\Connections;
 use App\Data\Conversations;
@@ -30,6 +31,7 @@ use App\Data\UserInstructions;
 use App\Data\Users;
 use App\Data\Vinyls;
 use App\Data\Wishlist;
+use App\Data\WorkEvents;
 use App\Data\WorkoutPlans;
 use App\Data\Workouts;
 use App\Mail\NativeMailer;
@@ -118,6 +120,8 @@ try {
         new ShoppingLists(),
         Dmi::fromEnv(),
         new WorkoutPlans(null, $workouts),
+        new WorkEvents(),
+        new ApiTokens(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();

@@ -387,6 +387,22 @@ button.ghost {
 @keyframes wx-glow  { 0%, 100% { opacity: .7; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
 @keyframes wx-drift { 0%, 100% { transform: translateX(-2px); } 50% { transform: translateX(3px); } }
 @keyframes wx-rain  { 0%, 100% { transform: translateY(-1px); } 50% { transform: translateY(2px); } }
+/* ---------- Work-hours card ---------- */
+.work-total { font-size: 30px; font-weight: 700; margin: 2px 0 8px; display: flex; align-items: baseline; gap: 10px; }
+.work-live {
+    font-size: 12px; font-weight: 600;
+    color: var(--ok);
+    border: 1px solid #1f5a44; border-radius: 999px;
+    padding: 2px 9px;
+    animation: wx-glow 2.4s ease-in-out infinite;
+}
+.work-sessions { list-style: none; margin: 0; padding: 0; border-top: 1px solid #1e2d4d; }
+.work-sessions li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.work-sessions li + li { border-top: 1px solid #16233f; }
+.work-when { color: var(--text); font-variant-numeric: tabular-nums; }
+.work-dur { color: var(--muted); flex: 0 0 auto; }
+.work-warn { margin-top: 8px; font-size: 13px; color: var(--warn); }
+
 /* Playful "waiting for the weather API" animation in the thinking bubble. */
 .wx-wait { display: inline-flex; gap: 5px; font-style: normal; }
 .wx-wait-glyph {
