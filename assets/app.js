@@ -442,6 +442,31 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
+    // Full-screen image preview. Click anywhere or press Esc to close.
+    function openLightbox(url) {
+        var box = document.createElement('div');
+        box.className = 'lightbox';
+        var img = document.createElement('img');
+        img.src = url;
+        img.alt = 'receipt';
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'lightbox-close';
+        close.setAttribute('aria-label', 'Close');
+        close.textContent = '✕';
+        box.appendChild(img);
+        box.appendChild(close);
+
+        function dismiss() {
+            box.remove();
+            document.removeEventListener('keydown', onKey);
+        }
+        function onKey(e) { if (e.key === 'Escape') dismiss(); }
+        box.addEventListener('click', dismiss);
+        document.addEventListener('keydown', onKey);
+        document.body.appendChild(box);
+    }
+
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.
     function renderReceipt(card) {
         clearEmptyHint();
@@ -466,7 +491,7 @@
             img.className = 'receipt-thumb';
             img.src = card.image_url;
             img.alt = 'receipt';
-            img.addEventListener('click', function () { window.open(card.image_url, '_blank'); });
+            img.addEventListener('click', function () { openLightbox(card.image_url); });
             wrap.appendChild(img);
         }
 
@@ -553,6 +578,7 @@
         thumb.className = 'receipt-thumb-msg';
         thumb.src = URL.createObjectURL(file);
         thumb.alt = 'receipt';
+        thumb.addEventListener('click', function () { openLightbox(thumb.src); });
         bubble.appendChild(thumb);
 
         var typing = addMessage('Reading the receipt…', 'assistant');
