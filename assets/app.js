@@ -398,9 +398,18 @@
             list.className = 'exp-list';
             items.forEach(function (it) {
                 var li = document.createElement('li');
-                var left = document.createElement('span');
+                var left = document.createElement('div');
                 left.className = 'exp-when';
-                left.textContent = (it.date || '') + '  ' + (it.vendor || '');
+                var main = document.createElement('div');
+                main.className = 'exp-main';
+                main.textContent = (it.date || '') + '  ' + (it.vendor || '');
+                left.appendChild(main);
+                if (it.note) {
+                    var noteEl = document.createElement('div');
+                    noteEl.className = 'exp-note';
+                    noteEl.textContent = it.note;
+                    left.appendChild(noteEl);
+                }
                 var right = document.createElement('span');
                 right.className = 'exp-amt';
                 right.textContent = fmtMoney(it.total, it.currency);
