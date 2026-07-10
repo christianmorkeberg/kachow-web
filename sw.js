@@ -29,6 +29,34 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
+// ---------- Push notifications ----------
+self.addEventListener('push', (event) => {
+    let data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+    const title = data.title || 'Kachow';
+    const options = {
+        body: data.body || '',
+        icon: '/assets/icon-192.png',
+        badge: '/assets/icon-192.png',
+        data: { url: data.url || '/' },
+        tag: data.type || 'kachow',   // same type replaces, doesn't stack
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const target = (event.notification.data && event.notification.data.url) || '/';
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+            for (const client of clients) {
+                if ('focus' in client) { client.navigate(target); return client.focus(); }
+            }
+            return self.clients.openWindow(target);
+        })
+    );
+});
+
 self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET') return;

@@ -855,4 +855,194 @@
             navigator.serviceWorker.register('/sw.js').catch(function () { /* non-fatal */ });
         });
     }
+
+    // ---------- Push notifications ----------
+    (function initNotifications() {
+        var btn = document.getElementById('notifBtn');
+        var modal = document.getElementById('notifModal');
+        var body = document.getElementById('notifBody');
+        var closeBtn = document.getElementById('notifClose');
+        if (!btn || !modal || !body) return;
+
+        var pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+        var config = null; // { supported, public_key, types }
+
+        // iOS only allows push for the installed Home-Screen app.
+        function isStandalone() {
+            return window.navigator.standalone === true ||
+                (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        }
+        function isiOS() { return /iP(hone|ad|od)/.test(navigator.userAgent); }
+
+        btn.hidden = false;
+        btn.addEventListener('click', openModal);
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+
+        function openModal() { modal.hidden = false; render(); loadConfig(); }
+        function closeModal() { modal.hidden = true; }
+
+        function urlBase64ToUint8Array(base64String) {
+            var padding = '='.repeat((4 - base64String.length % 4) % 4);
+            var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var raw = atob(base64);
+            var arr = new Uint8Array(raw.length);
+            for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+            return arr;
+        }
+
+        function api(payload) {
+            return fetch('/api/push.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            }).then(function (r) { return r.json(); });
+        }
+
+        function loadConfig() {
+            fetch('/api/push.php', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) { config = data; render(); })
+                .catch(function () { /* leave placeholder */ });
+        }
+
+        function currentSubscription() {
+            if (!pushSupported) return Promise.resolve(null);
+            return navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); });
+        }
+
+        function subscribe() {
+            return navigator.serviceWorker.ready.then(function (reg) {
+                return reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(config.public_key),
+                });
+            }).then(function (sub) {
+                return api({ action: 'subscribe', subscription: sub.toJSON() });
+            });
+        }
+
+        function unsubscribe() {
+            return currentSubscription().then(function (sub) {
+                if (!sub) return;
+                var endpoint = sub.endpoint;
+                return sub.unsubscribe().then(function () { return api({ action: 'unsubscribe', endpoint: endpoint }); });
+            });
+        }
+
+        function render() {
+            body.innerHTML = '';
+
+            if (!pushSupported) {
+                body.appendChild(note('This browser doesn\'t support notifications.'));
+                return;
+            }
+            if (isiOS() && !isStandalone()) {
+                body.appendChild(note('To get notifications on iPhone, add Kachow to your Home Screen (Share → Add to Home Screen), then open it from there.'));
+                return;
+            }
+            if (config && config.supported === false) {
+                body.appendChild(note('Notifications aren\'t configured on the server yet.'));
+                return;
+            }
+            if (!config) {
+                body.appendChild(note('Loading…'));
+                return;
+            }
+
+            // Master enable row (reflects the actual browser subscription).
+            var masterRow = row('Notifications on this device', 'Turn on to receive pushes here.');
+            var masterSwitch = toggle(false, function (on) {
+                masterSwitch.checkbox.disabled = true;
+                (on ? requestAndSubscribe() : unsubscribe())
+                    .catch(function () {})
+                    .then(function () { masterSwitch.checkbox.disabled = false; refreshMaster(); });
+            });
+            masterRow.appendChild(masterSwitch);
+            body.appendChild(masterRow);
+
+            var typesWrap = document.createElement('div');
+            typesWrap.id = 'notifTypes';
+            body.appendChild(typesWrap);
+
+            var testBtn = document.createElement('button');
+            testBtn.className = 'notif-test';
+            testBtn.type = 'button';
+            testBtn.textContent = 'Send a test notification';
+            testBtn.addEventListener('click', function () {
+                testBtn.disabled = true;
+                testBtn.textContent = 'Sending…';
+                api({ action: 'test' }).then(function (r) {
+                    testBtn.textContent = r && r.sent ? 'Sent ✓' : 'No device subscribed yet';
+                    setTimeout(function () { testBtn.disabled = false; testBtn.textContent = 'Send a test notification'; }, 2500);
+                }).catch(function () { testBtn.disabled = false; testBtn.textContent = 'Send a test notification'; });
+            });
+            body.appendChild(testBtn);
+
+            function refreshMaster() {
+                currentSubscription().then(function (sub) {
+                    masterSwitch.checkbox.checked = !!sub;
+                    testBtn.disabled = !sub;
+                });
+            }
+            function renderTypes() {
+                typesWrap.innerHTML = '';
+                (config.types || []).forEach(function (t) {
+                    var r = row(t.label, t.description);
+                    var sw = toggle(t.enabled, function (on) {
+                        sw.checkbox.disabled = true;
+                        api({ action: 'set_pref', type: t.key, enabled: on })
+                            .catch(function () { sw.checkbox.checked = !on; })
+                            .then(function () { sw.checkbox.disabled = false; });
+                    });
+                    r.appendChild(sw);
+                    typesWrap.appendChild(r);
+                });
+            }
+            refreshMaster();
+            renderTypes();
+        }
+
+        function requestAndSubscribe() {
+            // iOS requires the permission request to come from this user gesture.
+            return Notification.requestPermission().then(function (perm) {
+                if (perm !== 'granted') throw new Error('denied');
+                return subscribe();
+            });
+        }
+
+        function note(text) {
+            var d = document.createElement('div');
+            d.className = 'notif-note';
+            d.textContent = text;
+            return d;
+        }
+        function row(title, sub) {
+            var r = document.createElement('div');
+            r.className = 'notif-row';
+            var txt = document.createElement('div');
+            txt.className = 'notif-row-text';
+            var h = document.createElement('div'); h.className = 'notif-row-title'; h.textContent = title;
+            var s = document.createElement('div'); s.className = 'notif-row-sub'; s.textContent = sub;
+            txt.appendChild(h); txt.appendChild(s);
+            r.appendChild(txt);
+            return r;
+        }
+        // Returns the <label class="switch"> element; access the input via `.checkbox`.
+        function toggle(checked, onChange) {
+            var label = document.createElement('label');
+            label.className = 'switch';
+            var input = document.createElement('input');
+            input.type = 'checkbox';
+            input.checked = !!checked;
+            input.addEventListener('change', function () { onChange(input.checked); });
+            var slider = document.createElement('span');
+            slider.className = 'slider';
+            label.appendChild(input);
+            label.appendChild(slider);
+            label.checkbox = input;
+            return label;
+        }
+    })();
 })();

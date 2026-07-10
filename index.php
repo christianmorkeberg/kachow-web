@@ -153,6 +153,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
         <header class="topbar">
             <span class="brand">⚡ Kachow</span>
             <div class="topbar-actions">
+                <button type="button" id="notifBtn" class="badge iconbtn" title="Notifications" aria-label="Notifications" hidden>🔔</button>
                 <button type="button" id="ttsToggle" class="badge iconbtn" title="Read replies aloud" aria-pressed="false" hidden>🔊</button>
                 <?php if ($calendarConnected): ?>
                     <span class="badge ok" title="Google Calendar connected">📅<span class="label"> Connected</span></span>
@@ -190,6 +191,16 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 Say &ldquo;accept <?= $e($who) ?>&rsquo;s request&rdquo; below to connect.
             </div>
         <?php endforeach; ?>
+
+        <div id="notifModal" class="modal" hidden>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-label="Notification settings">
+                <div class="modal-head">
+                    <strong>Notifications</strong>
+                    <button type="button" class="modal-close" id="notifClose" aria-label="Close">✕</button>
+                </div>
+                <div id="notifBody" class="modal-body"></div>
+            </div>
+        </div>
 
         <main id="messages" class="messages" aria-live="polite"></main>
 

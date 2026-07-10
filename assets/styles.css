@@ -387,6 +387,66 @@ button.ghost {
 @keyframes wx-glow  { 0%, 100% { opacity: .7; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
 @keyframes wx-drift { 0%, 100% { transform: translateX(-2px); } 50% { transform: translateX(3px); } }
 @keyframes wx-rain  { 0%, 100% { transform: translateY(-1px); } 50% { transform: translateY(2px); } }
+/* ---------- Notification settings modal ---------- */
+.modal {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    background: rgba(4, 10, 22, .6);
+    backdrop-filter: blur(3px);
+}
+.modal[hidden] { display: none; }
+.modal-card {
+    width: 100%; max-width: 420px;
+    background: var(--panel);
+    border: 1px solid #22335a;
+    border-radius: var(--radius);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+    padding: 16px 18px 18px;
+    max-height: 85vh; overflow-y: auto;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.modal-head strong { font-size: 18px; }
+.modal-close {
+    background: transparent; color: var(--muted);
+    border: 0; font-size: 18px; line-height: 1; cursor: pointer; padding: 4px 6px;
+}
+.modal-close:hover { color: var(--text); }
+.notif-note { color: var(--muted); font-size: 14px; padding: 10px 2px; }
+.notif-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 2px;
+    border-top: 1px solid #1e2d4d;
+}
+.notif-row:first-of-type { border-top: 0; }
+.notif-row-text { flex: 1; min-width: 0; }
+.notif-row-title { font-weight: 600; }
+.notif-row-sub { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+.notif-test {
+    width: 100%; margin-top: 14px;
+    background: transparent; color: var(--accent);
+    border: 1px solid #26375c; border-radius: 10px;
+    padding: 9px; font-weight: 600; cursor: pointer;
+}
+.notif-test:hover:not(:disabled) { border-color: var(--accent); }
+.notif-test:disabled { opacity: .55; cursor: default; }
+
+/* iOS-style toggle switch */
+.switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: 0 0 auto; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: #2f4470; border-radius: 999px;
+    transition: background .18s ease;
+}
+.switch .slider::before {
+    content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform .18s ease;
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(20px); }
+.switch input:disabled + .slider { opacity: .5; cursor: default; }
+
 /* ---------- Work-hours card ---------- */
 .work-total { font-size: 30px; font-weight: 700; margin: 2px 0 8px; display: flex; align-items: baseline; gap: 10px; }
 .work-live {
