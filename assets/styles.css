@@ -429,6 +429,19 @@ button.ghost {
     margin: 2px 0 10px; cursor: zoom-in; display: block;
 }
 .receipt-thumb-msg { max-width: 160px; max-height: 200px; border-radius: 10px; display: block; cursor: zoom-in; }
+/* Placeholder tile shown while a photo is uploading/converting (e.g. HEIC, which
+   the browser can't render) — beats the broken-image icon. */
+.receipt-thumb-ph {
+    display: flex; align-items: center; justify-content: center;
+    width: 120px; height: 150px;
+    border-radius: 10px;
+    background: var(--panel-2);
+    border: 1px solid #22335a;
+    font-size: 34px;
+    animation: ph-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ph-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .receipt-thumb-ph { animation: none; } }
 
 /* Full-screen image preview (lightbox) */
 .lightbox {

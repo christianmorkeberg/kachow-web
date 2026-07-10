@@ -652,12 +652,10 @@
     function uploadReceipt(file) {
         clearEmptyHint();
         var bubble = addMessage('', 'user');
-        var thumb = document.createElement('img');
-        thumb.className = 'receipt-thumb-msg';
-        thumb.src = URL.createObjectURL(file);
-        thumb.alt = 'receipt';
-        thumb.addEventListener('click', function () { openLightbox(thumb.src); });
-        bubble.appendChild(thumb);
+        var media = document.createElement('span');
+        media.className = 'receipt-media';
+        bubble.appendChild(media);
+        showReceiptPreview(media, URL.createObjectURL(file)); // falls back to a tile if undecodable (e.g. HEIC)
 
         var typing = addMessage('Reading the receipt…', 'assistant');
         typing.classList.add('typing');
@@ -674,10 +672,31 @@
                     addMessage((res.j && res.j.error) || 'Could not read that receipt.', 'error');
                     return;
                 }
+                // Swap the preview for the server's converted JPEG (always displayable).
+                if (res.j.card && res.j.card.image_url) showReceiptPreview(media, res.j.card.image_url);
                 addMessage("Here's what I read — check and confirm:", 'assistant');
                 if (res.j.card) renderReceipt(res.j.card);
             })
             .catch(function () { typing.remove(); addMessage('Network error uploading the receipt.', 'error'); });
+    }
+
+    // Shows an image in the receipt bubble; on a decode error (HEIC etc.) swaps to
+    // a clean placeholder tile instead of the browser's broken-image icon.
+    function showReceiptPreview(media, url) {
+        var img = document.createElement('img');
+        img.className = 'receipt-thumb-msg';
+        img.alt = 'receipt';
+        img.addEventListener('click', function () { openLightbox(url); });
+        img.addEventListener('error', function () {
+            var ph = document.createElement('span');
+            ph.className = 'receipt-thumb-ph';
+            ph.textContent = '🧾';
+            media.innerHTML = '';
+            media.appendChild(ph);
+        });
+        img.src = url;
+        media.innerHTML = '';
+        media.appendChild(img);
     }
 
     // Read-only work-hours card: a big total + the day's sessions (in–out).
