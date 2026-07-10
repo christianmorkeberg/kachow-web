@@ -386,6 +386,14 @@
 
         var items = card.items || [];
         if (items.length) {
+            // Running totals so a per-row delete can update the header live.
+            var run = { total: Number(card.total) || 0, vat: Number(card.vat) || 0, count: card.count || 0 };
+            function refreshHeader() {
+                total.textContent = fmtMoney(run.total, card.currency);
+                sub.textContent = run.count + (run.count === 1 ? ' expense' : ' expenses')
+                    + ' · incl. VAT ' + fmtMoney(run.vat, card.currency);
+            }
+
             var list = document.createElement('ul');
             list.className = 'exp-list';
             items.forEach(function (it) {
@@ -396,8 +404,30 @@
                 var right = document.createElement('span');
                 right.className = 'exp-amt';
                 right.textContent = fmtMoney(it.total, it.currency);
+
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'exp-del';
+                del.title = 'Delete';
+                del.setAttribute('aria-label', 'Delete expense');
+                del.textContent = '🗑';
+                del.addEventListener('click', function () {
+                    if (!window.confirm('Delete this expense?')) return;
+                    del.disabled = true;
+                    receiptAction({ action: 'discard', id: it.id }).then(function (res) {
+                        if (res && res.deleted) {
+                            run.total -= Number(it.total) || 0;
+                            run.vat -= Number(it.vat) || 0;
+                            run.count -= 1;
+                            refreshHeader();
+                            li.remove();
+                        } else { del.disabled = false; }
+                    }).catch(function () { del.disabled = false; });
+                });
+
                 li.appendChild(left);
                 li.appendChild(right);
+                li.appendChild(del);
                 list.appendChild(li);
             });
             wrap.appendChild(list);
