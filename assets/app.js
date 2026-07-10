@@ -365,6 +365,19 @@
         }
         wrap.appendChild(total);
 
+        // Per-workplace breakdown (only present when >1 labelled place).
+        if ((card.places || []).length) {
+            var bd = document.createElement('div');
+            bd.className = 'work-breakdown';
+            card.places.forEach(function (p) {
+                var chip = document.createElement('span');
+                chip.className = 'work-place-total';
+                chip.textContent = (p.place || '—') + ' ' + p.total;
+                bd.appendChild(chip);
+            });
+            wrap.appendChild(bd);
+        }
+
         var sessions = card.sessions || [];
         if (sessions.length) {
             var list = document.createElement('ul');
@@ -374,6 +387,13 @@
                 var when = document.createElement('span');
                 when.className = 'work-when';
                 when.textContent = s.day + '  ' + s.in + ' – ' + (s.out || (s.ongoing ? 'now' : '?'));
+                if (s.place) {
+                    var tag = document.createElement('span');
+                    tag.className = 'work-place';
+                    tag.textContent = s.place;
+                    when.appendChild(document.createTextNode('  '));
+                    when.appendChild(tag);
+                }
                 var dur = document.createElement('span');
                 dur.className = 'work-dur';
                 dur.textContent = s.duration;
@@ -393,7 +413,8 @@
             var warn = document.createElement('div');
             warn.className = 'work-warn';
             var f = card.needs_fix[0];
-            warn.textContent = '⚠ No clock-out for ' + f.day + ' (in at ' + f.in + '). Tell me when you left.';
+            warn.textContent = '⚠ No clock-out for ' + f.day + (f.place ? ' @ ' + f.place : '')
+                + ' (in at ' + f.in + '). Tell me when you left.';
             wrap.appendChild(warn);
         }
 

@@ -7,8 +7,11 @@ declare(strict_types=1);
  * arrive/leave). NO login session — authenticated by a per-user token that maps
  * to a user id server-side.
  *
- *   GET/POST /api/punch.php?t=<token>&e=in    → clock in
- *   GET/POST /api/punch.php?t=<token>&e=out   → clock out
+ *   GET/POST /api/punch.php?t=<token>&e=in[&p=Office]    → clock in
+ *   GET/POST /api/punch.php?t=<token>&e=out[&p=Office]   → clock out
+ *
+ * The optional &p= labels which workplace (for people with more than one), so
+ * hours can be tracked per place.
  *
  * Returns a short text/plain line (so the Shortcut can show it as a notification).
  */
@@ -29,6 +32,7 @@ function line(int $status, string $text): never
 
 $token = (string) ($_GET['t'] ?? $_POST['t'] ?? '');
 $raw   = strtolower(trim((string) ($_GET['e'] ?? $_POST['e'] ?? '')));
+$place = trim((string) ($_GET['p'] ?? $_POST['p'] ?? '')) ?: null;
 
 $kind = match ($raw) {
     'in', 'arrive', 'arrived', 'clockin', 'clock_in' => 'in',
@@ -45,14 +49,15 @@ try {
         line(403, 'Invalid token.');
     }
 
-    $res = (new WorkEvents())->add($userId, $kind, null, 'ios_geofence');
+    $res = (new WorkEvents())->add($userId, $kind, null, 'ios_geofence', null, $place);
 
-    $verb = $kind === 'in' ? 'Clocked in' : 'Clocked out';
+    $where = $place !== null && $place !== '' ? ' @ ' . $place : '';
+    $verb  = $kind === 'in' ? 'Clocked in' : 'Clocked out';
     if ($res['status'] === 'duplicate') {
-        line(200, 'Already ' . ($kind === 'in' ? 'clocked in' : 'clocked out') . ' — ignored duplicate.');
+        line(200, 'Already ' . ($kind === 'in' ? 'clocked in' : 'clocked out') . $where . ' — ignored duplicate.');
     }
 
-    line(200, $verb . ' · ' . $res['local']);
+    line(200, $verb . $where . ' · ' . $res['local']);
 } catch (\Throwable $e) {
     error_log('punch.php: ' . $e->getMessage());
     line(500, 'Something went wrong.');

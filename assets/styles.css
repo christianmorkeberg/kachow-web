@@ -396,6 +396,17 @@ button.ghost {
     padding: 2px 9px;
     animation: wx-glow 2.4s ease-in-out infinite;
 }
+.work-breakdown { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.work-place-total {
+    font-size: 12px; color: var(--text);
+    background: var(--panel-2); border: 1px solid #26375c;
+    border-radius: 999px; padding: 3px 10px;
+}
+.work-place {
+    font-size: 11px; color: var(--muted);
+    border: 1px solid #26375c; border-radius: 999px;
+    padding: 1px 7px; margin-left: 2px;
+}
 .work-sessions { list-style: none; margin: 0; padding: 0; border-top: 1px solid #1e2d4d; }
 .work-sessions li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
 .work-sessions li + li { border-top: 1px solid #16233f; }
