@@ -81,7 +81,7 @@ try {
         }
 
         $row = $receipts->get($userId, $id);
-        out(200, ['ok' => true, 'card' => $row !== null ? $receipts->card($row) : null]);
+        out(200, ['ok' => true, 'card' => $row !== null ? $receipts->cardWithChecks($userId, $row) : null]);
     }
 
     out(400, ['error' => 'Unknown action.']);

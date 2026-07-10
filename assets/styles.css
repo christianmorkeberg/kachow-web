@@ -388,8 +388,10 @@ button.ghost {
 @keyframes wx-drift { 0%, 100% { transform: translateX(-2px); } 50% { transform: translateX(3px); } }
 @keyframes wx-rain  { 0%, 100% { transform: translateY(-1px); } 50% { transform: translateY(2px); } }
 /* ---------- Expenses summary card ---------- */
+.exp-totals { margin-bottom: 10px; }
+.exp-cur + .exp-cur { margin-top: 6px; padding-top: 6px; border-top: 1px solid #16233f; }
 .exp-total { font-size: 30px; font-weight: 700; margin: 2px 0 2px; }
-.exp-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+.exp-sub { font-size: 12.5px; color: var(--muted); }
 .exp-breakdown { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .exp-cat {
     font-size: 12px; color: var(--text);
@@ -498,6 +500,7 @@ button.ghost {
 .receipt-discard:hover { color: var(--error); border-color: #5a2020; }
 .receipt-saved { margin-top: 10px; font-size: 13px; color: var(--ok); }
 .receipt-vat-hint { margin-top: 8px; font-size: 12.5px; color: var(--warn); }
+.receipt-dup-hint { margin-top: 8px; font-size: 12.5px; color: var(--warn); }
 
 /* ---------- Notification settings modal ---------- */
 .modal {

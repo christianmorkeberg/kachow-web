@@ -397,41 +397,49 @@
         head.textContent = card.title || 'Expenses';
         wrap.appendChild(head);
 
-        var total = document.createElement('div');
-        total.className = 'exp-total';
-        total.textContent = fmtMoney(card.total, card.currency);
-        wrap.appendChild(total);
+        // Per-currency totals (never blended). Keep DOM refs so a row delete updates them.
+        var currencies = card.currencies || [];
+        var curState = {};
+        var totals = document.createElement('div');
+        totals.className = 'exp-totals';
+        function subText(count, vat, cur) {
+            return count + (count === 1 ? ' expense' : ' expenses') + ' · incl. VAT ' + fmtMoney(vat, cur);
+        }
+        if (!currencies.length) {
+            var zrow = document.createElement('div');
+            zrow.className = 'exp-cur';
+            var zt = document.createElement('div'); zt.className = 'exp-total'; zt.textContent = fmtMoney(0, 'DKK');
+            zrow.appendChild(zt);
+            totals.appendChild(zrow);
+        }
+        currencies.forEach(function (c) {
+            var row = document.createElement('div');
+            row.className = 'exp-cur';
+            var t = document.createElement('div'); t.className = 'exp-total'; t.textContent = fmtMoney(c.total, c.currency);
+            var s = document.createElement('div'); s.className = 'exp-sub'; s.textContent = subText(c.count, c.vat, c.currency);
+            row.appendChild(t); row.appendChild(s);
+            totals.appendChild(row);
+            curState[c.currency] = { total: Number(c.total) || 0, vat: Number(c.vat) || 0, count: c.count || 0, totalEl: t, subEl: s, rowEl: row };
+        });
+        wrap.appendChild(totals);
 
-        var sub = document.createElement('div');
-        sub.className = 'exp-sub';
-        sub.textContent = (card.count || 0) + (card.count === 1 ? ' expense' : ' expenses')
-            + ' · incl. VAT ' + fmtMoney(card.vat, card.currency);
-        wrap.appendChild(sub);
-
-        var catChips = {}; // category -> { el, total } so a row delete can update it
+        // Category chips, keyed by category+currency so a delete can update them.
+        var catChips = {};
         if ((card.by_category || []).length) {
             var bd = document.createElement('div');
             bd.className = 'exp-breakdown';
             card.by_category.forEach(function (c) {
                 var chip = document.createElement('span');
                 chip.className = 'exp-cat';
-                chip.textContent = c.category + ' · ' + fmtMoney(c.total, card.currency);
+                chip.textContent = c.category + ' · ' + fmtMoney(c.total, c.currency);
                 bd.appendChild(chip);
-                catChips[c.category] = { el: chip, total: Number(c.total) || 0 };
+                catChips[c.category + '|' + c.currency] = { el: chip, total: Number(c.total) || 0, category: c.category, currency: c.currency };
             });
             wrap.appendChild(bd);
         }
 
         var items = card.items || [];
         if (items.length) {
-            // Running totals so a per-row delete can update the header live.
-            var run = { total: Number(card.total) || 0, vat: Number(card.vat) || 0, count: card.count || 0 };
-            function refreshHeader() {
-                total.textContent = fmtMoney(run.total, card.currency);
-                sub.textContent = run.count + (run.count === 1 ? ' expense' : ' expenses')
-                    + ' · incl. VAT ' + fmtMoney(run.vat, card.currency);
-            }
-
             var list = document.createElement('ul');
             list.className = 'exp-list';
             items.forEach(function (it) {
@@ -458,20 +466,22 @@
                     del.disabled = true;
                     receiptAction({ action: 'discard', id: it.id }).then(function (res) {
                         if (res && res.deleted) {
-                            run.total -= Number(it.total) || 0;
-                            run.vat -= Number(it.vat) || 0;
-                            run.count -= 1;
-                            refreshHeader();
-                            // Keep the category breakdown chip in sync (remove at ~0).
-                            var chip = catChips[it.category];
-                            if (chip) {
-                                chip.total -= Number(it.total) || 0;
-                                if (chip.total <= 0.005) {
-                                    chip.el.remove();
-                                    delete catChips[it.category];
-                                } else {
-                                    chip.el.textContent = it.category + ' · ' + fmtMoney(chip.total, card.currency);
+                            var st = curState[it.currency];
+                            if (st) {
+                                st.total -= Number(it.total) || 0;
+                                st.vat -= Number(it.vat) || 0;
+                                st.count -= 1;
+                                if (st.count <= 0) { st.rowEl.remove(); delete curState[it.currency]; }
+                                else {
+                                    st.totalEl.textContent = fmtMoney(st.total, it.currency);
+                                    st.subEl.textContent = subText(st.count, st.vat, it.currency);
                                 }
+                            }
+                            var ck = catChips[it.category + '|' + it.currency];
+                            if (ck) {
+                                ck.total -= Number(it.total) || 0;
+                                if (ck.total <= 0.005) { ck.el.remove(); delete catChips[it.category + '|' + it.currency]; }
+                                else { ck.el.textContent = ck.category + ' · ' + fmtMoney(ck.total, ck.currency); }
                             }
                             li.remove();
                         } else { del.disabled = false; }
@@ -585,6 +595,16 @@
         field('Category', 'category', 'select', card.category);
         field('Note', 'note', 'text', card.note);
         wrap.appendChild(fields);
+
+        // Possible-duplicate note (non-blocking) — same vendor/date/amount exists.
+        if (card.duplicate) {
+            var dup = document.createElement('div');
+            dup.className = 'receipt-dup-hint';
+            dup.textContent = '⚠ Possible duplicate — you already logged '
+                + (card.duplicate.vendor || 'this') + ' on ' + (card.duplicate.date || '')
+                + (card.duplicate.confirmed ? '' : ' (a draft)') + '.';
+            wrap.appendChild(dup);
+        }
 
         // Danish moms is 25% → VAT on a gross total should be total × 0.20. Just
         // state it when it doesn't match (never blocks saving); updates live.

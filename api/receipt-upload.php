@@ -63,7 +63,7 @@ try {
     $id  = $receipts->create($userId, $read + ['file_ref' => $stored['file_ref'], 'mime' => $stored['mime']], 'photo');
     $row = $receipts->get($userId, $id);
 
-    out(200, ['ok' => true, 'card' => $row !== null ? $receipts->card($row) : null]);
+    out(200, ['ok' => true, 'card' => $row !== null ? $receipts->cardWithChecks($userId, $row) : null]);
 } catch (\RuntimeException $e) {
     // Friendly, user-facing (bad type / too large / unreadable image).
     out(422, ['error' => $e->getMessage()]);
