@@ -146,5 +146,8 @@ try {
 } catch (\Throwable $e) {
     // Log detail server-side; never leak internals to the client.
     error_log('chat.php: ' . $e->getMessage());
-    respond(500, ['error' => 'Something went wrong handling your message.']);
+    // TEMPORARY DEBUG — surface the real error to the client so we can diagnose
+    // the 500. REVERT this to the generic message once fixed.
+    respond(500, ['error' => 'DEBUG ' . get_class($e) . ': ' . $e->getMessage()
+        . ' @ ' . $e->getFile() . ':' . $e->getLine()]);
 }
