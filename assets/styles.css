@@ -847,3 +847,14 @@ button.iconbtn.on {
 }
 .email-note { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .email-draft.sent { border-color: #2e6f4e; }
+.email-actions { margin-top: 10px; }
+.email-reply-btn {
+    background: var(--panel-2);
+    border: 1px solid #26375c;
+    color: var(--text);
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.email-reply-btn:hover { border-color: var(--accent); }

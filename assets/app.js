@@ -455,7 +455,7 @@
             row.appendChild(top);
             row.appendChild(subj);
             row.appendChild(snip);
-            row.addEventListener('click', function () { prefillEmail(m); });
+            row.addEventListener('click', function () { openEmail(card.account_id, m); });
             wrap.appendChild(row);
         });
 
@@ -463,12 +463,36 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    // Clicking a listed email drops a natural reference into the composer so the
-    // user can act on it ("summarise", "draft a reply", …) — the assistant already
-    // has the list (with ids) in context to resolve which one.
-    function prefillEmail(m) {
-        input.value = 'The email from ' + (senderName(m.from) || 'unknown')
-            + ' — "' + (m.subject || '(no subject)') + '" — ';
+    // Clicking a listed email opens it in full, inline — a direct read (no assistant
+    // round-trip, so it's instant and free).
+    function openEmail(accountId, m) {
+        clearEmptyHint();
+        var loading = addMessage('Opening…', 'assistant');
+        loading.classList.add('typing');
+        fetch('/api/email-read.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ account_id: accountId != null ? accountId : undefined, id: m.id }),
+        })
+            .then(function (res) { return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, d: d }; }); })
+            .then(function (r) {
+                loading.remove();
+                if (r.ok && r.d && r.d.card) {
+                    renderCard(r.d.card);
+                } else {
+                    if (r.d && r.d.debug) console.error('[Kachow] email-read.php:', r.d.debug);
+                    addMessage((r.d && r.d.error) || 'Could not open that email.', 'error');
+                }
+            })
+            .catch(function () { loading.remove(); addMessage('Network error opening the email.', 'error'); });
+    }
+
+    // Drop a reply instruction into the composer; the assistant drafts it (it can
+    // re-fetch the thread by sender/subject via its tools).
+    function prefillReply(card) {
+        input.value = 'Draft a reply to ' + (senderName(card.from) || 'them')
+            + ' about "' + (card.subject || '(no subject)') + '": ';
         autogrow();
         if (voiceMode) exitVoiceMode();
         input.focus();
@@ -496,6 +520,16 @@
         body.className = 'email-body';
         body.textContent = card.body || '(no text content)';
         wrap.appendChild(body);
+
+        var actions = document.createElement('div');
+        actions.className = 'email-actions';
+        var reply = document.createElement('button');
+        reply.type = 'button';
+        reply.className = 'email-reply-btn';
+        reply.textContent = '↩ Reply';
+        reply.addEventListener('click', function () { prefillReply(card); });
+        actions.appendChild(reply);
+        wrap.appendChild(actions);
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
