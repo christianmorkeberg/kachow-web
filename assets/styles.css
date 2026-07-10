@@ -858,3 +858,15 @@ button.iconbtn.on {
     cursor: pointer;
 }
 .email-reply-btn:hover { border-color: var(--accent); }
+.email-send-btn {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.email-send-btn:disabled { opacity: .6; cursor: default; }
+.email-send-status { margin-left: 10px; font-size: 13px; color: var(--error); }

@@ -569,6 +569,58 @@
             wrap.appendChild(note);
         }
 
+        // Human-in-the-loop Send: only when sending is enabled and not already sent.
+        if (card.send_enabled && !card.sent) {
+            var actions = document.createElement('div');
+            actions.className = 'email-actions';
+            var sendBtnEl = document.createElement('button');
+            sendBtnEl.type = 'button';
+            sendBtnEl.className = 'email-send-btn';
+            sendBtnEl.textContent = 'Send';
+            var status = document.createElement('span');
+            status.className = 'email-send-status';
+
+            sendBtnEl.addEventListener('click', function () {
+                sendBtnEl.disabled = true;
+                sendBtnEl.textContent = 'Sending…';
+                status.textContent = '';
+                fetch('/api/email-send.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        account_id: card.account_id != null ? card.account_id : undefined,
+                        draft_id: card.draft_id || undefined,
+                        to: card.to, cc: card.cc, subject: card.subject,
+                        body: card.body, thread_id: card.thread_id || undefined,
+                    }),
+                })
+                    .then(function (res) { return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, d: d }; }); })
+                    .then(function (r) {
+                        if (r.ok && r.d && r.d.sent) {
+                            actions.remove();
+                            wrap.classList.add('sent');
+                            head.textContent = 'Email sent';
+                            if (typeof note !== 'undefined' && note) note.textContent = 'Sent ✓';
+                        } else {
+                            if (r.d && r.d.debug) console.error('[Kachow] email-send.php:', r.d.debug);
+                            sendBtnEl.disabled = false;
+                            sendBtnEl.textContent = 'Send';
+                            status.textContent = (r.d && r.d.error) || 'Could not send.';
+                        }
+                    })
+                    .catch(function () {
+                        sendBtnEl.disabled = false;
+                        sendBtnEl.textContent = 'Send';
+                        status.textContent = 'Network error.';
+                    });
+            });
+
+            actions.appendChild(sendBtnEl);
+            actions.appendChild(status);
+            wrap.appendChild(actions);
+        }
+
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
