@@ -408,6 +408,7 @@
             + ' · incl. VAT ' + fmtMoney(card.vat, card.currency);
         wrap.appendChild(sub);
 
+        var catChips = {}; // category -> { el, total } so a row delete can update it
         if ((card.by_category || []).length) {
             var bd = document.createElement('div');
             bd.className = 'exp-breakdown';
@@ -416,6 +417,7 @@
                 chip.className = 'exp-cat';
                 chip.textContent = c.category + ' · ' + fmtMoney(c.total, card.currency);
                 bd.appendChild(chip);
+                catChips[c.category] = { el: chip, total: Number(c.total) || 0 };
             });
             wrap.appendChild(bd);
         }
@@ -460,6 +462,17 @@
                             run.vat -= Number(it.vat) || 0;
                             run.count -= 1;
                             refreshHeader();
+                            // Keep the category breakdown chip in sync (remove at ~0).
+                            var chip = catChips[it.category];
+                            if (chip) {
+                                chip.total -= Number(it.total) || 0;
+                                if (chip.total <= 0.005) {
+                                    chip.el.remove();
+                                    delete catChips[it.category];
+                                } else {
+                                    chip.el.textContent = it.category + ' · ' + fmtMoney(chip.total, card.currency);
+                                }
+                            }
                             li.remove();
                         } else { del.disabled = false; }
                     }).catch(function () { del.disabled = false; });
