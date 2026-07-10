@@ -387,6 +387,44 @@ button.ghost {
 @keyframes wx-glow  { 0%, 100% { opacity: .7; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
 @keyframes wx-drift { 0%, 100% { transform: translateX(-2px); } 50% { transform: translateX(3px); } }
 @keyframes wx-rain  { 0%, 100% { transform: translateY(-1px); } 50% { transform: translateY(2px); } }
+/* ---------- Receipt / expense card ---------- */
+.receipt-thumb {
+    max-width: 140px; max-height: 160px;
+    border-radius: 10px; border: 1px solid #22335a;
+    margin: 2px 0 10px; cursor: zoom-in; display: block;
+}
+.receipt-thumb-msg { max-width: 160px; max-height: 200px; border-radius: 10px; display: block; }
+.receipt-fields { display: flex; flex-direction: column; gap: 8px; }
+.receipt-field { display: flex; flex-direction: column; gap: 3px; }
+.receipt-label { font-size: 12px; color: var(--muted); }
+.receipt-field input,
+.receipt-field select {
+    background: var(--panel-2);
+    border: 1px solid #26375c;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    outline: none;
+}
+.receipt-field input:focus,
+.receipt-field select:focus { border-color: var(--accent); }
+.receipt-field input:disabled,
+.receipt-field select:disabled { opacity: .7; }
+.receipt-actions { display: flex; gap: 8px; margin-top: 12px; }
+.receipt-confirm {
+    flex: 1;
+    background: var(--accent); color: var(--accent-ink);
+    border: 0; border-radius: 10px; padding: 10px; font-weight: 700; cursor: pointer;
+}
+.receipt-confirm:disabled { opacity: .55; cursor: default; }
+.receipt-discard {
+    background: transparent; color: var(--muted);
+    border: 1px solid #26375c; border-radius: 10px; padding: 10px 14px; cursor: pointer;
+}
+.receipt-discard:hover { color: var(--error); border-color: #5a2020; }
+.receipt-saved { margin-top: 10px; font-size: 13px; color: var(--ok); }
+
 /* ---------- Notification settings modal ---------- */
 .modal {
     position: fixed; inset: 0; z-index: 50;

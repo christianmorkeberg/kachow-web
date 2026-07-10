@@ -236,6 +236,8 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
 
         <form id="composer" class="composer">
             <button type="button" id="newChat" class="ghost" title="Start a new conversation">＋</button>
+            <button type="button" id="receiptBtn" class="ghost" title="Add a receipt photo" aria-label="Add a receipt photo">🧾</button>
+            <input type="file" id="receiptInput" accept="image/*" hidden>
             <textarea id="input" rows="1" placeholder="Message Kachow…" autocomplete="off"></textarea>
             <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden>🎤</button>
             <button type="submit" id="send">Send</button>

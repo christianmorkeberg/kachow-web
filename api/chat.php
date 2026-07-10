@@ -26,6 +26,7 @@ use App\Data\Conversations;
 use App\Data\DevIdeas;
 use App\Data\Invites;
 use App\Data\Memories;
+use App\Data\Receipts;
 use App\Data\RememberTokens;
 use App\Data\ShoppingLists;
 use App\Data\UserInstructions;
@@ -37,6 +38,7 @@ use App\Data\WorkoutPlans;
 use App\Data\Workouts;
 use App\Mail\NativeMailer;
 use App\Music\Discogs;
+use App\Receipts\ReceiptStorage;
 use App\Support\Markdown;
 use App\Tools\ToolRegistry;
 use App\Weather\Dmi;
@@ -124,6 +126,8 @@ try {
         new WorkEvents(),
         new ApiTokens(),
         new DevIdeas(),
+        new Receipts(),
+        new ReceiptStorage(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();

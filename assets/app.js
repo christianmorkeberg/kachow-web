@@ -123,6 +123,7 @@
         if (card.kind === 'agenda') { renderAgenda(card); return; }
         if (card.kind === 'weather') { renderWeather(card); return; }
         if (card.kind === 'work_hours') { renderWorkHours(card); return; }
+        if (card.kind === 'receipt') { renderReceipt(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -341,6 +342,140 @@
             s.style.animationDelay = (i * 0.16) + 's';
             bubble.appendChild(s);
         });
+    }
+
+    // Expense/receipt card: editable draft with a single Confirm, or a saved view.
+    function renderReceipt(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card receipt-card';
+        buildReceipt(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildReceipt(wrap, card) {
+        wrap.innerHTML = '';
+        var confirmed = card.status === 'confirmed';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = confirmed ? 'Expense saved ✓' : 'New expense — check & confirm';
+        wrap.appendChild(head);
+
+        if (card.image_url) {
+            var img = document.createElement('img');
+            img.className = 'receipt-thumb';
+            img.src = card.image_url;
+            img.alt = 'receipt';
+            img.addEventListener('click', function () { window.open(card.image_url, '_blank'); });
+            wrap.appendChild(img);
+        }
+
+        var fields = document.createElement('div');
+        fields.className = 'receipt-fields';
+        var inputs = {};
+        function field(label, key, type, value) {
+            var row = document.createElement('label');
+            row.className = 'receipt-field';
+            var l = document.createElement('span');
+            l.className = 'receipt-label';
+            l.textContent = label;
+            row.appendChild(l);
+            var el;
+            if (type === 'select') {
+                el = document.createElement('select');
+                (card.categories || []).forEach(function (c) {
+                    var o = document.createElement('option');
+                    o.value = c; o.textContent = c;
+                    if (c === value) o.selected = true;
+                    el.appendChild(o);
+                });
+            } else {
+                el = document.createElement('input');
+                el.type = type;
+                if (value !== null && value !== undefined) el.value = value;
+                if (type === 'number') { el.step = '0.01'; el.inputMode = 'decimal'; }
+            }
+            el.disabled = confirmed;
+            row.appendChild(el);
+            fields.appendChild(row);
+            inputs[key] = el;
+        }
+        field('Vendor', 'vendor', 'text', card.vendor);
+        field('Date', 'date', 'date', card.date);
+        field('Total (' + (card.currency || 'DKK') + ')', 'total', 'number', card.total != null ? card.total : '');
+        field('VAT / moms', 'vat', 'number', card.vat != null ? card.vat : '');
+        field('Category', 'category', 'select', card.category);
+        field('Note', 'note', 'text', card.note);
+        wrap.appendChild(fields);
+
+        if (confirmed) return;
+
+        var actions = document.createElement('div');
+        actions.className = 'receipt-actions';
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button'; confirmBtn.className = 'receipt-confirm'; confirmBtn.textContent = 'Confirm';
+        var discardBtn = document.createElement('button');
+        discardBtn.type = 'button'; discardBtn.className = 'receipt-discard'; discardBtn.textContent = 'Discard';
+        actions.appendChild(confirmBtn);
+        actions.appendChild(discardBtn);
+        wrap.appendChild(actions);
+
+        confirmBtn.addEventListener('click', function () {
+            confirmBtn.disabled = true; discardBtn.disabled = true;
+            var body = { action: 'confirm', id: card.id };
+            Object.keys(inputs).forEach(function (k) { body[k] = inputs[k].value; });
+            receiptAction(body).then(function (res) {
+                if (res && res.card) buildReceipt(wrap, res.card);
+                else { confirmBtn.disabled = false; discardBtn.disabled = false; }
+            }).catch(function () { confirmBtn.disabled = false; discardBtn.disabled = false; });
+        });
+        discardBtn.addEventListener('click', function () {
+            if (!window.confirm('Discard this expense?')) return;
+            receiptAction({ action: 'discard', id: card.id }).then(function (res) {
+                if (res && res.deleted) wrap.remove();
+            }).catch(function () {});
+        });
+    }
+
+    function receiptAction(body) {
+        return fetch('/api/receipt.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+        }).then(function (r) { return r.json(); });
+    }
+
+    function uploadReceipt(file) {
+        clearEmptyHint();
+        var bubble = addMessage('', 'user');
+        var thumb = document.createElement('img');
+        thumb.className = 'receipt-thumb-msg';
+        thumb.src = URL.createObjectURL(file);
+        thumb.alt = 'receipt';
+        bubble.appendChild(thumb);
+
+        var typing = addMessage('Reading the receipt…', 'assistant');
+        typing.classList.add('typing');
+        var av = typing.querySelector('.avatar');
+        if (av) av.src = AVATAR_FLYING;
+
+        var fd = new FormData();
+        fd.append('photo', file);
+        fetch('/api/receipt-upload.php', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                typing.remove();
+                if (!res.ok || !res.j || res.j.error) {
+                    addMessage((res.j && res.j.error) || 'Could not read that receipt.', 'error');
+                    return;
+                }
+                addMessage("Here's what I read — check and confirm:", 'assistant');
+                if (res.j.card) renderReceipt(res.j.card);
+            })
+            .catch(function () { typing.remove(); addMessage('Network error uploading the receipt.', 'error'); });
     }
 
     // Read-only work-hours card: a big total + the day's sessions (in–out).
@@ -1130,6 +1265,19 @@
             label.checkbox = input;
             return label;
         }
+    })();
+
+    // ---------- Receipt photo upload ----------
+    (function initReceiptUpload() {
+        var btn = document.getElementById('receiptBtn');
+        var fileInput = document.getElementById('receiptInput');
+        if (!btn || !fileInput) return;
+        btn.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+            var file = fileInput.files && fileInput.files[0];
+            fileInput.value = ''; // allow re-picking the same file
+            if (file) uploadReceipt(file);
+        });
     })();
 
     // ---------- Chat history ----------
