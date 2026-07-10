@@ -553,6 +553,7 @@
             r.textContent = label + ': ' + value;
             wrap.appendChild(r);
         }
+        meta('From', card.from);
         meta('To', card.to);
         meta('Cc', card.cc);
         meta('Subject', card.subject);
