@@ -9,10 +9,12 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
+use App\Auth\GmailConnect;
 use App\Auth\GoogleOAuth;
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Connections;
+use App\Data\EmailAccounts;
 use App\Data\RememberTokens;
 use App\Data\Users;
 
@@ -99,6 +101,16 @@ if ($action === 'connect_google' && $session->isLoggedIn()) {
     }
 }
 
+if ($action === 'connect_gmail' && $session->isLoggedIn()) {
+    $state = bin2hex(random_bytes(16));
+    $_SESSION['gmail_state'] = $state;   // routes google-callback.php to the email flow
+    try {
+        redirect(GmailConnect::fromEnv(new EmailAccounts())->consentUrl($state));
+    } catch (\Throwable $e) {
+        redirect('index.php?email=error');
+    }
+}
+
 $loggedIn    = $session->isLoggedIn();
 $currentUser = $loggedIn ? $users->findById((int) $session->userId()) : null;
 
@@ -108,6 +120,16 @@ if ($loggedIn) {
         $calendarConnected = GoogleOAuth::fromEnv($users)->isConnected((int) $session->userId());
     } catch (\Throwable $e) {
         $calendarConnected = false;
+    }
+}
+
+// Connected email mailboxes (for the topbar badge / connect link).
+$emailAccounts = [];
+if ($loggedIn) {
+    try {
+        $emailAccounts = (new EmailAccounts())->listForUser((int) $session->userId());
+    } catch (\Throwable $e) {
+        $emailAccounts = [];
     }
 }
 
@@ -126,6 +148,7 @@ if ($loggedIn) {
 }
 
 $googleStatus = (string) ($_GET['google'] ?? '');
+$emailStatus  = (string) ($_GET['email'] ?? '');
 $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
 $displayName    = (string) ($currentUser['name'] ?? '') ?: (string) ($currentUser['email'] ?? '');
@@ -179,6 +202,11 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <?php else: ?>
                     <a class="badge" href="index.php?action=connect_google" title="Connect Google Calendar">📅<span class="label"> Connect Calendar</span></a>
                 <?php endif; ?>
+                <?php if ($emailAccounts !== []): ?>
+                    <span class="badge ok" title="Email connected: <?= $e(implode(', ', array_column($emailAccounts, 'email'))) ?>">✉️<span class="label"> Email</span></span>
+                <?php else: ?>
+                    <a class="badge" href="index.php?action=connect_gmail" title="Connect Gmail">✉️<span class="label"> Connect email</span></a>
+                <?php endif; ?>
                 <span class="who muted" title="<?= $e($displayName) ?>">
                     <span class="who-full"><?= $e($displayName) ?></span>
                     <span class="who-initial"><?= $e($displayInitial) ?></span>
@@ -199,7 +227,18 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <?php endif; ?>
             </div>
         <?php endif; ?>
-        <?php /* Success is shown by the "Connected" badge in the top bar — no banner. */ ?>
+        <?php if ($emailStatus === 'denied' || $emailStatus === 'error'): ?>
+            <div class="banner warn">
+                <?php if ($emailStatus === 'denied'): ?>
+                    Email connection was cancelled.
+                <?php else: ?>
+                    Couldn't connect that mailbox. Please try again.
+                <?php endif; ?>
+            </div>
+        <?php elseif ($emailStatus === 'connected'): ?>
+            <div class="banner info">Email connected. Try &ldquo;check my email&rdquo; below.</div>
+        <?php endif; ?>
+        <?php /* Calendar success is shown by the "Connected" badge in the top bar — no banner. */ ?>
 
         <?php foreach ($pendingRequests as $req):
             $who = (string) ($req['person']['name'] ?? '') ?: (string) ($req['person']['email'] ?? 'Someone');

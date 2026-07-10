@@ -16,6 +16,7 @@
     const CONV_KEY = 'kachow.conversation_id';
     let conversationId = Number(localStorage.getItem(CONV_KEY)) || null;
     let busy = false;
+    let sendController = null;  // AbortController for the in-flight chat request (Stop button)
     // Hands-free voice mode: once on, the mic stays armed across turns until the
     // user manually switches back to text (by typing) or taps the mic off.
     let voiceMode = false;
@@ -126,6 +127,9 @@
         if (card.kind === 'receipt') { renderReceipt(card); return; }
         if (card.kind === 'expenses') { renderExpenses(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
+        if (card.kind === 'email_list') { renderEmailList(card); return; }
+        if (card.kind === 'email') { renderEmail(card); return; }
+        if (card.kind === 'email_draft') { renderEmailDraft(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -382,6 +386,155 @@
             d.textContent = card.detail;
             wrap.appendChild(d);
         }
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // ---- Email cards -------------------------------------------------------
+
+    // Pull a friendly display name out of a "Name <addr@host>" header value.
+    function senderName(from) {
+        var s = String(from || '').trim();
+        var m = s.match(/^\s*"?([^"<]+?)"?\s*<[^>]+>/);
+        if (m) return m[1].trim();
+        var addr = s.match(/<([^>]+)>/);
+        return (addr ? addr[1] : s).trim();
+    }
+
+    // ISO date -> short local label ("14 Jul, 09:32"); falls back to raw.
+    function emailDate(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return String(iso);
+        return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+            + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // A list of recent/searched emails; each row is clickable to prefill the composer.
+    function renderEmailList(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card email-card';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || 'Email';
+        wrap.appendChild(head);
+
+        var items = card.items || [];
+        if (!items.length) {
+            var empty = document.createElement('div');
+            empty.className = 'email-empty';
+            empty.textContent = 'Nothing to show.';
+            wrap.appendChild(empty);
+        }
+        items.forEach(function (m) {
+            var row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'email-row' + (m.unread ? ' unread' : '');
+
+            var top = document.createElement('div');
+            top.className = 'email-row-top';
+            var who = document.createElement('span');
+            who.className = 'email-from';
+            who.textContent = senderName(m.from) || '(unknown)';
+            var when = document.createElement('span');
+            when.className = 'email-date';
+            when.textContent = emailDate(m.date);
+            top.appendChild(who);
+            top.appendChild(when);
+
+            var subj = document.createElement('div');
+            subj.className = 'email-subject';
+            subj.textContent = m.subject || '(no subject)';
+
+            var snip = document.createElement('div');
+            snip.className = 'email-snippet';
+            snip.textContent = m.snippet || '';
+
+            row.appendChild(top);
+            row.appendChild(subj);
+            row.appendChild(snip);
+            row.addEventListener('click', function () { prefillEmail(m); });
+            wrap.appendChild(row);
+        });
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Clicking a listed email drops a natural reference into the composer so the
+    // user can act on it ("summarise", "draft a reply", …) — the assistant already
+    // has the list (with ids) in context to resolve which one.
+    function prefillEmail(m) {
+        input.value = 'The email from ' + (senderName(m.from) || 'unknown')
+            + ' — "' + (m.subject || '(no subject)') + '" — ';
+        autogrow();
+        if (voiceMode) exitVoiceMode();
+        input.focus();
+        var len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch (e) { /* ignore */ }
+    }
+
+    // A single opened email with its body.
+    function renderEmail(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card email-open';
+
+        var subj = document.createElement('div');
+        subj.className = 'plan-card-title';
+        subj.textContent = card.subject || '(no subject)';
+        wrap.appendChild(subj);
+
+        var meta = document.createElement('div');
+        meta.className = 'email-meta';
+        meta.textContent = senderName(card.from) + '  ·  ' + emailDate(card.date);
+        wrap.appendChild(meta);
+
+        var body = document.createElement('pre');
+        body.className = 'email-body';
+        body.textContent = card.body || '(no text content)';
+        wrap.appendChild(body);
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // A saved draft (or sent confirmation).
+    function renderEmailDraft(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card email-draft' + (card.sent ? ' sent' : '');
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || (card.sent ? 'Email sent' : 'Draft');
+        wrap.appendChild(head);
+
+        function meta(label, value) {
+            if (!value) return;
+            var r = document.createElement('div');
+            r.className = 'email-meta';
+            r.textContent = label + ': ' + value;
+            wrap.appendChild(r);
+        }
+        meta('To', card.to);
+        meta('Cc', card.cc);
+        meta('Subject', card.subject);
+
+        var body = document.createElement('pre');
+        body.className = 'email-body';
+        body.textContent = card.body || '';
+        wrap.appendChild(body);
+
+        if (card.note) {
+            var note = document.createElement('div');
+            note.className = 'email-note';
+            note.textContent = card.note;
+            wrap.appendChild(note);
+        }
+
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
@@ -1001,10 +1154,26 @@
         });
     }
 
+    // Flip the Send button into a red "Stop" that aborts the in-flight request,
+    // or back to normal Send when idle.
+    function setSendStopMode(on) {
+        if (on) {
+            sendBtn.textContent = 'Stop';
+            sendBtn.classList.add('stopping');
+            sendBtn.title = 'Stop the assistant';
+        } else {
+            sendBtn.textContent = 'Send';
+            sendBtn.classList.remove('stopping');
+            sendBtn.title = '';
+        }
+    }
+
     async function send(text) {
         if (busy || !text.trim()) return;
         busy = true;
-        sendBtn.disabled = true;
+        // Keep the button enabled but turn it into a Stop control.
+        sendController = new AbortController();
+        setSendStopMode(true);
         const wasNewConversation = !conversationId;
         addMessage(text, 'user');
 
@@ -1030,6 +1199,7 @@
                     conversation_id: conversationId || undefined,
                     location: location || undefined,
                 }),
+                signal: sendController ? sendController.signal : undefined,
             });
 
             if (res.status === 401) {
@@ -1065,10 +1235,16 @@
             }
         } catch (err) {
             typing.remove();
-            addMessage('Network error. Please try again.', 'error');
+            if (err && err.name === 'AbortError') {
+                // User hit Stop — acknowledge quietly, no error styling.
+                addMessage('Stopped.', 'assistant');
+            } else {
+                addMessage('Network error. Please try again.', 'error');
+            }
         } finally {
             busy = false;
-            sendBtn.disabled = false;
+            sendController = null;
+            setSendStopMode(false);
             if (voiceMode) {
                 resumeVoiceWhenReady(); // stay hands-free — re-arm the mic for the next turn
             } else {
@@ -1079,6 +1255,11 @@
 
     form.addEventListener('submit', function (ev) {
         ev.preventDefault();
+        // While a reply is in flight the button is a Stop control — abort instead.
+        if (busy) {
+            if (sendController) sendController.abort();
+            return;
+        }
         const text = input.value;
         input.value = '';
         autogrow();

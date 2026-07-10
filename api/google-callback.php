@@ -3,19 +3,22 @@
 declare(strict_types=1);
 
 /**
- * OAuth redirect target for Google Calendar.
+ * OAuth redirect target for Google — shared by two intents:
+ *   - calendar: attaches the refresh token to the user (GoogleOAuth -> Users).
+ *   - email:    connects a Gmail mailbox (GmailConnect -> email_accounts).
  *
- * Only ever reached via redirect from Google (never called by frontend JS). The
- * user must already be logged into the app; we attach the returned refresh token
- * to their account (encrypted, via GoogleOAuth -> Users) and bounce back to the
- * app with a status.
+ * Which one is decided by the CSRF state key present in the session
+ * (google_state vs gmail_state), set when the consent URL was built in index.php.
+ * Only ever reached via redirect from Google (never called by frontend JS).
  */
 
 require __DIR__ . '/../bootstrap.php';
 
+use App\Auth\GmailConnect;
 use App\Auth\GoogleOAuth;
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\EmailAccounts;
 use App\Data\RememberTokens;
 use App\Data\Users;
 
@@ -30,37 +33,45 @@ if (!$session->isLoggedIn()) {
     }
 }
 
-function back(string $status): never
+function back(string $key, string $status): never
 {
-    header('Location: /index.php?google=' . rawurlencode($status));
+    header('Location: /index.php?' . $key . '=' . rawurlencode($status));
     exit;
 }
 
-// Must be an authenticated app user to attach a calendar to.
+// Must be an authenticated app user to attach anything to.
 if (!$session->isLoggedIn()) {
     header('Location: /index.php');
     exit;
 }
 
+$code  = (string) ($_GET['code'] ?? '');
+$state = (string) ($_GET['state'] ?? '');
+
+// Route by which flow started this (email takes precedence if both somehow set).
+$isEmail       = isset($_SESSION['gmail_state']);
+$statusKey     = $isEmail ? 'email' : 'google';
+$expectedState = (string) ($_SESSION[$isEmail ? 'gmail_state' : 'google_state'] ?? '');
+unset($_SESSION['gmail_state'], $_SESSION['google_state']);
+
 // User declined consent, or Google returned an error.
 if (isset($_GET['error'])) {
-    back('denied');
+    back($statusKey, 'denied');
 }
-
-$code          = (string) ($_GET['code'] ?? '');
-$state         = (string) ($_GET['state'] ?? '');
-$expectedState = (string) ($_SESSION['google_state'] ?? '');
-unset($_SESSION['google_state']);
 
 if ($code === '' || $state === '' || $expectedState === '' || !hash_equals($expectedState, $state)) {
     // Missing code or CSRF state mismatch.
-    back('error');
+    back($statusKey, 'error');
 }
 
 try {
-    GoogleOAuth::fromEnv($users)->handleCallback($code, (int) $session->userId());
-    back('connected');
+    if ($isEmail) {
+        GmailConnect::fromEnv(new EmailAccounts())->handleCallback($code, (int) $session->userId());
+    } else {
+        GoogleOAuth::fromEnv($users)->handleCallback($code, (int) $session->userId());
+    }
+    back($statusKey, 'connected');
 } catch (\Throwable $e) {
-    error_log('google-callback.php: ' . $e->getMessage());
-    back('error');
+    error_log('google-callback.php (' . $statusKey . '): ' . $e->getMessage());
+    back($statusKey, 'error');
 }

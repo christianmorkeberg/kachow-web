@@ -36,6 +36,7 @@ use App\Data\Wishlist;
 use App\Data\WorkEvents;
 use App\Data\WorkoutPlans;
 use App\Data\Workouts;
+use App\Email\EmailService;
 use App\Mail\NativeMailer;
 use App\Music\Discogs;
 use App\Receipts\ReceiptStorage;
@@ -128,6 +129,7 @@ try {
         new DevIdeas(),
         new Receipts(),
         new ReceiptStorage(),
+        EmailService::fromEnv(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();

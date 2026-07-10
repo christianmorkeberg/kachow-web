@@ -678,6 +678,12 @@ button.ghost {
     resize: none;
     max-height: 140px;
 }
+/* Send button turns into a red Stop control while a reply is in flight. */
+#send.stopping {
+    background: var(--error);
+    border-color: var(--error);
+    color: #fff;
+}
 
 /* ---------- Voice controls ---------- */
 button.iconbtn {
@@ -724,3 +730,52 @@ button.iconbtn.on {
     .chips { gap: 8px 8px; max-width: 100%; }
     .chip { font-size: 12.5px; padding: 6px 11px; }
 }
+
+/* ---------- Email cards ---------- */
+.email-card .email-row {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--panel-2);
+    border: 1px solid #22335a;
+    border-radius: 10px;
+    padding: 9px 11px;
+    margin-top: 8px;
+    cursor: pointer;
+    color: var(--text);
+}
+.email-card .email-row:hover { border-color: var(--accent); }
+.email-row-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.email-from { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-date { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
+.email-subject { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-snippet {
+    margin-top: 2px; color: var(--muted); font-size: 13px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Unread: accent dot + bolder sender. */
+.email-row.unread .email-from { font-weight: 800; }
+.email-row.unread .email-from::before {
+    content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); margin-right: 7px; vertical-align: middle;
+}
+.email-empty { color: var(--muted); margin-top: 6px; }
+
+.email-open .email-meta,
+.email-draft .email-meta { color: var(--muted); font-size: 13px; margin-bottom: 2px; }
+.email-body {
+    margin-top: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.45;
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--panel-2);
+    border: 1px solid #22335a;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+.email-note { margin-top: 8px; color: var(--muted); font-size: 13px; }
+.email-draft.sent { border-color: #2e6f4e; }
