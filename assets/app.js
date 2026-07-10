@@ -573,7 +573,32 @@
         field('Note', 'note', 'text', card.note);
         wrap.appendChild(fields);
 
+        // Danish moms is 25% → VAT on a gross total should be total × 0.20. Just
+        // state it when it doesn't match (never blocks saving); updates live.
+        var vatHint = document.createElement('div');
+        vatHint.className = 'receipt-vat-hint';
+        vatHint.hidden = true;
+        wrap.appendChild(vatHint);
+        function num(v) { return parseFloat(String(v).replace(',', '.')); }
+        function checkVat() {
+            var total = num(inputs.total.value);
+            var vat = num(inputs.vat.value);
+            if (!(total > 0) || isNaN(vat)) { vatHint.hidden = true; return; }
+            var expected = total * 0.20;
+            if (Math.abs(vat - expected) > 1) {
+                vatHint.hidden = false;
+                vatHint.textContent = '⚠ VAT isn\'t 25% — 25% of this total would be '
+                    + fmtMoney(expected, card.currency) + '.';
+            } else {
+                vatHint.hidden = true;
+            }
+        }
+        checkVat();
+
         if (confirmed) return;
+
+        inputs.total.addEventListener('input', checkVat);
+        inputs.vat.addEventListener('input', checkVat);
 
         var actions = document.createElement('div');
         actions.className = 'receipt-actions';
