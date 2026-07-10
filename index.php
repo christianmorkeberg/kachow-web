@@ -16,6 +16,24 @@ use App\Data\Connections;
 use App\Data\RememberTokens;
 use App\Data\Users;
 
+/**
+ * Cache-busting asset URL: appends the file's modification time, so each deploy
+ * produces a fresh URL the browser must re-fetch (defeats stale HTTP caching).
+ */
+function asset(string $path): string
+{
+    $path = '/assets/' . ltrim($path, '/');
+    $v    = @filemtime(__DIR__ . $path) ?: time();
+
+    return $path . '?v=' . $v;
+}
+
+// Never cache the HTML shell, so the versioned asset URLs it emits always point at
+// the latest deploy (the assets themselves can then be cached hard, safely).
+if (!headers_sent()) {
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+}
+
 $users   = new Users();
 $session = new Session($users);
 $session->boot();
@@ -123,7 +141,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
     <link rel="manifest" href="/assets/manifest.json">
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/assets/icon-192.png">
-    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="<?= asset('styles.css') ?>">
 </head>
 <body>
 <?php if (!$loggedIn): ?>
@@ -206,12 +224,12 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
 
         <form id="composer" class="composer">
             <button type="button" id="newChat" class="ghost" title="Start a new conversation">＋</button>
-            <textarea id="input" rows="1" placeholder="Message your assistant…" autocomplete="off"></textarea>
+            <textarea id="input" rows="1" placeholder="Message Kachow…" autocomplete="off"></textarea>
             <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden>🎤</button>
             <button type="submit" id="send">Send</button>
         </form>
     </div>
-    <script src="/assets/app.js" defer></script>
+    <script src="<?= asset('app.js') ?>" defer></script>
 <?php endif; ?>
 </body>
 </html>

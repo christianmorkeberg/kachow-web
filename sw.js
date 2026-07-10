@@ -68,7 +68,8 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.startsWith('/api/') || req.mode === 'navigate') return;
 
     // Network-first for our known static assets: fresh when online (so deploys
-    // land automatically), cached copy when offline.
+    // land automatically), cached copy when offline. ignoreSearch so a versioned
+    // "?v=123" request still matches the precached copy offline.
     if (ASSETS.includes(url.pathname)) {
         event.respondWith(
             fetch(req)
@@ -77,7 +78,7 @@ self.addEventListener('fetch', (event) => {
                     caches.open(CACHE).then((c) => c.put(req, copy));
                     return res;
                 })
-                .catch(() => caches.match(req))
+                .catch(() => caches.match(req, { ignoreSearch: true }))
         );
     }
 });

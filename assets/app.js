@@ -595,6 +595,26 @@
         input.style.height = Math.min(input.scrollHeight, 140) + 'px';
     }
 
+    // Does this message plausibly need the device's location? (weather, "near me")
+    function needsLocation(text) {
+        var s = String(text || '');
+        return looksLikeWeather(s) || /\bnear(by| me| here)?\b|closest|nearest|around here|where i am|i'm at|næmeste|nærmeste|i nærheden|tæt på/i.test(s);
+    }
+
+    // Resolve the device location on demand (cached for the session). Resolves to
+    // null if unavailable/denied — the assistant then falls back to named places.
+    function getLocation() {
+        if (deviceLocation) return Promise.resolve(deviceLocation);
+        if (!('geolocation' in navigator)) return Promise.resolve(null);
+        return new Promise(function (resolve) {
+            navigator.geolocation.getCurrentPosition(
+                function (pos) { deviceLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude }; resolve(deviceLocation); },
+                function () { resolve(null); },
+                { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+            );
+        });
+    }
+
     async function send(text) {
         if (busy || !text.trim()) return;
         busy = true;
@@ -610,6 +630,9 @@
         // animation in the thinking bubble instead of the plain "…".
         if (looksLikeWeather(text)) showWeatherWait(typing);
 
+        // Only fetch/attach location when the message actually calls for it.
+        const location = needsLocation(text) ? await getLocation() : null;
+
         try {
             const res = await fetch('/api/chat.php', {
                 method: 'POST',
@@ -618,7 +641,7 @@
                 body: JSON.stringify({
                     message: text,
                     conversation_id: conversationId || undefined,
-                    location: deviceLocation || undefined,
+                    location: location || undefined,
                 }),
             });
 
@@ -840,19 +863,37 @@
     showEmptyHint();
     fetchQuickActions();
 
-    // Ask for location once (browser remembers the choice); used for weather etc.
-    // Silent if denied/unavailable — the assistant just falls back to named places.
-    if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-            function (pos) { deviceLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude }; },
-            function () { /* denied or unavailable — fine */ },
-            { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
-        );
-    }
+    // Location is requested lazily (only when a message actually needs it — see
+    // getLocation/needsLocation), not eagerly on load, so we don't prompt or send
+    // coordinates unless it matters.
 
     if ('serviceWorker' in navigator) {
+        // When a new service worker (a new deploy) takes control, reload once so the
+        // page runs the fresh assets. Crucial for the installed PWA, which can stay
+        // open for days. Only for pages that were already controlled (returning
+        // users), so a first-time visitor doesn't get a spurious reload.
+        var hadController = !!navigator.serviceWorker.controller;
+        var refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (refreshing || !hadController) return;
+            refreshing = true;
+            window.location.reload();
+        });
+
         window.addEventListener('load', function () {
-            navigator.serviceWorker.register('/sw.js').catch(function () { /* non-fatal */ });
+            // Registered via sw.php so the worker carries a per-deploy version stamp
+            // (its bytes change each deploy → the browser picks up the new version).
+            navigator.serviceWorker.register('/sw.php').then(function (reg) {
+                // Check for a new version when the app regains focus — covers a PWA
+                // that was backgrounded/suspended rather than fully relaunched.
+                var lastCheck = Date.now();
+                document.addEventListener('visibilitychange', function () {
+                    if (document.visibilityState === 'visible' && Date.now() - lastCheck > 60000) {
+                        lastCheck = Date.now();
+                        reg.update().catch(function () { /* offline / non-fatal */ });
+                    }
+                });
+            }).catch(function () { /* non-fatal */ });
         });
     }
 
