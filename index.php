@@ -171,6 +171,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
         <header class="topbar">
             <span class="brand">⚡ Kachow</span>
             <div class="topbar-actions">
+                <button type="button" id="historyBtn" class="badge iconbtn" title="Chat history" aria-label="Chat history">🕘</button>
                 <button type="button" id="notifBtn" class="badge iconbtn" title="Notifications" aria-label="Notifications" hidden>🔔</button>
                 <button type="button" id="ttsToggle" class="badge iconbtn" title="Read replies aloud" aria-pressed="false" hidden>🔊</button>
                 <?php if ($calendarConnected): ?>
@@ -209,6 +210,17 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 Say &ldquo;accept <?= $e($who) ?>&rsquo;s request&rdquo; below to connect.
             </div>
         <?php endforeach; ?>
+
+        <div id="historyModal" class="modal" hidden>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-label="Chat history">
+                <div class="modal-head">
+                    <strong>Chat history</strong>
+                    <button type="button" class="modal-close" id="historyClose" aria-label="Close">✕</button>
+                </div>
+                <input type="search" id="historySearch" class="history-search" placeholder="Search your chats…" autocomplete="off">
+                <div id="historyList" class="history-list"></div>
+            </div>
+        </div>
 
         <div id="notifModal" class="modal" hidden>
             <div class="modal-card" role="dialog" aria-modal="true" aria-label="Notification settings">

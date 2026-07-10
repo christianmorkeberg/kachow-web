@@ -619,6 +619,7 @@
         if (busy || !text.trim()) return;
         busy = true;
         sendBtn.disabled = true;
+        const wasNewConversation = !conversationId;
         addMessage(text, 'user');
 
         const typing = addMessage('…', 'assistant');
@@ -665,6 +666,17 @@
             addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
             speak(data.reply || '');
             if (data.card) renderCard(data.card);
+
+            // For a brand-new conversation, generate its history title in the
+            // background (fire-and-forget, so it never slows the reply).
+            if (wasNewConversation && conversationId) {
+                fetch('/api/conversations.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ action: 'generate_title', id: conversationId }),
+                }).catch(function () { /* non-fatal */ });
+            }
         } catch (err) {
             typing.remove();
             addMessage('Network error. Please try again.', 'error');
@@ -708,6 +720,25 @@
         showEmptyHint();
         input.focus();
     });
+
+    // Load a past conversation's messages into the view and make it the active one.
+    // Note: old interactive cards aren't restored — only the text of each turn.
+    function loadConversation(id) {
+        return fetch('/api/conversations.php?id=' + encodeURIComponent(id), { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+            .then(function (data) {
+                messages.innerHTML = '';
+                (data.messages || []).forEach(function (m) {
+                    if (m.role === 'assistant') addMessage(m.content, 'assistant', m.html);
+                    else addMessage(m.content, 'user');
+                });
+                conversationId = id;
+                localStorage.setItem(CONV_KEY, String(id));
+                if (!messages.children.length) showEmptyHint();
+                messages.scrollTop = messages.scrollHeight;
+                return data;
+            });
+    }
 
     // ---------- Voice: text-to-speech (read replies aloud) ----------
     const synth = window.speechSynthesis;
@@ -860,8 +891,18 @@
         });
     }
 
-    showEmptyHint();
     fetchQuickActions();
+    // Restore the last conversation's messages on load (they persist server-side),
+    // so a reload lands you back where you left off. Falls back to a fresh screen.
+    if (conversationId) {
+        loadConversation(conversationId).catch(function () {
+            conversationId = null;
+            localStorage.removeItem(CONV_KEY);
+            showEmptyHint();
+        });
+    } else {
+        showEmptyHint();
+    }
 
     // Location is requested lazily (only when a message actually needs it — see
     // getLocation/needsLocation), not eagerly on load, so we don't prompt or send
@@ -1084,6 +1125,127 @@
             label.appendChild(slider);
             label.checkbox = input;
             return label;
+        }
+    })();
+
+    // ---------- Chat history ----------
+    (function initHistory() {
+        var btn = document.getElementById('historyBtn');
+        var modal = document.getElementById('historyModal');
+        var closeBtn = document.getElementById('historyClose');
+        var search = document.getElementById('historySearch');
+        var list = document.getElementById('historyList');
+        if (!btn || !modal || !list) return;
+
+        var searchTimer = null;
+
+        btn.addEventListener('click', open);
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+        if (search) {
+            search.addEventListener('input', function () {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () { load(search.value.trim()); }, 250);
+            });
+        }
+
+        function open() { modal.hidden = false; if (search) search.value = ''; load(''); }
+        function close() { modal.hidden = true; }
+
+        function load(q) {
+            list.innerHTML = '<div class="history-empty">Loading…</div>';
+            var url = '/api/conversations.php' + (q ? '?q=' + encodeURIComponent(q) : '');
+            fetch(url, { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) { render(data.conversations || [], q); })
+                .catch(function () { list.innerHTML = '<div class="history-empty">Couldn\'t load history.</div>'; });
+        }
+
+        function render(items, q) {
+            list.innerHTML = '';
+            if (!items.length) {
+                list.innerHTML = '<div class="history-empty">' + (q ? 'No matches.' : 'No conversations yet.') + '</div>';
+                return;
+            }
+            var lazyBudget = 3; // AI-title a few untitled chats per open (background)
+            items.forEach(function (c) {
+                var rowEl = document.createElement('div');
+                rowEl.className = 'history-item' + (c.id === conversationId ? ' current' : '');
+
+                var main = document.createElement('div');
+                main.className = 'history-main';
+                var title = document.createElement('div');
+                title.className = 'history-title';
+                title.textContent = c.title || c.preview || 'Conversation';
+                var sub = document.createElement('div');
+                sub.className = 'history-sub';
+                var bits = [];
+                if (c.title && c.preview) bits.push(c.preview);
+                bits.push((c.count || 0) + (c.count === 1 ? ' msg' : ' msgs'));
+                if (c.when) bits.push(c.when);
+                sub.textContent = bits.join(' · ');
+                main.appendChild(title);
+                main.appendChild(sub);
+
+                var del = document.createElement('button');
+                del.className = 'history-del';
+                del.type = 'button';
+                del.title = 'Delete';
+                del.setAttribute('aria-label', 'Delete conversation');
+                del.textContent = '🗑';
+                del.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    if (!window.confirm('Delete this conversation?')) return;
+                    removeConversation(c.id, rowEl);
+                });
+
+                rowEl.appendChild(main);
+                rowEl.appendChild(del);
+                rowEl.addEventListener('click', function () {
+                    loadConversation(c.id).then(close).catch(function () {});
+                });
+                list.appendChild(rowEl);
+
+                // Older untitled chats: generate a title in the background, update in place.
+                if (!c.title && lazyBudget > 0) {
+                    lazyBudget--;
+                    generateTitle(c.id, title, sub, c.preview);
+                }
+            });
+        }
+
+        function generateTitle(id, titleEl, subEl, preview) {
+            fetch('/api/conversations.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ action: 'generate_title', id: id }),
+            }).then(function (r) { return r.json(); }).then(function (res) {
+                if (!res || !res.title) return;
+                titleEl.textContent = res.title;
+                if (preview) subEl.textContent = preview + (subEl.textContent ? ' · ' + subEl.textContent : '');
+            }).catch(function () { /* non-fatal */ });
+        }
+
+        function removeConversation(id, rowEl) {
+            fetch('/api/conversations.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ action: 'delete', id: id }),
+            }).then(function (r) { return r.json(); }).then(function (res) {
+                if (!res || !res.ok) return;
+                rowEl.remove();
+                if (id === conversationId) {
+                    conversationId = null;
+                    localStorage.removeItem(CONV_KEY);
+                    messages.innerHTML = '';
+                    showEmptyHint();
+                }
+                if (!list.children.length) {
+                    list.innerHTML = '<div class="history-empty">No conversations yet.</div>';
+                }
+            }).catch(function () { /* non-fatal */ });
         }
     })();
 })();

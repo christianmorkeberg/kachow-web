@@ -431,6 +431,49 @@ button.ghost {
 .notif-test:hover:not(:disabled) { border-color: var(--accent); }
 .notif-test:disabled { opacity: .55; cursor: default; }
 
+/* ---------- Chat history ---------- */
+.history-search {
+    width: 100%;
+    margin: 8px 0 6px;
+    background: var(--panel-2);
+    border: 1px solid #26375c;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font: inherit;
+    outline: none;
+}
+.history-search:focus { border-color: var(--accent); }
+.history-list { display: flex; flex-direction: column; }
+.history-empty { color: var(--muted); font-size: 14px; padding: 14px 2px; text-align: center; }
+.history-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 6px;
+    border-top: 1px solid #1e2d4d;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.history-item:first-child { border-top: 0; }
+.history-item:hover { background: var(--panel-2); }
+.history-item.current { background: rgba(56, 189, 248, .10); }
+.history-main { flex: 1; min-width: 0; }
+.history-title {
+    font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-sub {
+    font-size: 12px; color: var(--muted); margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-del {
+    flex: 0 0 auto;
+    background: transparent; border: 0; cursor: pointer;
+    font-size: 16px; opacity: .5; padding: 6px; border-radius: 8px;
+}
+.history-del:hover { opacity: 1; background: rgba(248, 113, 113, .15); }
+
 /* iOS-style toggle switch */
 .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: 0 0 auto; }
 .switch input { opacity: 0; width: 0; height: 0; }
