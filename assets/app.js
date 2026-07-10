@@ -561,7 +561,7 @@
         var fields = document.createElement('div');
         fields.className = 'receipt-fields';
         var inputs = {};
-        function field(label, key, type, value) {
+        function field(label, key, type, value, options) {
             var row = document.createElement('label');
             row.className = 'receipt-field';
             var l = document.createElement('span');
@@ -571,7 +571,7 @@
             var el;
             if (type === 'select') {
                 el = document.createElement('select');
-                (card.categories || []).forEach(function (c) {
+                (options || []).forEach(function (c) {
                     var o = document.createElement('option');
                     o.value = c; o.textContent = c;
                     if (c === value) o.selected = true;
@@ -588,11 +588,18 @@
             fields.appendChild(row);
             inputs[key] = el;
         }
+
+        // Currency options — common ones, plus whatever was read (so a mis-read value
+        // is still selectable/correctable rather than lost).
+        var curOpts = ['DKK', 'EUR', 'USD', 'GBP', 'SEK', 'NOK', 'CHF'];
+        if (card.currency && curOpts.indexOf(card.currency) === -1) curOpts.unshift(card.currency);
+
         field('Vendor', 'vendor', 'text', card.vendor);
         field('Date', 'date', 'date', card.date);
-        field('Total (' + (card.currency || 'DKK') + ')', 'total', 'number', card.total != null ? card.total : '');
+        field('Total', 'total', 'number', card.total != null ? card.total : '');
+        field('Currency', 'currency', 'select', card.currency || 'DKK', curOpts);
         field('VAT / moms', 'vat', 'number', card.vat != null ? card.vat : '');
-        field('Category', 'category', 'select', card.category);
+        field('Category', 'category', 'select', card.category, card.categories);
         field('Note', 'note', 'text', card.note);
         wrap.appendChild(fields);
 
@@ -614,14 +621,16 @@
         wrap.appendChild(vatHint);
         function num(v) { return parseFloat(String(v).replace(',', '.')); }
         function checkVat() {
+            var cur = inputs.currency ? inputs.currency.value : (card.currency || 'DKK');
             var total = num(inputs.total.value);
             var vat = num(inputs.vat.value);
-            if (!(total > 0) || isNaN(vat)) { vatHint.hidden = true; return; }
+            // 25% moms is a Danish (DKK) rule — only check then.
+            if (cur !== 'DKK' || !(total > 0) || isNaN(vat)) { vatHint.hidden = true; return; }
             var expected = total * 0.20;
             if (Math.abs(vat - expected) > 1) {
                 vatHint.hidden = false;
                 vatHint.textContent = '⚠ VAT isn\'t 25% — 25% of this total would be '
-                    + fmtMoney(expected, card.currency) + '.';
+                    + fmtMoney(expected, cur) + '.';
             } else {
                 vatHint.hidden = true;
             }
@@ -632,6 +641,7 @@
 
         inputs.total.addEventListener('input', checkVat);
         inputs.vat.addEventListener('input', checkVat);
+        if (inputs.currency) inputs.currency.addEventListener('change', checkVat);
 
         var actions = document.createElement('div');
         actions.className = 'receipt-actions';
