@@ -124,6 +124,7 @@
         if (card.kind === 'weather') { renderWeather(card); return; }
         if (card.kind === 'work_hours') { renderWorkHours(card); return; }
         if (card.kind === 'receipt') { renderReceipt(card); return; }
+        if (card.kind === 'expenses') { renderExpenses(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -342,6 +343,73 @@
             s.style.animationDelay = (i * 0.16) + 's';
             bubble.appendChild(s);
         });
+    }
+
+    function fmtMoney(n, currency) {
+        n = Number(n) || 0;
+        return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (currency || 'DKK');
+    }
+
+    // Read-only expenses summary: total, VAT, per-category breakdown, receipt list.
+    function renderExpenses(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card expenses-card';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || 'Expenses';
+        wrap.appendChild(head);
+
+        var total = document.createElement('div');
+        total.className = 'exp-total';
+        total.textContent = fmtMoney(card.total, card.currency);
+        wrap.appendChild(total);
+
+        var sub = document.createElement('div');
+        sub.className = 'exp-sub';
+        sub.textContent = (card.count || 0) + (card.count === 1 ? ' expense' : ' expenses')
+            + ' · incl. VAT ' + fmtMoney(card.vat, card.currency);
+        wrap.appendChild(sub);
+
+        if ((card.by_category || []).length) {
+            var bd = document.createElement('div');
+            bd.className = 'exp-breakdown';
+            card.by_category.forEach(function (c) {
+                var chip = document.createElement('span');
+                chip.className = 'exp-cat';
+                chip.textContent = c.category + ' · ' + fmtMoney(c.total, card.currency);
+                bd.appendChild(chip);
+            });
+            wrap.appendChild(bd);
+        }
+
+        var items = card.items || [];
+        if (items.length) {
+            var list = document.createElement('ul');
+            list.className = 'exp-list';
+            items.forEach(function (it) {
+                var li = document.createElement('li');
+                var left = document.createElement('span');
+                left.className = 'exp-when';
+                left.textContent = (it.date || '') + '  ' + (it.vendor || '');
+                var right = document.createElement('span');
+                right.className = 'exp-amt';
+                right.textContent = fmtMoney(it.total, it.currency);
+                li.appendChild(left);
+                li.appendChild(right);
+                list.appendChild(li);
+            });
+            wrap.appendChild(list);
+        } else {
+            var empty = document.createElement('div');
+            empty.className = 'plan-empty';
+            empty.textContent = 'No expenses in this period.';
+            wrap.appendChild(empty);
+        }
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
     }
 
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.
