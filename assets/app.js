@@ -125,6 +125,7 @@
         if (card.kind === 'work_hours') { renderWorkHours(card); return; }
         if (card.kind === 'receipt') { renderReceipt(card); return; }
         if (card.kind === 'expenses') { renderExpenses(card); return; }
+        if (card.kind === 'notice') { renderNotice(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -350,6 +351,41 @@
         return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (currency || 'DKK');
     }
 
+    // A clearly-visible delete button (SVG trash in currentColor, red on hover) —
+    // beats the low-contrast 🗑 emoji on the dark theme.
+    function deleteButton(label) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-del';
+        b.title = 'Delete';
+        b.setAttribute('aria-label', label || 'Delete');
+        b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"'
+            + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>'
+            + '<path d="M10 11v6M14 11v6"/></svg>';
+        return b;
+    }
+
+    // Small standalone notice card (e.g. "Expense deleted") so a delete turn shows
+    // a clear outcome instead of re-rendering the item as if it still exists.
+    function renderNotice(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card notice-card' + (card.tone ? ' notice-' + card.tone : '');
+        var title = document.createElement('div');
+        title.className = 'notice-title';
+        title.textContent = card.title || '';
+        wrap.appendChild(title);
+        if (card.detail) {
+            var d = document.createElement('div');
+            d.className = 'notice-detail';
+            d.textContent = card.detail;
+            wrap.appendChild(d);
+        }
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
     // Read-only expenses summary: total, VAT, per-category breakdown, receipt list.
     function renderExpenses(card) {
         clearEmptyHint();
@@ -414,12 +450,7 @@
                 right.className = 'exp-amt';
                 right.textContent = fmtMoney(it.total, it.currency);
 
-                var del = document.createElement('button');
-                del.type = 'button';
-                del.className = 'exp-del';
-                del.title = 'Delete';
-                del.setAttribute('aria-label', 'Delete expense');
-                del.textContent = '🗑';
+                var del = deleteButton('Delete expense');
                 del.addEventListener('click', function () {
                     if (!window.confirm('Delete this expense?')) return;
                     del.disabled = true;
@@ -1472,12 +1503,7 @@
                 main.appendChild(title);
                 main.appendChild(sub);
 
-                var del = document.createElement('button');
-                del.className = 'history-del';
-                del.type = 'button';
-                del.title = 'Delete';
-                del.setAttribute('aria-label', 'Delete conversation');
-                del.textContent = '🗑';
+                var del = deleteButton('Delete conversation');
                 del.addEventListener('click', function (e) {
                     e.stopPropagation();
                     if (!window.confirm('Delete this conversation?')) return;

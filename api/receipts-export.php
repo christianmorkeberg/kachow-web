@@ -59,7 +59,4 @@ foreach ($summary['items'] as $i) {
         $i['currency'],
     ]);
 }
-// Totals row.
-fputcsv($out, []);
-fputcsv($out, ['', 'TOTAL', '', number_format($summary['total'], 2, '.', ''), number_format($summary['vat'], 2, '.', ''), '', 'DKK']);
 fclose($out);
