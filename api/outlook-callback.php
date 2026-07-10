@@ -59,5 +59,8 @@ try {
     back('connected');
 } catch (\Throwable $e) {
     error_log('outlook-callback.php: ' . $e->getMessage());
-    back('error');
+    // Surface the real reason (Microsoft's error text carries no secrets) so a
+    // failed connect is diagnosable without digging through server logs.
+    header('Location: /index.php?email=error&detail=' . rawurlencode($e->getMessage()));
+    exit;
 }

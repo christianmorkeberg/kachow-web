@@ -258,6 +258,10 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                     Email connection was cancelled.
                 <?php else: ?>
                     Couldn't connect that mailbox. Please try again.
+                    <?php $emailDetail = (string) ($_GET['detail'] ?? ''); ?>
+                    <?php if ($emailDetail !== ''): ?>
+                        <br><small><?= $e(mb_substr($emailDetail, 0, 300)) ?></small>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         <?php elseif ($emailStatus === 'connected'): ?>
