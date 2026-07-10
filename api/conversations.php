@@ -84,10 +84,16 @@ try {
                 continue; // internal tool rows aren't shown
             }
             $content = (string) $m['content'];
-            $out[]   = [
+            $card    = null;
+            if ($role === 'assistant' && isset($m['card']) && $m['card'] !== null && $m['card'] !== '') {
+                $decoded = json_decode((string) $m['card'], true);
+                $card    = is_array($decoded) ? $decoded : null;
+            }
+            $out[] = [
                 'role'    => $role,
                 'content' => $content,
                 'html'    => $role === 'assistant' ? Markdown::toHtml($content) : null,
+                'card'    => $card,
             ];
         }
         out(200, ['id' => $id, 'title' => $conversations->title($userId, $id), 'messages' => $out]);

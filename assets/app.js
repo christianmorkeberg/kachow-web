@@ -729,8 +729,12 @@
             .then(function (data) {
                 messages.innerHTML = '';
                 (data.messages || []).forEach(function (m) {
-                    if (m.role === 'assistant') addMessage(m.content, 'assistant', m.html);
-                    else addMessage(m.content, 'user');
+                    if (m.role === 'assistant') {
+                        addMessage(m.content, 'assistant', m.html);
+                        if (m.card) renderCard(m.card); // re-show the interactive widget
+                    } else {
+                        addMessage(m.content, 'user');
+                    }
                 });
                 conversationId = id;
                 localStorage.setItem(CONV_KEY, String(id));
