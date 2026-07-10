@@ -731,6 +731,67 @@ button.iconbtn.on {
     .chip { font-size: 12.5px; padding: 6px 11px; }
 }
 
+/* ---------- Email connect menu (topbar) ---------- */
+.email-menu { position: relative; }
+.email-menu > summary {
+    list-style: none;
+    cursor: pointer;
+}
+.email-menu > summary::-webkit-details-marker { display: none; }
+.email-menu-pop {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 40;
+    min-width: 220px;
+    max-width: 80vw;
+    background: var(--panel-2);
+    border: 1px solid #26375c;
+    border-radius: 10px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+}
+.email-menu-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 4px 6px; }
+.email-menu-acc { display: flex; align-items: center; gap: 8px; padding: 4px 6px; font-size: 13px; word-break: break-all; }
+.email-menu-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--muted); }
+.email-menu-gmail { background: #ea4335; }
+.email-menu-outlook { background: #0a84ff; }
+.email-menu-sep { height: 1px; background: #26375c; margin: 6px 4px; }
+.email-menu-item {
+    display: block;
+    padding: 7px 8px;
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+}
+.email-menu-item:hover { background: rgba(56, 189, 248, .12); }
+
+/* ---------- IMAP connect modal ---------- */
+.imap-hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; line-height: 1.5; }
+.imap-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.imap-label input { display: block; width: 100%; margin-top: 4px; }
+.imap-advanced { margin: 4px 0 12px; }
+.imap-advanced > summary { cursor: pointer; font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+.imap-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+.imap-check input { width: auto; }
+.imap-error {
+    background: #2a1414; border: 1px solid #5a2020; color: #fecaca;
+    border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-bottom: 10px;
+    word-break: break-word;
+}
+.imap-connect {
+    width: 100%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    font-weight: 600;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.imap-connect:disabled { opacity: .6; cursor: default; }
+
 /* ---------- Email cards ---------- */
 .email-card .email-row {
     display: block;

@@ -11,6 +11,7 @@ require __DIR__ . '/bootstrap.php';
 
 use App\Auth\GmailConnect;
 use App\Auth\GoogleOAuth;
+use App\Auth\OutlookConnect;
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Connections;
@@ -111,6 +112,16 @@ if ($action === 'connect_gmail' && $session->isLoggedIn()) {
     }
 }
 
+if ($action === 'connect_outlook' && $session->isLoggedIn()) {
+    $state = bin2hex(random_bytes(16));
+    $_SESSION['outlook_state'] = $state;
+    try {
+        redirect(OutlookConnect::fromEnv(new EmailAccounts())->consentUrl($state));
+    } catch (\Throwable $e) {
+        redirect('index.php?email=error');
+    }
+}
+
 $loggedIn    = $session->isLoggedIn();
 $currentUser = $loggedIn ? $users->findById((int) $session->userId()) : null;
 
@@ -202,11 +213,25 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <?php else: ?>
                     <a class="badge" href="index.php?action=connect_google" title="Connect Google Calendar">📅<span class="label"> Connect Calendar</span></a>
                 <?php endif; ?>
-                <?php if ($emailAccounts !== []): ?>
-                    <span class="badge ok" title="Email connected: <?= $e(implode(', ', array_column($emailAccounts, 'email'))) ?>">✉️<span class="label"> Email</span></span>
-                <?php else: ?>
-                    <a class="badge" href="index.php?action=connect_gmail" title="Connect Gmail">✉️<span class="label"> Connect email</span></a>
-                <?php endif; ?>
+                <details class="email-menu">
+                    <summary class="badge <?= $emailAccounts !== [] ? 'ok' : '' ?>" title="Email">✉️<span class="label"> <?= $emailAccounts !== [] ? 'Email' : 'Connect email' ?></span></summary>
+                    <div class="email-menu-pop">
+                        <?php if ($emailAccounts !== []): ?>
+                            <div class="email-menu-head">Connected</div>
+                            <?php foreach ($emailAccounts as $acc): ?>
+                                <div class="email-menu-acc" title="<?= $e($acc['provider']) ?>">
+                                    <span class="email-menu-dot email-menu-<?= $e($acc['provider']) ?>"></span>
+                                    <?= $e($acc['email']) ?>
+                                </div>
+                            <?php endforeach; ?>
+                            <div class="email-menu-sep"></div>
+                        <?php endif; ?>
+                        <div class="email-menu-head">Connect a mailbox</div>
+                        <a class="email-menu-item" href="index.php?action=connect_gmail">＋ Gmail</a>
+                        <button type="button" class="email-menu-item" data-imap-preset="outlook">＋ Hotmail / Outlook</button>
+                        <button type="button" class="email-menu-item" data-imap-preset="custom">＋ Other mailbox (IMAP)</button>
+                    </div>
+                </details>
                 <span class="who muted" title="<?= $e($displayName) ?>">
                     <span class="who-full"><?= $e($displayName) ?></span>
                     <span class="who-initial"><?= $e($displayInitial) ?></span>
@@ -268,6 +293,36 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                     <button type="button" class="modal-close" id="notifClose" aria-label="Close">✕</button>
                 </div>
                 <div id="notifBody" class="modal-body"></div>
+            </div>
+        </div>
+
+        <div id="imapModal" class="modal" hidden>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-label="Connect a mailbox">
+                <div class="modal-head">
+                    <strong id="imapTitle">Connect a mailbox</strong>
+                    <button type="button" class="modal-close" id="imapClose" aria-label="Close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p id="imapHint" class="imap-hint"></p>
+                    <label class="imap-label">Email address
+                        <input type="email" id="imapEmail" autocomplete="username" placeholder="you@example.com">
+                    </label>
+                    <label class="imap-label">App password
+                        <input type="password" id="imapPassword" autocomplete="off" placeholder="16-character app password">
+                    </label>
+                    <details class="imap-advanced">
+                        <summary>Server settings</summary>
+                        <label class="imap-label">IMAP host
+                            <input type="text" id="imapHost" placeholder="imap.example.com">
+                        </label>
+                        <label class="imap-label">Port
+                            <input type="number" id="imapPort" value="993">
+                        </label>
+                        <label class="imap-check"><input type="checkbox" id="imapSsl" checked> Use SSL/TLS</label>
+                    </details>
+                    <div id="imapError" class="imap-error" hidden></div>
+                    <button type="button" id="imapConnect" class="imap-connect">Connect</button>
+                </div>
             </div>
         </div>
 

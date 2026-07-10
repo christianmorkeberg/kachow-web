@@ -1714,6 +1714,101 @@
         });
     })();
 
+    // ---------- Connect a mailbox over IMAP (app password) ----------
+    (function initImapConnect() {
+        var modal = document.getElementById('imapModal');
+        if (!modal) return;
+        var closeBtn = document.getElementById('imapClose');
+        var title = document.getElementById('imapTitle');
+        var hint = document.getElementById('imapHint');
+        var email = document.getElementById('imapEmail');
+        var password = document.getElementById('imapPassword');
+        var host = document.getElementById('imapHost');
+        var port = document.getElementById('imapPort');
+        var ssl = document.getElementById('imapSsl');
+        var errorBox = document.getElementById('imapError');
+        var connectBtn = document.getElementById('imapConnect');
+
+        var PRESETS = {
+            outlook: {
+                title: 'Connect Hotmail / Outlook',
+                hint: 'Enter your full Hotmail/Outlook address and an app password (Microsoft account → Security → app passwords). Two-step verification must be on.',
+                host: 'outlook.office365.com', port: 993, ssl: true,
+            },
+            custom: {
+                title: 'Connect a mailbox (IMAP)',
+                hint: 'Enter your mailbox\'s IMAP server, your address, and its password (or an app password).',
+                host: '', port: 993, ssl: true,
+            },
+        };
+
+        document.querySelectorAll('[data-imap-preset]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var d = btn.closest('details');
+                if (d) d.removeAttribute('open');   // close the email menu popover
+                open(btn.getAttribute('data-imap-preset'));
+            });
+        });
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+        if (connectBtn) connectBtn.addEventListener('click', submit);
+
+        function open(presetKey) {
+            var p = PRESETS[presetKey] || PRESETS.custom;
+            title.textContent = p.title;
+            hint.textContent = p.hint;
+            host.value = p.host;
+            port.value = p.port;
+            ssl.checked = p.ssl;
+            password.value = '';
+            hideError();
+            modal.hidden = false;
+            setTimeout(function () { email.focus(); }, 30);
+        }
+        function close() { modal.hidden = true; }
+        function hideError() { errorBox.hidden = true; errorBox.textContent = ''; }
+        function showError(msg) { errorBox.hidden = false; errorBox.textContent = msg; }
+
+        function submit() {
+            hideError();
+            var body = {
+                email: (email.value || '').trim(),
+                password: password.value || '',
+                host: (host.value || '').trim(),
+                port: parseInt(port.value, 10) || 993,
+                ssl: !!ssl.checked,
+            };
+            if (!body.email || !body.password || !body.host) {
+                showError('Email, app password and server are all required.');
+                return;
+            }
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'Connecting…';
+            fetch('/api/email-imap-connect.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(body),
+            })
+                .then(function (res) { return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, d: d }; }); })
+                .then(function (r) {
+                    if (r.ok && r.d && r.d.ok) {
+                        // Reload so the topbar badge + connected list refresh.
+                        window.location.href = '/index.php?email=connected';
+                        return;
+                    }
+                    showError((r.d && r.d.error) || 'Could not connect that mailbox.');
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'Connect';
+                })
+                .catch(function () {
+                    showError('Network error. Please try again.');
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'Connect';
+                });
+        }
+    })();
+
     // ---------- Chat history ----------
     (function initHistory() {
         var btn = document.getElementById('historyBtn');
