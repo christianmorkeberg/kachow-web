@@ -23,6 +23,7 @@ use App\Data\ApiTokens;
 use App\Data\Calendar;
 use App\Data\Connections;
 use App\Data\Conversations;
+use App\Data\DevIdeas;
 use App\Data\Invites;
 use App\Data\Memories;
 use App\Data\RememberTokens;
@@ -122,6 +123,7 @@ try {
         new WorkoutPlans(null, $workouts),
         new WorkEvents(),
         new ApiTokens(),
+        new DevIdeas(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
