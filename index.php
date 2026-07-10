@@ -228,7 +228,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <?php endif; ?>
                         <div class="email-menu-head">Connect a mailbox</div>
                         <a class="email-menu-item" href="index.php?action=connect_gmail">＋ Gmail</a>
-                        <button type="button" class="email-menu-item" data-imap-preset="outlook">＋ Hotmail / Outlook</button>
+                        <a class="email-menu-item" href="index.php?action=connect_outlook">＋ Hotmail / Outlook</a>
                         <button type="button" class="email-menu-item" data-imap-preset="custom">＋ Other mailbox (IMAP)</button>
                     </div>
                 </details>

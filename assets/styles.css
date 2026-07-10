@@ -759,11 +759,18 @@ button.iconbtn.on {
 .email-menu-sep { height: 1px; background: #26375c; margin: 6px 4px; }
 .email-menu-item {
     display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-size: 14px;
     padding: 7px 8px;
     border-radius: 8px;
     color: var(--text);
     text-decoration: none;
-    font-size: 14px;
+    cursor: pointer;
 }
 .email-menu-item:hover { background: rgba(56, 189, 248, .12); }
 
