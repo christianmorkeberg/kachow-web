@@ -1211,6 +1211,8 @@
             typing.remove();
 
             if (!res.ok) {
+                // Full server detail goes to the console; the bubble stays friendly.
+                if (data.debug) console.error('[Kachow] chat.php:', data.debug);
                 addMessage(data.error || 'Something went wrong.', 'error');
                 return;
             }

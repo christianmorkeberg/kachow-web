@@ -144,10 +144,12 @@ try {
         'card'            => $loop->lastRender(),
     ]);
 } catch (\Throwable $e) {
-    // Log detail server-side; never leak internals to the client.
+    // Friendly message in the chat bubble; full detail in `debug` for the browser
+    // console (app.js console.errors it) — so errors are diagnosable without an
+    // ugly bubble or digging through server logs.
     error_log('chat.php: ' . $e->getMessage());
-    // TEMPORARY DEBUG — surface the real error to the client so we can diagnose
-    // the 500. REVERT this to the generic message once fixed.
-    respond(500, ['error' => 'DEBUG ' . get_class($e) . ': ' . $e->getMessage()
-        . ' @ ' . $e->getFile() . ':' . $e->getLine()]);
+    respond(500, [
+        'error' => 'Something went wrong handling your message.',
+        'debug' => get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine(),
+    ]);
 }
