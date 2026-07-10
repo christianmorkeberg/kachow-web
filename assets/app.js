@@ -535,9 +535,10 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    // A saved draft (or sent confirmation).
+    // A draft (editable) or a sent confirmation (read-only).
     function renderEmailDraft(card) {
         clearEmptyHint();
+        var editable = card.send_enabled && !card.sent;
         var wrap = document.createElement('div');
         wrap.className = 'plan-card email-draft' + (card.sent ? ' sent' : '');
 
@@ -546,32 +547,57 @@
         head.textContent = card.title || (card.sent ? 'Email sent' : 'Draft');
         wrap.appendChild(head);
 
-        function meta(label, value) {
-            if (!value) return;
-            var r = document.createElement('div');
-            r.className = 'email-meta';
-            r.textContent = label + ': ' + value;
-            wrap.appendChild(r);
+        // From is fixed (the sending account); shown read-only.
+        if (card.from) {
+            var fromRow = document.createElement('div');
+            fromRow.className = 'email-meta';
+            fromRow.textContent = 'From: ' + card.from;
+            wrap.appendChild(fromRow);
         }
-        meta('From', card.from);
-        meta('To', card.to);
-        meta('Cc', card.cc);
-        meta('Subject', card.subject);
 
-        var body = document.createElement('pre');
-        body.className = 'email-body';
-        body.textContent = card.body || '';
-        wrap.appendChild(body);
+        var inputs = {};
+        // Editable field (single-line input or textarea); read-only <div> once sent.
+        function field(label, key, value, multiline) {
+            value = value || '';
+            if (!editable) {
+                if (!value) return;
+                var r = document.createElement('div');
+                r.className = 'email-meta' + (multiline ? ' email-body' : '');
+                r.textContent = multiline ? value : (label + ': ' + value);
+                wrap.appendChild(r);
+                return;
+            }
+            var lab = document.createElement('label');
+            lab.className = 'email-field';
+            var span = document.createElement('span');
+            span.className = 'email-field-label';
+            span.textContent = label;
+            lab.appendChild(span);
+            var inp = multiline ? document.createElement('textarea') : document.createElement('input');
+            if (!multiline) inp.type = 'text';
+            inp.className = 'email-field-input' + (multiline ? ' email-field-body' : '');
+            inp.value = value;
+            if (multiline) inp.rows = 6;
+            lab.appendChild(inp);
+            wrap.appendChild(lab);
+            inputs[key] = inp;
+        }
 
+        field('To', 'to', card.to, false);
+        field('Cc', 'cc', card.cc, false);
+        field('Subject', 'subject', card.subject, false);
+        field('Message', 'body', card.body, true);
+
+        var note = null;
         if (card.note) {
-            var note = document.createElement('div');
+            note = document.createElement('div');
             note.className = 'email-note';
             note.textContent = card.note;
             wrap.appendChild(note);
         }
 
         // Human-in-the-loop Send: only when sending is enabled and not already sent.
-        if (card.send_enabled && !card.sent) {
+        if (editable) {
             var actions = document.createElement('div');
             actions.className = 'email-actions';
             var sendBtnEl = document.createElement('button');
@@ -582,6 +608,12 @@
             status.className = 'email-send-status';
 
             sendBtnEl.addEventListener('click', function () {
+                var to = inputs.to ? inputs.to.value.trim() : card.to;
+                var bodyVal = inputs.body ? inputs.body.value : card.body;
+                if (!to || !bodyVal.trim()) {
+                    status.textContent = 'Add a recipient and a message first.';
+                    return;
+                }
                 sendBtnEl.disabled = true;
                 sendBtnEl.textContent = 'Sending…';
                 status.textContent = '';
@@ -592,17 +624,22 @@
                     body: JSON.stringify({
                         account_id: card.account_id != null ? card.account_id : undefined,
                         draft_id: card.draft_id || undefined,
-                        to: card.to, cc: card.cc, subject: card.subject,
-                        body: card.body, thread_id: card.thread_id || undefined,
+                        to: to,
+                        cc: inputs.cc ? inputs.cc.value.trim() : card.cc,
+                        subject: inputs.subject ? inputs.subject.value : card.subject,
+                        body: bodyVal,
+                        thread_id: card.thread_id || undefined,
                     }),
                 })
                     .then(function (res) { return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, d: d }; }); })
                     .then(function (r) {
                         if (r.ok && r.d && r.d.sent) {
+                            // Collapse to a read-only "sent" view.
+                            Object.keys(inputs).forEach(function (k) { inputs[k].disabled = true; });
                             actions.remove();
                             wrap.classList.add('sent');
                             head.textContent = 'Email sent';
-                            if (typeof note !== 'undefined' && note) note.textContent = 'Sent ✓';
+                            if (note) note.textContent = 'Sent ✓';
                         } else {
                             if (r.d && r.d.debug) console.error('[Kachow] email-send.php:', r.d.debug);
                             sendBtnEl.disabled = false;

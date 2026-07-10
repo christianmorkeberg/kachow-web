@@ -870,3 +870,21 @@ button.iconbtn.on {
 }
 .email-send-btn:disabled { opacity: .6; cursor: default; }
 .email-send-status { margin-left: 10px; font-size: 13px; color: var(--error); }
+
+/* Editable draft fields */
+.email-field { display: block; margin-top: 8px; }
+.email-field-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 3px; }
+.email-field-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--panel-2);
+    border: 1px solid #26375c;
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+}
+.email-field-input:focus { border-color: var(--accent); outline: none; }
+.email-field-body { resize: vertical; min-height: 110px; line-height: 1.45; }
+.email-field-input:disabled { opacity: .7; }
