@@ -126,6 +126,7 @@
         if (card.kind === 'work_hours') { renderWorkHours(card); return; }
         if (card.kind === 'receipt') { renderReceipt(card); return; }
         if (card.kind === 'expenses') { renderExpenses(card); return; }
+        if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
         if (card.kind === 'email') { renderEmail(card); return; }
@@ -658,6 +659,59 @@
             actions.appendChild(status);
             wrap.appendChild(actions);
         }
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Read-only work-log summary: hours per job + what was done, day by day.
+    function renderWorkLog(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card worklog-card';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || 'Work log';
+        wrap.appendChild(head);
+
+        var byJob = card.by_job || [];
+        if (byJob.length) {
+            var chips = document.createElement('div');
+            chips.className = 'worklog-jobs';
+            byJob.forEach(function (j) {
+                var chip = document.createElement('span');
+                chip.className = 'worklog-job';
+                var h = (j.hours != null && j.hours > 0) ? (' · ' + (+j.hours) + 'h') : '';
+                chip.textContent = j.job + h + ' (' + j.entries + ')';
+                chips.appendChild(chip);
+            });
+            wrap.appendChild(chips);
+        }
+
+        var items = card.items || [];
+        if (!items.length) {
+            var empty = document.createElement('div');
+            empty.className = 'email-empty';
+            empty.textContent = 'Nothing logged for this period yet.';
+            wrap.appendChild(empty);
+        }
+        items.forEach(function (it) {
+            var row = document.createElement('div');
+            row.className = 'worklog-entry';
+            var meta = document.createElement('div');
+            meta.className = 'worklog-entry-meta';
+            var when = new Date(it.date);
+            var dateLabel = isNaN(when.getTime()) ? it.date
+                : when.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+            meta.textContent = dateLabel + ' · ' + it.job + (it.hours != null && it.hours > 0 ? ' · ' + (+it.hours) + 'h' : '');
+            var desc = document.createElement('div');
+            desc.className = 'worklog-entry-desc';
+            desc.textContent = it.description || '';
+            row.appendChild(meta);
+            row.appendChild(desc);
+            wrap.appendChild(row);
+        });
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;

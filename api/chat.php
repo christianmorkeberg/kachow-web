@@ -34,6 +34,7 @@ use App\Data\Users;
 use App\Data\Vinyls;
 use App\Data\Wishlist;
 use App\Data\WorkEvents;
+use App\Data\WorkLog;
 use App\Data\WorkoutPlans;
 use App\Data\Workouts;
 use App\Email\EmailService;
@@ -125,6 +126,7 @@ try {
         Dmi::fromEnv(),
         new WorkoutPlans(null, $workouts),
         new WorkEvents(),
+        new WorkLog(),
         new ApiTokens(),
         new DevIdeas(),
         new Receipts(),
