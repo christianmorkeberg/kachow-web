@@ -209,7 +209,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <button type="button" id="notifBtn" class="badge iconbtn" title="Notifications" aria-label="Notifications" hidden>🔔</button>
                 <button type="button" id="ttsToggle" class="badge iconbtn" title="Read replies aloud" aria-pressed="false" hidden>🔊</button>
                 <?php if ($calendarConnected): ?>
-                    <span class="badge ok" title="Google Calendar connected">📅<span class="label"> Connected</span></span>
+                    <a class="badge ok" href="index.php?action=connect_google" title="Google Calendar connected — tap to reconnect if it stops working">📅<span class="label"> Connected</span></a>
                 <?php else: ?>
                     <a class="badge" href="index.php?action=connect_google" title="Connect Google Calendar">📅<span class="label"> Connect Calendar</span></a>
                 <?php endif; ?>
