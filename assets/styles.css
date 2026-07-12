@@ -678,12 +678,48 @@ button.ghost {
     resize: none;
     max-height: 140px;
 }
+/* Compact icon Send button (up-arrow), swaps to a stop square while in flight. */
+#send {
+    padding: 0;
+    width: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+#send svg { display: block; }
 /* Send button turns into a red Stop control while a reply is in flight. */
 #send.stopping {
     background: var(--error);
     border-color: var(--error);
     color: #fff;
 }
+
+/* Composer overflow menu: ＋ folds New chat + Add receipt into one button,
+   freeing width for the text field (especially on phones). */
+.composer-menu { position: relative; display: flex; }
+.composer-menu > summary {
+    list-style: none;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--muted);
+    border: 1px solid #26375c; border-radius: 10px;
+    font-size: 20px; line-height: 1; padding: 0 12px; height: 100%;
+    cursor: pointer;
+}
+.composer-menu > summary::-webkit-details-marker { display: none; }
+.composer-menu[open] > summary { color: var(--accent); border-color: #1e4a63; background: rgba(56,189,248,.12); }
+.composer-menu-pop {
+    position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 40;
+    min-width: 190px; max-width: 70vw;
+    background: var(--panel-2); border: 1px solid #26375c; border-radius: 12px;
+    padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.45);
+}
+.composer-menu-item {
+    display: block; width: 100%; box-sizing: border-box; text-align: left;
+    background: none; border: 0; color: var(--text); font: inherit; font-size: 15px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+}
+.composer-menu-item:hover { background: rgba(56,189,248,.12); }
 
 /* ---------- Voice controls ---------- */
 button.iconbtn {
@@ -700,6 +736,10 @@ button.iconbtn.on {
     border-color: #1e4a63;
     background: rgba(56, 189, 248, .15);
 }
+/* History (🕘) and notifications (🔔) are plain actions, not on/off toggles,
+   so they shouldn't look dimmed like the muted toggle-off state. */
+#historyBtn, #notifBtn { opacity: .9; }
+#historyBtn:hover, #notifBtn:hover { opacity: 1; }
 
 .composer .mic { font-size: 18px; }
 .composer .mic.listening {
@@ -729,6 +769,12 @@ button.iconbtn.on {
        collide when they wrap on a narrow phone. */
     .chips { gap: 8px 8px; max-width: 100%; }
     .chip { font-size: 12.5px; padding: 6px 11px; }
+
+    /* Give the text field more room: tighter gaps/padding + slimmer buttons. */
+    .composer { gap: 6px; padding-left: 10px; padding-right: 10px; }
+    .composer-menu > summary,
+    .composer .mic { padding: 0 9px; }
+    #send { width: 40px; min-width: 40px; }
 }
 
 /* ---------- Email connect menu (topbar) ---------- */

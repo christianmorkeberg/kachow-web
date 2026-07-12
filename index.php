@@ -333,12 +333,17 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
         <main id="messages" class="messages" aria-live="polite"></main>
 
         <form id="composer" class="composer">
-            <button type="button" id="newChat" class="ghost" title="Start a new conversation">＋</button>
-            <button type="button" id="receiptBtn" class="ghost" title="Add a receipt photo" aria-label="Add a receipt photo">🧾</button>
+            <details class="composer-menu" id="composerMenu">
+                <summary class="ghost" title="More" aria-label="More actions">＋</summary>
+                <div class="composer-menu-pop">
+                    <button type="button" id="newChat" class="composer-menu-item">＋ New chat</button>
+                    <button type="button" id="receiptBtn" class="composer-menu-item">🧾 Add receipt</button>
+                </div>
+            </details>
             <input type="file" id="receiptInput" accept="image/*" hidden>
             <textarea id="input" rows="1" placeholder="Message Kachow…" autocomplete="off"></textarea>
             <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden>🎤</button>
-            <button type="submit" id="send">Send</button>
+            <button type="submit" id="send" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </form>
     </div>
     <script src="<?= asset('app.js') ?>" defer></script>

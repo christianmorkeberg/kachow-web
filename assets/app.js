@@ -1334,15 +1334,19 @@
 
     // Flip the Send button into a red "Stop" that aborts the in-flight request,
     // or back to normal Send when idle.
+    var ICON_SEND = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var ICON_STOP = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
     function setSendStopMode(on) {
         if (on) {
-            sendBtn.textContent = 'Stop';
+            sendBtn.innerHTML = ICON_STOP;
             sendBtn.classList.add('stopping');
+            sendBtn.setAttribute('aria-label', 'Stop');
             sendBtn.title = 'Stop the assistant';
         } else {
-            sendBtn.textContent = 'Send';
+            sendBtn.innerHTML = ICON_SEND;
             sendBtn.classList.remove('stopping');
-            sendBtn.title = '';
+            sendBtn.setAttribute('aria-label', 'Send');
+            sendBtn.title = 'Send';
         }
     }
 
@@ -1877,6 +1881,20 @@
             label.checkbox = input;
             return label;
         }
+    })();
+
+    // ---------- Composer overflow menu (＋ → New chat / Add receipt) ----------
+    (function initComposerMenu() {
+        var menu = document.getElementById('composerMenu');
+        if (!menu) return;
+        // The items keep their own handlers (New chat / receipt); just collapse after.
+        menu.querySelectorAll('.composer-menu-item').forEach(function (b) {
+            b.addEventListener('click', function () { menu.removeAttribute('open'); });
+        });
+        // Close when tapping anywhere outside the menu.
+        document.addEventListener('click', function (ev) {
+            if (menu.open && !menu.contains(ev.target)) menu.removeAttribute('open');
+        });
     })();
 
     // ---------- Receipt photo upload ----------
