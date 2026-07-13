@@ -206,40 +206,35 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <span class="brand">⚡ Kachow</span>
             <div class="topbar-actions">
                 <button type="button" id="historyBtn" class="badge iconbtn" title="Chat history" aria-label="Chat history">🕘</button>
-                <button type="button" id="notifBtn" class="badge iconbtn" title="Notifications" aria-label="Notifications" hidden>🔔</button>
-                <button type="button" id="ttsToggle" class="badge iconbtn" title="Read replies aloud" aria-pressed="false" hidden>🔊</button>
-                <?php if ($calendarConnected): ?>
-                    <a class="badge ok" href="index.php?action=connect_google" title="Google Calendar connected — tap to reconnect if it stops working">📅<span class="label"> Connected</span></a>
-                <?php else: ?>
-                    <a class="badge" href="index.php?action=connect_google" title="Connect Google Calendar">📅<span class="label"> Connect Calendar</span></a>
-                <?php endif; ?>
-                <details class="email-menu">
-                    <summary class="badge <?= $emailAccounts !== [] ? 'ok' : '' ?>" title="Email">✉️<span class="label"> <?= $emailAccounts !== [] ? 'Email' : 'Connect email' ?></span></summary>
-                    <div class="email-menu-pop">
-                        <?php if ($emailAccounts !== []): ?>
-                            <div class="email-menu-head">Connected</div>
-                            <?php foreach ($emailAccounts as $acc): ?>
-                                <div class="email-menu-acc" title="<?= $e($acc['provider']) ?>">
-                                    <span class="email-menu-dot email-menu-<?= $e($acc['provider']) ?>"></span>
-                                    <?= $e($acc['email']) ?>
-                                </div>
-                            <?php endforeach; ?>
-                            <div class="email-menu-sep"></div>
+                <details class="topbar-menu" id="topbarMenu">
+                    <summary class="badge tm-summary" title="Menu" aria-label="Menu">☰</summary>
+                    <div class="topbar-menu-pop">
+                        <div class="tm-identity"><?= $e($displayName) ?></div>
+                        <div class="tm-sep"></div>
+
+                        <div class="tm-head">Calendar</div>
+                        <?php if ($calendarConnected): ?>
+                            <a class="tm-item" href="index.php?action=connect_google">📅 Connected — tap to reconnect</a>
+                        <?php else: ?>
+                            <a class="tm-item" href="index.php?action=connect_google">📅 Connect Calendar</a>
                         <?php endif; ?>
-                        <div class="email-menu-head">Connect a mailbox</div>
-                        <a class="email-menu-item" href="index.php?action=connect_gmail">＋ Gmail</a>
-                        <a class="email-menu-item" href="index.php?action=connect_outlook">＋ Hotmail / Outlook</a>
-                        <button type="button" class="email-menu-item" data-imap-preset="custom">＋ Other mailbox (IMAP)</button>
+
+                        <div class="tm-head">Email</div>
+                        <?php foreach ($emailAccounts as $acc): ?>
+                            <div class="tm-acc" title="<?= $e($acc['provider']) ?>">
+                                <span class="email-menu-dot email-menu-<?= $e($acc['provider']) ?>"></span><?= $e($acc['email']) ?>
+                            </div>
+                        <?php endforeach; ?>
+                        <a class="tm-item" href="index.php?action=connect_gmail">＋ Gmail</a>
+                        <a class="tm-item" href="index.php?action=connect_outlook">＋ Hotmail / Outlook</a>
+                        <button type="button" class="tm-item" data-imap-preset="custom">＋ Other mailbox (IMAP)</button>
+
+                        <div class="tm-sep"></div>
+                        <button type="button" id="notifBtn" class="tm-item" hidden>🔔 Notifications</button>
+                        <button type="button" id="ttsToggle" class="tm-item" aria-pressed="false" hidden>🔇 Read replies aloud</button>
+                        <a class="tm-item" href="index.php?action=logout">🚪 Log out</a>
                     </div>
                 </details>
-                <span class="who muted" title="<?= $e($displayName) ?>">
-                    <span class="who-full"><?= $e($displayName) ?></span>
-                    <span class="who-initial"><?= $e($displayInitial) ?></span>
-                </span>
-                <a class="link logout" href="index.php?action=logout" title="Log out" aria-label="Log out">
-                    <span class="label">Log out</span>
-                    <span class="icon" aria-hidden="true">🚪</span>
-                </a>
             </div>
         </header>
 

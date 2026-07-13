@@ -252,6 +252,19 @@ button.ghost {
 }
 .chip:hover { border-color: #3a4d75; color: var(--text); }
 
+/* Quick-reply chips under the latest assistant message (from [[suggest: …]]). */
+.suggestions {
+    align-self: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: -4px;
+    padding-left: 48px;   /* align under the assistant bubble, past the avatar */
+    max-width: 92%;
+}
+.suggestion-chip { border-color: #1e4a63; color: var(--accent); }
+.suggestion-chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(56, 189, 248, .10); }
+
 /* ---------- Interactive cards (workout plan; reusable) ---------- */
 .plan-card {
     align-self: stretch;
@@ -819,6 +832,33 @@ button.iconbtn.on {
     cursor: pointer;
 }
 .email-menu-item:hover { background: rgba(56, 189, 248, .12); }
+
+/* ---------- Top-bar overflow menu (☰) ---------- */
+.topbar-menu { position: relative; display: flex; }
+.topbar-menu > summary {
+    list-style: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; line-height: 1;
+}
+.topbar-menu > summary::-webkit-details-marker { display: none; }
+.topbar-menu[open] > summary { color: var(--accent); border-color: #1e4a63; background: rgba(56,189,248,.12); }
+.topbar-menu-pop {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 50;
+    min-width: 230px; max-width: 84vw;
+    background: var(--panel-2); border: 1px solid #26375c; border-radius: 12px;
+    padding: 6px; box-shadow: 0 14px 34px rgba(0,0,0,.5);
+}
+.tm-identity { padding: 6px 10px 2px; font-weight: 700; color: var(--text); word-break: break-word; }
+.tm-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 6px 10px 3px; }
+.tm-sep { height: 1px; background: #26375c; margin: 6px 4px; }
+.tm-acc { display: flex; align-items: center; gap: 8px; padding: 4px 10px; font-size: 13px; color: var(--muted); word-break: break-all; }
+.tm-item {
+    display: block; width: 100%; box-sizing: border-box; text-align: left;
+    background: none; border: 0; color: var(--text); font: inherit; font-size: 14px;
+    padding: 9px 10px; border-radius: 8px; text-decoration: none; cursor: pointer;
+}
+.tm-item:hover { background: rgba(56, 189, 248, .12); }
+.tm-item.tm-on { color: var(--accent); }
 
 /* ---------- IMAP connect modal ---------- */
 .imap-hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; line-height: 1.5; }

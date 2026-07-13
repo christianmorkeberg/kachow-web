@@ -1350,9 +1350,31 @@
         }
     }
 
+    // ---------- Quick-reply chips (from the assistant's [[suggest: …]] marker) ----------
+    var suggestionsEl = null;
+    function clearSuggestions() {
+        if (suggestionsEl) { suggestionsEl.remove(); suggestionsEl = null; }
+    }
+    function renderSuggestions(list) {
+        clearSuggestions();
+        suggestionsEl = document.createElement('div');
+        suggestionsEl.className = 'suggestions';
+        list.forEach(function (text) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'chip suggestion-chip';
+            b.textContent = text;
+            b.addEventListener('click', function () { send(text); });
+            suggestionsEl.appendChild(b);
+        });
+        messages.appendChild(suggestionsEl);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
     async function send(text) {
         if (busy || !text.trim()) return;
         busy = true;
+        clearSuggestions();                 // any pending quick-reply chips are now moot
         // Keep the button enabled but turn it into a Stop control.
         sendController = new AbortController();
         setSendStopMode(true);
@@ -1406,6 +1428,7 @@
             addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
             speak(data.reply || '');
             if (data.card) renderCard(data.card);
+            if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
 
             // For a brand-new conversation, generate its history title in the
             // background (fire-and-forget, so it never slows the reply).
@@ -1503,11 +1526,10 @@
 
     function renderTts() {
         if (!ttsBtn) return;
-        // Swap the glyph, not just the color — iOS ignores CSS color on emoji.
-        ttsBtn.textContent = ttsOn ? '🔊' : '🔇';
-        ttsBtn.classList.toggle('on', ttsOn);
+        // Menu item: glyph + label (iOS ignores CSS color on emoji, so swap the glyph).
+        ttsBtn.textContent = ttsOn ? '🔊 Voice on — tap to mute' : '🔇 Read replies aloud';
+        ttsBtn.classList.toggle('tm-on', ttsOn);
         ttsBtn.setAttribute('aria-pressed', ttsOn ? 'true' : 'false');
-        ttsBtn.title = ttsOn ? 'Voice replies on — tap to mute' : 'Read replies aloud';
     }
 
     // `speak` is hoisted, so send() can call it even though it's defined here.
@@ -1895,6 +1917,18 @@
         document.addEventListener('click', function (ev) {
             if (menu.open && !menu.contains(ev.target)) menu.removeAttribute('open');
         });
+    })();
+
+    // ---------- Top-bar overflow menu (☰) ----------
+    (function initTopbarMenu() {
+        var menu = document.getElementById('topbarMenu');
+        if (!menu) return;
+        document.addEventListener('click', function (ev) {
+            if (menu.open && !menu.contains(ev.target)) menu.removeAttribute('open');
+        });
+        // Opening Notifications hands off to its modal, so collapse the menu.
+        var notif = document.getElementById('notifBtn');
+        if (notif) notif.addEventListener('click', function () { menu.removeAttribute('open'); });
     })();
 
     // ---------- Receipt photo upload ----------

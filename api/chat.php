@@ -144,6 +144,7 @@ try {
         'reply_html'      => Markdown::toHtml($reply),
         'conversation_id' => $conversationId,
         'card'            => $loop->lastRender(),
+        'suggestions'     => $loop->lastSuggestions(),
     ]);
 } catch (\Throwable $e) {
     // Friendly message in the chat bubble; full detail in `debug` for the browser
