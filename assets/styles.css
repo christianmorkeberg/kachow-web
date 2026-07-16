@@ -430,6 +430,15 @@ button.ghost {
 .icon-del:hover { color: var(--error); background: rgba(248, 113, 113, .15); }
 .icon-del:disabled { opacity: .4; cursor: default; }
 
+.icon-export {
+    flex: 0 0 auto;
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--muted);
+    padding: 4px 6px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-export:hover { color: var(--accent); background: rgba(56, 189, 248, .15); }
+
 /* Small standalone notice card (e.g. deleted) */
 .notice-card { align-self: stretch; max-width: 100%; }
 .notice-title { font-weight: 600; }

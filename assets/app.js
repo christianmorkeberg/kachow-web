@@ -371,6 +371,29 @@
         return b;
     }
 
+    // A small download/export icon button (down-arrow into a tray).
+    function exportButton(label) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-export';
+        b.title = 'Export';
+        b.setAttribute('aria-label', label || 'Export');
+        b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"'
+            + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 21h16"/></svg>';
+        return b;
+    }
+
+    // Triggers a same-origin file download (session cookie is sent) without leaving the page.
+    function downloadUrl(url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
     // Small standalone notice card (e.g. "Expense deleted") so a delete turn shows
     // a clear outcome instead of re-rendering the item as if it still exists.
     function renderNotice(card) {
@@ -2098,6 +2121,12 @@
                 main.appendChild(title);
                 main.appendChild(sub);
 
+                var exp = exportButton('Export conversation');
+                exp.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    downloadUrl('/api/chat-export.php?id=' + encodeURIComponent(c.id));
+                });
+
                 var del = deleteButton('Delete conversation');
                 del.addEventListener('click', function (e) {
                     e.stopPropagation();
@@ -2106,6 +2135,7 @@
                 });
 
                 rowEl.appendChild(main);
+                rowEl.appendChild(exp);
                 rowEl.appendChild(del);
                 rowEl.addEventListener('click', function () {
                     loadConversation(c.id).then(close).catch(function () {});
