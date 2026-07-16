@@ -957,15 +957,22 @@
         field('Note', 'note', 'text', card.note);
         wrap.appendChild(fields);
 
-        // Line items read from the photo (read-only; header totals stay authoritative).
-        if (card.line_items && card.line_items.length) {
-            var items = document.createElement('div');
-            items.className = 'receipt-items';
+        // Line items read from the photo. Editable only in that the user can remove
+        // misread rows; the trimmed set is saved on Confirm. Header totals stay
+        // authoritative (removing a line does not change the total).
+        var lineItems = (card.line_items || []).slice();
+        var itemsWrap = document.createElement('div');
+        itemsWrap.className = 'receipt-items';
+        wrap.appendChild(itemsWrap);
+        function renderItems() {
+            itemsWrap.innerHTML = '';
+            if (!lineItems.length) { itemsWrap.hidden = true; return; }
+            itemsWrap.hidden = false;
             var itHead = document.createElement('div');
             itHead.className = 'receipt-items-head';
-            itHead.textContent = 'Items (' + card.line_items.length + ')';
-            items.appendChild(itHead);
-            card.line_items.forEach(function (li) {
+            itHead.textContent = 'Items (' + lineItems.length + ')';
+            itemsWrap.appendChild(itHead);
+            lineItems.forEach(function (li, idx) {
                 var row = document.createElement('div');
                 row.className = 'receipt-item';
                 var name = document.createElement('span');
@@ -977,10 +984,23 @@
                 amt.textContent = li.amount != null ? fmtMoney(li.amount, card.currency || 'DKK') : '';
                 row.appendChild(name);
                 row.appendChild(amt);
-                items.appendChild(row);
+                if (!confirmed) {
+                    var rm = document.createElement('button');
+                    rm.type = 'button';
+                    rm.className = 'receipt-item-rm';
+                    rm.title = 'Remove line';
+                    rm.setAttribute('aria-label', 'Remove line');
+                    rm.textContent = '×';
+                    rm.addEventListener('click', function () {
+                        lineItems.splice(idx, 1);
+                        renderItems();
+                    });
+                    row.appendChild(rm);
+                }
+                itemsWrap.appendChild(row);
             });
-            wrap.appendChild(items);
         }
+        renderItems();
 
         // Possible-duplicate note (non-blocking) — same vendor/date/amount exists.
         if (card.duplicate) {
@@ -1036,6 +1056,7 @@
             confirmBtn.disabled = true; discardBtn.disabled = true;
             var body = { action: 'confirm', id: card.id };
             Object.keys(inputs).forEach(function (k) { body[k] = inputs[k].value; });
+            body.line_items = lineItems;
             receiptAction(body).then(function (res) {
                 if (res && res.card) buildReceipt(wrap, res.card);
                 else { confirmBtn.disabled = false; discardBtn.disabled = false; }

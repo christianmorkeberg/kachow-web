@@ -73,6 +73,10 @@ try {
         if (array_key_exists('date', (array) $in)) {
             $fields['purchased_at'] = $in['date'];
         }
+        // Edited line items (e.g. user removed misread rows). An empty array clears them.
+        if (array_key_exists('line_items', (array) $in) && is_array($in['line_items'])) {
+            $fields['line_items'] = $in['line_items'];
+        }
         if ($fields !== []) {
             $receipts->update($userId, $id, $fields);
         }
