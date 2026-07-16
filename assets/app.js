@@ -131,6 +131,7 @@
         if (card.kind === 'email_list') { renderEmailList(card); return; }
         if (card.kind === 'email') { renderEmail(card); return; }
         if (card.kind === 'email_draft') { renderEmailDraft(card); return; }
+        if (card.kind === 'cycle') { renderCycle(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -916,6 +917,226 @@
         box.addEventListener('click', dismiss);
         document.addEventListener('keydown', onKey);
         document.body.appendChild(box);
+    }
+
+    // ---------- Cycle (period) card ----------
+    var CYCLE_PHASES = {
+        menstrual:  { emoji: '🩸', label: 'Menstrual' },
+        follicular: { emoji: '🌱', label: 'Follicular' },
+        fertile:    { emoji: '✨', label: 'Fertile window' },
+        ovulation:  { emoji: '🥚', label: 'Ovulation' },
+        luteal:     { emoji: '🌙', label: 'Luteal' }
+    };
+
+    function cycShortDate(iso) {
+        if (!iso) return '';
+        var p = String(iso).split('-');
+        if (p.length !== 3) return iso;
+        var d = new Date(+p[0], +p[1] - 1, +p[2]);
+        var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        var mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return days[d.getDay()] + ' ' + d.getDate() + ' ' + mon[d.getMonth()];
+    }
+
+    // Build the animated SVG "cycle ring": four phase arcs + a marker on today.
+    function cycleRingSvg(card) {
+        var L = card.cycle_length || 28;
+        var pLen = card.period_length || 5;
+        var ovDay = Math.max(2, L - 14);
+        var fStart = Math.max(pLen + 1, ovDay - 5);
+        var fEnd = Math.min(L, ovDay + 1);
+        var cx = 90, r = 70, C = 2 * Math.PI * r;
+
+        function arc(a, b, cls) {
+            if (b < a) return '';
+            var startFrac = (a - 1) / L;
+            var seg = ((b - a + 1) / L) * C;
+            var rot = startFrac * 360 - 90;
+            return '<circle class="cyc-arc ' + cls + '" cx="' + cx + '" cy="' + cx + '" r="' + r
+                + '" fill="none" stroke-width="14" stroke-linecap="butt"'
+                + ' stroke-dasharray="' + seg.toFixed(2) + ' ' + (C - seg).toFixed(2) + '"'
+                + ' transform="rotate(' + rot.toFixed(2) + ' ' + cx + ' ' + cx + ')"/>';
+        }
+
+        var arcs = arc(1, pLen, 'cyc-menstrual')
+            + arc(pLen + 1, fStart - 1, 'cyc-follicular')
+            + arc(fStart, fEnd, 'cyc-fertile')
+            + arc(fEnd + 1, L, 'cyc-luteal');
+
+        var day = Math.min(Math.max(card.cycle_day || 1, 1), L);
+        var markAngle = ((day - 0.5) / L) * 360;
+        var marker = '<g transform="rotate(' + markAngle.toFixed(2) + ' ' + cx + ' ' + cx + ')">'
+            + '<circle class="cyc-marker" cx="' + cx + '" cy="' + (cx - r) + '" r="9"/></g>';
+
+        var ph = CYCLE_PHASES[card.phase] || { emoji: '🌸', label: card.phase_label || 'Cycle' };
+        var center = '<text class="cyc-emoji" x="90" y="82" text-anchor="middle">' + ph.emoji + '</text>'
+            + '<text class="cyc-dayn" x="90" y="108" text-anchor="middle">Day ' + day + '</text>';
+
+        return '<svg class="cyc-ring" viewBox="0 0 180 180" width="180" height="180" aria-hidden="true">'
+            + '<circle class="cyc-track" cx="90" cy="90" r="70" fill="none" stroke-width="14"/>'
+            + arcs + marker + center + '</svg>';
+    }
+
+    function renderCycle(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card cycle-card';
+        buildCycle(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildCycle(wrap, card) {
+        wrap.innerHTML = '';
+        var readOnly = !!card.read_only;
+
+        var title = document.createElement('div');
+        title.className = 'plan-card-title';
+        title.textContent = card.owner && card.owner.name
+            ? card.owner.name + '’s cycle'
+            : 'Cycle';
+        wrap.appendChild(title);
+
+        if (!card.has_data) {
+            var empty = document.createElement('div');
+            empty.className = 'cycle-empty';
+            empty.textContent = readOnly
+                ? 'No periods logged yet.'
+                : 'No periods logged yet. Log when your period starts and I’ll predict the next one.';
+            wrap.appendChild(empty);
+            if (!readOnly) wrap.appendChild(cycleLogControls(wrap, card));
+            return;
+        }
+
+        // Ring + phase.
+        var ring = document.createElement('div');
+        ring.className = 'cycle-ring-wrap';
+        ring.innerHTML = cycleRingSvg(card);
+        var phaseLbl = document.createElement('div');
+        phaseLbl.className = 'cycle-phase';
+        phaseLbl.textContent = card.phase_label + (card.predicted ? '' : ' · estimate');
+        ring.appendChild(phaseLbl);
+        wrap.appendChild(ring);
+
+        // Countdown.
+        var count = document.createElement('div');
+        count.className = 'cycle-count';
+        var du = card.days_until;
+        if (du === 0) count.innerHTML = '<b>Period expected today</b>';
+        else if (du > 0) count.innerHTML = 'Next period in <b>' + du + '</b> day' + (du === 1 ? '' : 's') + ' · ' + cycShortDate(card.next_period);
+        else count.innerHTML = '<b>' + Math.abs(du) + '</b> day' + (du === -1 ? '' : 's') + ' late · expected ' + cycShortDate(card.next_period);
+        wrap.appendChild(count);
+
+        // Fertile window (clearly an estimate, not contraception).
+        var fert = document.createElement('div');
+        fert.className = 'cycle-fertile' + (card.in_fertile ? ' active' : '');
+        fert.innerHTML = '✨ Fertile window (est.): ' + cycShortDate(card.fertile_from) + ' – ' + cycShortDate(card.fertile_to)
+            + '<span class="cycle-caveat">estimate for planning, not contraception</span>';
+        wrap.appendChild(fert);
+
+        // Recent periods.
+        if (card.recent && card.recent.length) {
+            var rec = document.createElement('div');
+            rec.className = 'cycle-recent';
+            var rh = document.createElement('div');
+            rh.className = 'cycle-recent-head';
+            rh.textContent = 'Recent';
+            rec.appendChild(rh);
+            card.recent.forEach(function (p) {
+                var row = document.createElement('div');
+                row.className = 'cycle-recent-row';
+                var lbl = document.createElement('span');
+                var flow = p.flow ? ' · ' + p.flow : '';
+                var len = p.length ? ' · ' + p.length + 'd' : '';
+                lbl.textContent = cycShortDate(p.start) + flow + len;
+                row.appendChild(lbl);
+                if (!readOnly) {
+                    var del = deleteButton('Remove period');
+                    del.addEventListener('click', function () {
+                        if (!window.confirm('Remove this logged period?')) return;
+                        cyclePost({ action: 'remove', id: p.id }, wrap);
+                    });
+                    row.appendChild(del);
+                }
+                rec.appendChild(row);
+            });
+            wrap.appendChild(rec);
+        }
+
+        if (!readOnly) wrap.appendChild(cycleLogControls(wrap, card));
+    }
+
+    function cycTodayIso() {
+        var d = new Date();
+        return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    }
+
+    // Log controls: a start-date picker (defaults to today, can backdate), flow chips,
+    // and the log button. The button label reflects the chosen date.
+    function cycleLogControls(wrap, card) {
+        var box = document.createElement('div');
+        box.className = 'cycle-log';
+        var flow = null;
+        var today = cycTodayIso();
+
+        var dateRow = document.createElement('label');
+        dateRow.className = 'cycle-date-row';
+        var dateLbl = document.createElement('span');
+        dateLbl.textContent = 'Started';
+        var dateIn = document.createElement('input');
+        dateIn.type = 'date';
+        dateIn.className = 'cycle-date-input';
+        dateIn.value = today;
+        dateIn.max = today; // no logging a period in the future
+        dateRow.appendChild(dateLbl);
+        dateRow.appendChild(dateIn);
+
+        var chips = document.createElement('div');
+        chips.className = 'cycle-flow-chips';
+        (card.flows || ['light', 'medium', 'heavy']).forEach(function (f) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'cycle-flow-chip';
+            chip.textContent = f;
+            chip.addEventListener('click', function () {
+                if (flow === f) { flow = null; chip.classList.remove('on'); return; }
+                flow = f;
+                Array.prototype.forEach.call(chips.children, function (c) { c.classList.remove('on'); });
+                chip.classList.add('on');
+            });
+            chips.appendChild(chip);
+        });
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cycle-log-btn';
+        function syncBtn() {
+            btn.textContent = (dateIn.value === today || !dateIn.value)
+                ? '＋ Period started today'
+                : '＋ Log period · ' + cycShortDate(dateIn.value);
+        }
+        syncBtn();
+        dateIn.addEventListener('change', syncBtn);
+        btn.addEventListener('click', function () {
+            btn.disabled = true;
+            cyclePost({ action: 'log', flow: flow, start_date: dateIn.value || today }, wrap);
+        });
+
+        box.appendChild(dateRow);
+        box.appendChild(chips);
+        box.appendChild(btn);
+        return box;
+    }
+
+    function cyclePost(body, wrap) {
+        return fetch('/api/cycle.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); }).then(function (res) {
+            if (res && res.card) buildCycle(wrap, res.card);
+        }).catch(function () { /* non-fatal */ });
     }
 
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.

@@ -23,6 +23,7 @@ use App\Data\ApiTokens;
 use App\Data\Calendar;
 use App\Data\Connections;
 use App\Data\Conversations;
+use App\Data\CycleTracker;
 use App\Data\DevIdeas;
 use App\Data\Invites;
 use App\Data\Memories;
@@ -132,6 +133,7 @@ try {
         new Receipts(),
         new ReceiptStorage(),
         EmailService::fromEnv(),
+        new CycleTracker(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
