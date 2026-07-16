@@ -32,6 +32,7 @@ use App\Data\RememberTokens;
 use App\Data\ShoppingLists;
 use App\Data\UserInstructions;
 use App\Data\Users;
+use App\Data\UserSettings;
 use App\Data\Vinyls;
 use App\Data\Wishlist;
 use App\Data\WorkEvents;
@@ -134,6 +135,7 @@ try {
         new ReceiptStorage(),
         EmailService::fromEnv(),
         new CycleTracker(),
+        new UserSettings(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
