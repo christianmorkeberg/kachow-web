@@ -992,7 +992,9 @@
                     rm.setAttribute('aria-label', 'Remove line');
                     rm.textContent = '×';
                     rm.addEventListener('click', function () {
+                        var removed = lineItems[idx];
                         lineItems.splice(idx, 1);
+                        adjustTotalsForRemoval(removed);
                         renderItems();
                     });
                     row.appendChild(rm);
@@ -1019,6 +1021,25 @@
         vatHint.hidden = true;
         wrap.appendChild(vatHint);
         function num(v) { return parseFloat(String(v).replace(',', '.')); }
+        function round2(n) { return Math.round(n * 100) / 100; }
+
+        // Removing a misread line subtracts its amount from the total, and scales VAT
+        // by the same ratio so the effective VAT rate is preserved (keeps books
+        // consistent and stops the 25% hint false-alarming). No-op if the line had no
+        // readable amount or there's no positive total to reduce.
+        function adjustTotalsForRemoval(removed) {
+            if (!removed || removed.amount == null) return;
+            var oldTotal = num(inputs.total.value);
+            if (isNaN(oldTotal) || oldTotal <= 0) return;
+            var newTotal = Math.max(0, round2(oldTotal - removed.amount));
+            var oldVat = num(inputs.vat.value);
+            if (!isNaN(oldVat) && oldVat !== 0) {
+                inputs.vat.value = round2(oldVat * (newTotal / oldTotal));
+            }
+            inputs.total.value = newTotal;
+            checkVat();
+        }
+
         function checkVat() {
             var cur = inputs.currency ? inputs.currency.value : (card.currency || 'DKK');
             var total = num(inputs.total.value);
