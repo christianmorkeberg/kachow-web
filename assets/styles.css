@@ -1042,3 +1042,16 @@ button.iconbtn.on {
 .email-field-input:focus { border-color: var(--accent); outline: none; }
 .email-field-body { resize: vertical; min-height: 110px; line-height: 1.45; }
 .email-field-input:disabled { opacity: .7; }
+
+/* ---------- Mobile: never zoom on input focus ----------
+   The viewport meta locks zoom in the installed PWA; iOS Safari (a normal tab)
+   ignores that, but it will NOT zoom into a focused field whose font-size is ≥16px.
+   So force all form controls to 16px on small screens as a belt-and-suspenders fix. */
+@media (max-width: 700px) {
+    input, select, textarea,
+    .receipt-field input, .receipt-field select,
+    .receipt-item-desc, .receipt-item-qty, .receipt-item-amt-in,
+    .email-field-input {
+        font-size: 16px;
+    }
+}
