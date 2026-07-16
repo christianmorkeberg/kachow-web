@@ -957,6 +957,31 @@
         field('Note', 'note', 'text', card.note);
         wrap.appendChild(fields);
 
+        // Line items read from the photo (read-only; header totals stay authoritative).
+        if (card.line_items && card.line_items.length) {
+            var items = document.createElement('div');
+            items.className = 'receipt-items';
+            var itHead = document.createElement('div');
+            itHead.className = 'receipt-items-head';
+            itHead.textContent = 'Items (' + card.line_items.length + ')';
+            items.appendChild(itHead);
+            card.line_items.forEach(function (li) {
+                var row = document.createElement('div');
+                row.className = 'receipt-item';
+                var name = document.createElement('span');
+                name.className = 'receipt-item-name';
+                var qty = (li.qty != null && li.qty !== 1) ? (li.qty + '× ') : '';
+                name.textContent = qty + (li.description || '');
+                var amt = document.createElement('span');
+                amt.className = 'receipt-item-amt';
+                amt.textContent = li.amount != null ? fmtMoney(li.amount, card.currency || 'DKK') : '';
+                row.appendChild(name);
+                row.appendChild(amt);
+                items.appendChild(row);
+            });
+            wrap.appendChild(items);
+        }
+
         // Possible-duplicate note (non-blocking) — same vendor/date/amount exists.
         if (card.duplicate) {
             var dup = document.createElement('div');
