@@ -957,50 +957,158 @@
         field('Note', 'note', 'text', card.note);
         wrap.appendChild(fields);
 
-        // Line items read from the photo. Editable only in that the user can remove
-        // misread rows; the trimmed set is saved on Confirm. Header totals stay
-        // authoritative (removing a line does not change the total).
-        var lineItems = (card.line_items || []).slice();
+        function num(v) { return parseFloat(String(v).replace(',', '.')); }
+        function round2(n) { return Math.round(n * 100) / 100; }
+
+        // Editable line items: the AI can misread a description/amount, or miss a line
+        // entirely — so the user can edit each field, remove a bad row, or add a missing
+        // one. Total & VAT follow the items' sum automatically (VAT keeps its effective
+        // rate) UNTIL the user edits Total/VAT by hand, which "unlinks" them — for the odd
+        // receipt whose lines don't sum to the printed total (deposit, discount, fee).
+        // The list is saved on Confirm.
+        var lineItems = (card.line_items || []).map(function (li) {
+            return {
+                description: li.description || '',
+                qty: (li.qty != null ? li.qty : null),
+                amount: (li.amount != null ? li.amount : null),
+            };
+        });
+
+        // Effective VAT rate, derived once, so we can preserve it when the total changes.
+        var vatRate = null;
+        (function () {
+            var t = num(inputs.total.value), v = num(inputs.vat.value);
+            if (!isNaN(t) && t > 0 && !isNaN(v) && v > 0) vatRate = v / t;
+        })();
+
+        function itemsSum() {
+            return lineItems.reduce(function (s, li) {
+                var a = (li.amount == null) ? 0 : li.amount;
+                return s + (isNaN(a) ? 0 : a);
+            }, 0);
+        }
+
+        // Total tracks the items' sum only while "linked". Start linked when there are
+        // items and their sum already matches the read total (so we never clobber a good
+        // total that includes a fee/deposit the lines don't itemise).
+        var totalLinked = (function () {
+            if (!lineItems.length) return false;
+            var t = num(inputs.total.value);
+            return !isNaN(t) && Math.abs(round2(itemsSum()) - t) < 0.01;
+        })();
+
         var itemsWrap = document.createElement('div');
         itemsWrap.className = 'receipt-items';
         wrap.appendChild(itemsWrap);
+        var sumEl = null, mismatchEl = null;
+
+        function refreshItemsInfo() {
+            if (sumEl) sumEl.textContent = 'Sum ' + fmtMoney(round2(itemsSum()), card.currency || 'DKK');
+            if (mismatchEl) {
+                var t = num(inputs.total.value);
+                var diff = !isNaN(t) && Math.abs(round2(itemsSum()) - t) >= 0.01;
+                mismatchEl.hidden = !(diff && lineItems.length && !totalLinked);
+            }
+        }
+
+        function syncTotals() {
+            if (totalLinked) {
+                var sum = round2(itemsSum());
+                inputs.total.value = sum;
+                if (vatRate != null) inputs.vat.value = round2(sum * vatRate);
+                checkVat();
+            }
+            refreshItemsInfo();
+        }
+
         function renderItems() {
             itemsWrap.innerHTML = '';
-            if (!lineItems.length) { itemsWrap.hidden = true; return; }
+            sumEl = null; mismatchEl = null;
+            if (!lineItems.length && confirmed) { itemsWrap.hidden = true; return; }
             itemsWrap.hidden = false;
-            var itHead = document.createElement('div');
-            itHead.className = 'receipt-items-head';
-            itHead.textContent = 'Items (' + lineItems.length + ')';
-            itemsWrap.appendChild(itHead);
+
+            var head = document.createElement('div');
+            head.className = 'receipt-items-head';
+            var lbl = document.createElement('span');
+            lbl.textContent = 'Items';
+            sumEl = document.createElement('span');
+            sumEl.className = 'receipt-items-sum';
+            head.appendChild(lbl);
+            head.appendChild(sumEl);
+            itemsWrap.appendChild(head);
+
             lineItems.forEach(function (li, idx) {
                 var row = document.createElement('div');
-                row.className = 'receipt-item';
-                var name = document.createElement('span');
-                name.className = 'receipt-item-name';
-                var qty = (li.qty != null && li.qty !== 1) ? (li.qty + '× ') : '';
-                name.textContent = qty + (li.description || '');
-                var amt = document.createElement('span');
-                amt.className = 'receipt-item-amt';
-                amt.textContent = li.amount != null ? fmtMoney(li.amount, card.currency || 'DKK') : '';
-                row.appendChild(name);
-                row.appendChild(amt);
-                if (!confirmed) {
-                    var rm = document.createElement('button');
-                    rm.type = 'button';
-                    rm.className = 'receipt-item-rm';
-                    rm.title = 'Remove line';
-                    rm.setAttribute('aria-label', 'Remove line');
-                    rm.textContent = '×';
-                    rm.addEventListener('click', function () {
-                        var removed = lineItems[idx];
-                        lineItems.splice(idx, 1);
-                        adjustTotalsForRemoval(removed);
-                        renderItems();
+                row.className = 'receipt-item' + (confirmed ? ' is-confirmed' : '');
+
+                if (confirmed) {
+                    var name = document.createElement('span');
+                    name.className = 'receipt-item-name';
+                    var q = (li.qty != null && li.qty !== 1) ? (li.qty + '× ') : '';
+                    name.textContent = q + (li.description || '');
+                    var amt = document.createElement('span');
+                    amt.className = 'receipt-item-amt';
+                    amt.textContent = li.amount != null ? fmtMoney(li.amount, card.currency || 'DKK') : '';
+                    row.appendChild(name);
+                    row.appendChild(amt);
+                } else {
+                    var desc = document.createElement('input');
+                    desc.type = 'text'; desc.className = 'receipt-item-desc';
+                    desc.placeholder = 'Item'; desc.value = li.description || '';
+                    desc.addEventListener('input', function () { lineItems[idx].description = desc.value; });
+
+                    var qtyIn = document.createElement('input');
+                    qtyIn.type = 'number'; qtyIn.className = 'receipt-item-qty';
+                    qtyIn.step = 'any'; qtyIn.inputMode = 'decimal'; qtyIn.title = 'Qty';
+                    qtyIn.value = (li.qty != null ? li.qty : '');
+                    qtyIn.addEventListener('input', function () {
+                        var q = num(qtyIn.value); lineItems[idx].qty = isNaN(q) ? null : q;
                     });
-                    row.appendChild(rm);
+
+                    var amtIn = document.createElement('input');
+                    amtIn.type = 'number'; amtIn.className = 'receipt-item-amt-in';
+                    amtIn.step = '0.01'; amtIn.inputMode = 'decimal'; amtIn.title = 'Amount';
+                    amtIn.value = (li.amount != null ? li.amount : '');
+                    amtIn.addEventListener('input', function () {
+                        var a = num(amtIn.value); lineItems[idx].amount = isNaN(a) ? null : a; syncTotals();
+                    });
+
+                    var rm = document.createElement('button');
+                    rm.type = 'button'; rm.className = 'receipt-item-rm';
+                    rm.title = 'Remove line'; rm.setAttribute('aria-label', 'Remove line'); rm.textContent = '×';
+                    rm.addEventListener('click', function () {
+                        lineItems.splice(idx, 1); renderItems(); syncTotals();
+                    });
+
+                    row.appendChild(desc); row.appendChild(qtyIn); row.appendChild(amtIn); row.appendChild(rm);
                 }
                 itemsWrap.appendChild(row);
             });
+
+            if (!confirmed) {
+                mismatchEl = document.createElement('div');
+                mismatchEl.className = 'receipt-items-mismatch';
+                mismatchEl.hidden = true;
+                var mText = document.createElement('span');
+                mText.textContent = 'Items don’t add up to the total. ';
+                var mLink = document.createElement('button');
+                mLink.type = 'button'; mLink.className = 'receipt-items-relink'; mLink.textContent = 'Use items sum';
+                mLink.addEventListener('click', function () { totalLinked = true; syncTotals(); });
+                mismatchEl.appendChild(mText); mismatchEl.appendChild(mLink);
+                itemsWrap.appendChild(mismatchEl);
+
+                var add = document.createElement('button');
+                add.type = 'button'; add.className = 'receipt-add-line'; add.textContent = '+ Add line';
+                add.addEventListener('click', function () {
+                    lineItems.push({ description: '', qty: null, amount: null });
+                    renderItems();
+                    var descs = itemsWrap.querySelectorAll('.receipt-item-desc');
+                    if (descs.length) descs[descs.length - 1].focus();
+                });
+                itemsWrap.appendChild(add);
+            }
+
+            refreshItemsInfo();
         }
         renderItems();
 
@@ -1020,25 +1128,6 @@
         vatHint.className = 'receipt-vat-hint';
         vatHint.hidden = true;
         wrap.appendChild(vatHint);
-        function num(v) { return parseFloat(String(v).replace(',', '.')); }
-        function round2(n) { return Math.round(n * 100) / 100; }
-
-        // Removing a misread line subtracts its amount from the total, and scales VAT
-        // by the same ratio so the effective VAT rate is preserved (keeps books
-        // consistent and stops the 25% hint false-alarming). No-op if the line had no
-        // readable amount or there's no positive total to reduce.
-        function adjustTotalsForRemoval(removed) {
-            if (!removed || removed.amount == null) return;
-            var oldTotal = num(inputs.total.value);
-            if (isNaN(oldTotal) || oldTotal <= 0) return;
-            var newTotal = Math.max(0, round2(oldTotal - removed.amount));
-            var oldVat = num(inputs.vat.value);
-            if (!isNaN(oldVat) && oldVat !== 0) {
-                inputs.vat.value = round2(oldVat * (newTotal / oldTotal));
-            }
-            inputs.total.value = newTotal;
-            checkVat();
-        }
 
         function checkVat() {
             var cur = inputs.currency ? inputs.currency.value : (card.currency || 'DKK');
@@ -1059,8 +1148,20 @@
 
         if (confirmed) return;
 
-        inputs.total.addEventListener('input', checkVat);
-        inputs.vat.addEventListener('input', checkVat);
+        // Editing Total/VAT by hand takes manual control (unlinks from the items sum).
+        inputs.total.addEventListener('input', function () {
+            totalLinked = false;
+            // Re-derive the VAT rate from the hand-typed total so future line edits keep it.
+            var t = num(inputs.total.value), v = num(inputs.vat.value);
+            vatRate = (!isNaN(t) && t > 0 && !isNaN(v) && v > 0) ? v / t : vatRate;
+            checkVat(); refreshItemsInfo();
+        });
+        inputs.vat.addEventListener('input', function () {
+            totalLinked = false;
+            var t = num(inputs.total.value), v = num(inputs.vat.value);
+            vatRate = (!isNaN(t) && t > 0 && !isNaN(v) && v > 0) ? v / t : vatRate;
+            checkVat();
+        });
         if (inputs.currency) inputs.currency.addEventListener('change', checkVat);
 
         var actions = document.createElement('div');
