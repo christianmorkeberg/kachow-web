@@ -999,6 +999,16 @@ button.iconbtn.on {
     border-radius: 8px;
     padding: 10px 12px;
 }
+/* HTML email body rendered in a sandboxed iframe (white page, like a mail client) */
+.email-html {
+    margin-top: 8px;
+    width: 100%;
+    height: 320px;
+    border: 1px solid #22335a;
+    border-radius: 8px;
+    background: #fff;
+    display: block;
+}
 .email-note { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .email-draft.sent { border-color: #2e6f4e; }
 .email-actions { margin-top: 10px; }

@@ -525,6 +525,36 @@
     }
 
     // A single opened email with its body.
+    // Render an email's original HTML safely: a sandboxed iframe with a strict CSP so
+    // nothing executes and no remote script/frame loads. Images + inline styles are
+    // allowed so the mail looks right; JS is neutralised twice over (sandbox without
+    // allow-scripts, and CSP script-src 'none'). allow-same-origin is granted only so we
+    // can measure the content height — with scripts disabled it still can't escape.
+    function buildHtmlEmailBody(html) {
+        var frame = document.createElement('iframe');
+        frame.className = 'email-html';
+        frame.setAttribute('sandbox', 'allow-same-origin');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.setAttribute('title', 'Email content');
+        var csp = '<meta http-equiv="Content-Security-Policy" content="'
+            + "default-src 'none'; img-src https: data: cid:; style-src 'unsafe-inline'; font-src https: data:; media-src https: data:"
+            + '">';
+        var head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            + '<style>html,body{margin:0;padding:8px;background:#fff;color:#111;'
+            + 'font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;overflow-wrap:break-word;}'
+            + 'img{max-width:100%;height:auto;}a{color:#0b57d0;}</style>';
+        frame.srcdoc = '<!doctype html><html><head>' + csp + head + '</head><body>' + html + '</body></html>';
+        frame.addEventListener('load', function () {
+            try {
+                var doc = frame.contentDocument;
+                if (doc && doc.body) {
+                    frame.style.height = Math.min(doc.body.scrollHeight + 16, 640) + 'px';
+                }
+            } catch (e) { /* opaque origin — keep default height */ }
+        });
+        return frame;
+    }
+
     function renderEmail(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');
@@ -540,10 +570,14 @@
         meta.textContent = senderName(card.from) + '  ·  ' + emailDate(card.date);
         wrap.appendChild(meta);
 
-        var body = document.createElement('pre');
-        body.className = 'email-body';
-        body.textContent = card.body || '(no text content)';
-        wrap.appendChild(body);
+        if (card.body_html) {
+            wrap.appendChild(buildHtmlEmailBody(card.body_html));
+        } else {
+            var body = document.createElement('pre');
+            body.className = 'email-body';
+            body.textContent = card.body || '(no text content)';
+            wrap.appendChild(body);
+        }
 
         var actions = document.createElement('div');
         actions.className = 'email-actions';
