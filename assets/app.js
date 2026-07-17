@@ -133,6 +133,7 @@
         if (card.kind === 'email_draft') { renderEmailDraft(card); return; }
         if (card.kind === 'cycle') { renderCycle(card); return; }
         if (card.kind === 'progression') { renderProgression(card); return; }
+        if (card.kind === 'work_chart') { renderWorkChart(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -1537,6 +1538,175 @@
             });
         });
         select(points.length - 1);
+    }
+
+    // ---- Work-hours bar chart card -----------------------------------------------
+    // Human label for a bucket, e.g. "Mon 6 Jul", "Week of 6 Jul", "Jul 2026".
+    function wchWhen(card, b) {
+        if (card.mode === 'week') return b.label + ' ' + b.sub;
+        if (card.mode === 'year') return b.label + ' ' + b.sub;
+        return 'Week of ' + b.sub;
+    }
+
+    function wchBarsSvg(card) {
+        var bars = card.bars || [];
+        var W = 320, H = 150, padL = 8, padR = 8, padT = 12, padB = 22;
+        var innerW = W - padL - padR, innerH = H - padT - padB;
+        var n = bars.length || 1;
+        var maxMin = Math.max.apply(null, bars.map(function (b) { return b.minutes; }).concat([1]));
+        var y0 = padT + innerH;
+        var step = innerW / n;
+        var barW = Math.min(step * 0.64, 34);
+        function bx(i) { return padL + step * i + (step - barW) / 2; }
+
+        var grid = '<line class="wch-grid" x1="' + padL + '" y1="' + padT + '" x2="' + (W - padR) + '" y2="' + padT + '"/>'
+            + '<text class="wch-ylab" x="' + padL + '" y="' + (padT - 3) + '">' + progFmt(maxMin / 60) + 'h</text>'
+            + '<line class="wch-grid base" x1="' + padL + '" y1="' + y0 + '" x2="' + (W - padR) + '" y2="' + y0 + '"/>';
+
+        var rects = '', hits = '', labels = '';
+        var many = n > 8;
+        bars.forEach(function (b, i) {
+            var h = maxMin > 0 ? (b.minutes / maxMin) * innerH : 0;
+            var x = bx(i);
+            if (b.minutes > 0) {
+                var bh = Math.max(h, 2);
+                var cls = 'wch-bar' + (b.ongoing ? ' ongoing' : '');
+                rects += '<rect class="' + cls + '" data-idx="' + i + '" x="' + x.toFixed(1) + '" y="' + (y0 - bh).toFixed(1)
+                    + '" width="' + barW.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="2.5">'
+                    + '<title>' + progEsc(wchWhen(card, b) + ' · ' + b.total + (b.ongoing ? ' · on the clock' : '')) + '</title></rect>';
+            }
+            hits += '<rect class="wch-hit" data-idx="' + i + '" x="' + (padL + step * i).toFixed(1) + '" y="' + padT
+                + '" width="' + step.toFixed(1) + '" height="' + innerH.toFixed(1) + '"/>';
+            if (!many || i % 2 === 0 || i === n - 1) {
+                labels += '<text class="wch-xlab" x="' + (x + barW / 2).toFixed(1) + '" y="' + (H - 8)
+                    + '" text-anchor="middle">' + progEsc(b.label) + '</text>';
+            }
+        });
+
+        return '<svg class="wch-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img">' + grid + rects + labels + hits + '</svg>';
+    }
+
+    function renderWorkChart(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card wch-card';
+        buildWorkChart(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildWorkChart(wrap, card) {
+        wrap.innerHTML = '';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = 'Work hours · ' + (card.title || '');
+        wrap.appendChild(head);
+
+        if (!card.has_data) {
+            var empty = document.createElement('div');
+            empty.className = 'prog-empty';
+            empty.textContent = 'No hours logged in this period.';
+            wrap.appendChild(empty);
+            wrap.appendChild(wchControls(card, wrap));
+            return;
+        }
+
+        var summary = document.createElement('div');
+        summary.className = 'wch-summary';
+        summary.innerHTML = '<span class="wch-total">' + progEsc(card.total) + '</span>'
+            + '<span class="wch-avg">avg ' + progEsc(card.avg) + ' / ' + progEsc(card.bucket_word) + '</span>'
+            + '<span class="wch-range">' + progEsc(card.range || '') + '</span>';
+        wrap.appendChild(summary);
+
+        var chart = document.createElement('div');
+        chart.className = 'wch-chart';
+        chart.innerHTML = wchBarsSvg(card);
+        wrap.appendChild(chart);
+
+        var readout = document.createElement('div');
+        readout.className = 'prog-readout';
+        wrap.appendChild(readout);
+        wireWchTaps(chart, readout, card);
+
+        // Per-workplace breakdown chips (only when >1 labelled place).
+        if ((card.places || []).length) {
+            var bd = document.createElement('div');
+            bd.className = 'work-breakdown';
+            card.places.forEach(function (p) {
+                var chip = document.createElement('span');
+                chip.className = 'work-place-total';
+                chip.textContent = (p.place || '—') + ' ' + p.total;
+                bd.appendChild(chip);
+            });
+            wrap.appendChild(bd);
+        }
+
+        wrap.appendChild(wchControls(card, wrap));
+    }
+
+    function wchControls(card, wrap) {
+        var box = document.createElement('div');
+        box.className = 'prog-controls';
+        var seg = document.createElement('div');
+        seg.className = 'prog-seg';
+        (card.modes || []).forEach(function (m) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'prog-seg-btn' + (m.key === card.mode ? ' on' : '');
+            b.textContent = m.label;
+            b.addEventListener('click', function () {
+                if (m.key === card.mode) return;
+                wchPost({ period: m.key }, wrap);
+            });
+            seg.appendChild(b);
+        });
+        box.appendChild(seg);
+        return box;
+    }
+
+    function wchPost(body, wrap) {
+        wrap.classList.add('loading');
+        return fetch('/api/work-summary.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); }).then(function (res) {
+            wrap.classList.remove('loading');
+            if (res && res.card) buildWorkChart(wrap, res.card);
+        }).catch(function () { wrap.classList.remove('loading'); });
+    }
+
+    function wireWchTaps(chart, readout, card) {
+        var svg = chart.querySelector('.wch-svg');
+        if (!svg) return;
+        var bars = card.bars || [];
+
+        function select(idx) {
+            var b = bars[idx];
+            if (!b) return;
+            var prev = svg.querySelector('.wch-bar.sel');
+            if (prev) prev.classList.remove('sel');
+            var bar = svg.querySelector('.wch-bar[data-idx="' + idx + '"]');
+            if (bar) bar.classList.add('sel');
+
+            var tag = b.ongoing ? '<span class="prog-ro-tag est">on the clock</span>' : '';
+            readout.innerHTML = '<span class="prog-ro-date">' + progEsc(wchWhen(card, b)) + '</span>'
+                + '<span class="prog-ro-val">' + progEsc(b.minutes > 0 ? b.total : '0m') + '</span>'
+                + (b.minutes > 0 ? '' : '<span class="prog-ro-detail">no hours</span>')
+                + tag;
+        }
+
+        Array.prototype.forEach.call(svg.querySelectorAll('.wch-hit'), function (h) {
+            h.addEventListener('click', function () {
+                select(parseInt(h.getAttribute('data-idx'), 10));
+            });
+        });
+        // Default to the most recent bar that has hours (else the last bar).
+        var def = bars.length - 1;
+        for (var i = bars.length - 1; i >= 0; i--) { if (bars[i].minutes > 0) { def = i; break; } }
+        select(def);
     }
 
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.
