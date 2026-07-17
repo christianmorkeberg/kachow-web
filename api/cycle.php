@@ -6,8 +6,10 @@ declare(strict_types=1);
  * Cycle card actions (authenticated session, JSON) — the tap affordances on the
  * cycle card. Own data only (never a shared/connected view).
  *
- *   POST { action:'log',    start_date?, flow? }  → log a period start, returns card
- *   POST { action:'remove', id }                  → remove a logged period, returns card
+ *   POST { action:'log',            start_date?, flow? }  → log a period start, returns card
+ *   POST { action:'remove',         id }                  → remove a logged period, returns card
+ *   POST { action:'log_day',        mood?, energy?, date? } → log mood/energy, returns card
+ *   POST { action:'toggle_fertile' }                      → flip the fertile-window setting, returns card
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -17,6 +19,7 @@ use App\Auth\Session;
 use App\Data\CycleTracker;
 use App\Data\RememberTokens;
 use App\Data\Users;
+use App\Data\UserSettings;
 
 header('Content-Type: application/json');
 
@@ -62,6 +65,25 @@ try {
             out(400, ['error' => 'A period id is required.']);
         }
         $cycle->remove($userId, $id);
+        out(200, ['ok' => true, 'card' => $cycle->card($userId)]);
+    }
+
+    if ($action === 'log_day') {
+        $mood   = isset($in['mood'])   && $in['mood']   !== '' ? (int) $in['mood']   : null;
+        $energy = isset($in['energy']) && $in['energy'] !== '' ? (int) $in['energy'] : null;
+        $cycle->logDay(
+            $userId,
+            isset($in['date']) ? (string) $in['date'] : '',
+            $mood,
+            $energy,
+        );
+        out(200, ['ok' => true, 'card' => $cycle->card($userId)]);
+    }
+
+    if ($action === 'toggle_fertile') {
+        $settings = new UserSettings();
+        $now = UserSettings::isTruthy($settings->get($userId, 'cycle_show_fertile'));
+        $settings->set($userId, 'cycle_show_fertile', $now ? 'off' : 'on');
         out(200, ['ok' => true, 'card' => $cycle->card($userId)]);
     }
 

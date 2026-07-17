@@ -920,13 +920,17 @@
     }
 
     // ---------- Cycle (period) card ----------
-    var CYCLE_PHASES = {
-        menstrual:  { emoji: '🩸', label: 'Menstrual' },
-        follicular: { emoji: '🌱', label: 'Follicular' },
-        fertile:    { emoji: '✨', label: 'Fertile window' },
-        ovulation:  { emoji: '🥚', label: 'Ovulation' },
-        luteal:     { emoji: '🌙', label: 'Luteal' }
+    // Inner-seasons framing: the ring, centre and legend all key off these so colours
+    // are consistent by construction. `clinical` is the medical phase name shown as a
+    // subtitle. `cls` matches the CSS arc/swatch colour.
+    var CYCLE_SEASONS = {
+        winter: { emoji: '❄️', label: 'Winter', cls: 'cyc-winter', clinical: 'menstrual' },
+        spring: { emoji: '🌱', label: 'Spring', cls: 'cyc-spring', clinical: 'follicular' },
+        summer: { emoji: '☀️', label: 'Summer', cls: 'cyc-summer', clinical: 'ovulation' },
+        autumn: { emoji: '🍂', label: 'Autumn', cls: 'cyc-autumn', clinical: 'luteal' }
     };
+    var CYCLE_SEASON_ORDER = ['winter', 'spring', 'summer', 'autumn'];
+    var CYCLE_MOODS = ['😢', '😕', '😐', '🙂', '😄'];
 
     function cycShortDate(iso) {
         if (!iso) return '';
@@ -958,18 +962,17 @@
                 + ' transform="rotate(' + rot.toFixed(2) + ' ' + cx + ' ' + cx + ')"/>';
         }
 
-        var arcs = arc(1, pLen, 'cyc-menstrual')
-            + arc(pLen + 1, fStart - 1, 'cyc-follicular')
-            + arc(fStart, fEnd, 'cyc-fertile')
-            + arc(fEnd + 1, L, 'cyc-luteal');
+        var arcs = arc(1, pLen, 'cyc-winter')
+            + arc(pLen + 1, fStart - 1, 'cyc-spring')
+            + arc(fStart, fEnd, 'cyc-summer')
+            + arc(fEnd + 1, L, 'cyc-autumn');
 
         var day = Math.min(Math.max(card.cycle_day || 1, 1), L);
         var markAngle = ((day - 0.5) / L) * 360;
         var marker = '<g transform="rotate(' + markAngle.toFixed(2) + ' ' + cx + ' ' + cx + ')">'
             + '<circle class="cyc-marker" cx="' + cx + '" cy="' + (cx - r) + '" r="9"/></g>';
 
-        var ph = CYCLE_PHASES[card.phase] || { emoji: '🌸', label: card.phase_label || 'Cycle' };
-        var center = '<text class="cyc-emoji" x="90" y="82" text-anchor="middle">' + ph.emoji + '</text>'
+        var center = '<text class="cyc-emoji" x="90" y="82" text-anchor="middle">' + (card.season_emoji || '🌸') + '</text>'
             + '<text class="cyc-dayn" x="90" y="108" text-anchor="middle">Day ' + day + '</text>';
 
         return '<svg class="cyc-ring" viewBox="0 0 180 180" width="180" height="180" aria-hidden="true">'
@@ -1008,15 +1011,47 @@
             return;
         }
 
-        // Ring + phase.
+        var showFertile = !!card.show_fertile;
+        var isSummer = card.season === 'summer';
+
+        // Ring + season label (season primary, clinical phase as subtitle).
         var ring = document.createElement('div');
         ring.className = 'cycle-ring-wrap';
         ring.innerHTML = cycleRingSvg(card);
         var phaseLbl = document.createElement('div');
         phaseLbl.className = 'cycle-phase';
-        phaseLbl.textContent = card.phase_label + (card.predicted ? '' : ' · estimate');
+        var seasonName = document.createElement('span');
+        seasonName.className = 'cycle-season';
+        seasonName.textContent = (card.season_emoji ? card.season_emoji + ' ' : '') + (card.season_label || '');
+        phaseLbl.appendChild(seasonName);
+        // Clinical subtitle — hidden for the summer/fertile phase when fertility is off.
+        if (!(isSummer && !showFertile)) {
+            var sub = document.createElement('span');
+            sub.className = 'cycle-phase-sub';
+            sub.textContent = card.phase_label + (card.predicted ? '' : ' · estimate');
+            phaseLbl.appendChild(sub);
+        }
         ring.appendChild(phaseLbl);
         wrap.appendChild(ring);
+
+        // Legend (fixes colour↔phase clarity): a swatch per season.
+        var legend = document.createElement('div');
+        legend.className = 'cycle-legend';
+        CYCLE_SEASON_ORDER.forEach(function (s) {
+            var meta = CYCLE_SEASONS[s];
+            var item = document.createElement('span');
+            item.className = 'cycle-legend-item' + (card.season === s ? ' on' : '');
+            var sw = document.createElement('span');
+            sw.className = 'cycle-swatch ' + meta.cls;
+            var txt = document.createElement('span');
+            // Hide the "ovulation/fertile" clinical word on summer when fertility is off.
+            var clin = (s === 'summer' && !showFertile) ? '' : ' · ' + meta.clinical;
+            txt.textContent = meta.emoji + ' ' + meta.label + clin;
+            item.appendChild(sw);
+            item.appendChild(txt);
+            legend.appendChild(item);
+        });
+        wrap.appendChild(legend);
 
         // Countdown.
         var count = document.createElement('div');
@@ -1027,12 +1062,26 @@
         else count.innerHTML = '<b>' + Math.abs(du) + '</b> day' + (du === -1 ? '' : 's') + ' late · expected ' + cycShortDate(card.next_period);
         wrap.appendChild(count);
 
-        // Fertile window (clearly an estimate, not contraception).
-        var fert = document.createElement('div');
-        fert.className = 'cycle-fertile' + (card.in_fertile ? ' active' : '');
-        fert.innerHTML = '✨ Fertile window (est.): ' + cycShortDate(card.fertile_from) + ' – ' + cycShortDate(card.fertile_to)
-            + '<span class="cycle-caveat">estimate for planning, not contraception</span>';
-        wrap.appendChild(fert);
+        // Fertile window — shown only when enabled (clearly an estimate, not contraception).
+        if (showFertile) {
+            var fert = document.createElement('div');
+            fert.className = 'cycle-fertile' + (card.in_fertile ? ' active' : '');
+            fert.innerHTML = '☀️ Fertile window (est.): ' + cycShortDate(card.fertile_from) + ' – ' + cycShortDate(card.fertile_to)
+                + '<span class="cycle-caveat">estimate for planning, not contraception</span>';
+            wrap.appendChild(fert);
+        }
+        // Toggle to show/hide the fertile window (own view only).
+        if (!readOnly) {
+            var toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'cycle-fertile-toggle';
+            toggle.textContent = showFertile ? 'Hide fertile window' : 'Show fertile window';
+            toggle.addEventListener('click', function () { cyclePost({ action: 'toggle_fertile' }, wrap); });
+            wrap.appendChild(toggle);
+        }
+
+        // Mood / energy.
+        wrap.appendChild(cycleMoodEnergy(wrap, card, readOnly));
 
         // Recent periods.
         if (card.recent && card.recent.length) {
@@ -1125,6 +1174,91 @@
         box.appendChild(dateRow);
         box.appendChild(chips);
         box.appendChild(btn);
+        return box;
+    }
+
+    function moodColor(level) {
+        return ['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#34d399'][Math.max(1, Math.min(5, level)) - 1];
+    }
+
+    // A 1–5 picker row for mood (emoji faces) or energy (rising bars).
+    function moodEnergyPicker(wrap, card, key, label, emojis) {
+        var row = document.createElement('div');
+        row.className = 'cycle-me-row';
+        var lbl = document.createElement('span');
+        lbl.className = 'cycle-me-label';
+        lbl.textContent = label;
+        row.appendChild(lbl);
+        var opts = document.createElement('div');
+        opts.className = 'cycle-me-opts';
+        var current = key === 'mood' ? card.mood_today : card.energy_today;
+        for (var i = 1; i <= 5; i++) {
+            (function (level) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'cycle-me-opt' + (current === level ? ' on' : '') + (emojis ? ' is-mood' : ' is-energy');
+                b.title = label + ' ' + level;
+                if (emojis) {
+                    b.textContent = emojis[level - 1];
+                } else {
+                    var fill = document.createElement('span');
+                    fill.className = 'cycle-energy-fill';
+                    fill.style.height = (level * 16 + 12) + '%';
+                    b.appendChild(fill);
+                }
+                b.addEventListener('click', function () {
+                    var body = { action: 'log_day' };
+                    body[key] = level;
+                    cyclePost(body, wrap);
+                });
+                opts.appendChild(b);
+            })(i);
+        }
+        row.appendChild(opts);
+        return row;
+    }
+
+    // Mood & energy section: today's pickers (own view) + a 14-day trend strip
+    // (dot = mood colour, bar = energy height).
+    function cycleMoodEnergy(wrap, card, readOnly) {
+        var box = document.createElement('div');
+        box.className = 'cycle-mood';
+        var head = document.createElement('div');
+        head.className = 'cycle-mood-head';
+        head.textContent = readOnly ? 'Mood & energy' : 'How do you feel today?';
+        box.appendChild(head);
+
+        if (!readOnly) {
+            box.appendChild(moodEnergyPicker(wrap, card, 'mood', 'Mood', CYCLE_MOODS));
+            box.appendChild(moodEnergyPicker(wrap, card, 'energy', 'Energy', null));
+        }
+
+        if (card.trend && card.trend.length) {
+            var trend = document.createElement('div');
+            trend.className = 'cycle-trend';
+            card.trend.forEach(function (d) {
+                var col = document.createElement('div');
+                col.className = 'cycle-trend-col';
+                col.title = d.date + (d.mood ? ' · mood ' + d.mood : '') + (d.energy ? ' · energy ' + d.energy : '');
+                var dot = document.createElement('span');
+                dot.className = 'cycle-trend-mood' + (d.mood ? '' : ' empty');
+                if (d.mood) dot.style.background = moodColor(d.mood);
+                var barWrap = document.createElement('span');
+                barWrap.className = 'cycle-trend-barwrap';
+                var bar = document.createElement('span');
+                bar.className = 'cycle-trend-bar' + (d.energy ? '' : ' empty');
+                if (d.energy) bar.style.height = (d.energy * 20) + '%';
+                barWrap.appendChild(bar);
+                col.appendChild(dot);
+                col.appendChild(barWrap);
+                trend.appendChild(col);
+            });
+            box.appendChild(trend);
+            var tl = document.createElement('div');
+            tl.className = 'cycle-trend-legend';
+            tl.textContent = 'Last 14 days · dot = mood, bar = energy';
+            box.appendChild(tl);
+        }
         return box;
     }
 

@@ -1058,10 +1058,11 @@ button.iconbtn.on {
 .cycle-ring-wrap { display: flex; flex-direction: column; align-items: center; margin-top: 6px; }
 .cyc-ring { display: block; }
 .cyc-track { stroke: #26375c; }
-.cyc-menstrual { stroke: #f472b6; }
-.cyc-follicular { stroke: #34d399; }
-.cyc-fertile { stroke: #a78bfa; }
-.cyc-luteal { stroke: #60a5fa; }
+/* Inner-seasons palette — arcs and legend swatches share these hues. */
+.cyc-winter { stroke: #38bdf8; }  /* menstrual */
+.cyc-spring { stroke: #34d399; }  /* follicular */
+.cyc-summer { stroke: #facc15; }  /* ovulation */
+.cyc-autumn { stroke: #fb923c; }  /* luteal */
 .cyc-arc { transition: stroke-dasharray .6s ease; }
 .cyc-marker {
     fill: #fff;
@@ -1073,17 +1074,65 @@ button.iconbtn.on {
 @keyframes cyc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 .cyc-emoji { font-size: 30px; }
 .cyc-dayn { fill: var(--text); font-size: 15px; font-weight: 700; }
-.cycle-phase { margin-top: 6px; font-weight: 600; }
-.cycle-count { margin-top: 8px; font-size: 14px; color: var(--text); }
+.cycle-phase { margin-top: 6px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.cycle-season { font-weight: 700; font-size: 15px; }
+.cycle-phase-sub { font-size: 12px; color: var(--muted); text-transform: capitalize; }
+
+/* Legend — swatch colours match the ring arcs exactly */
+.cycle-legend {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px;
+    margin-top: 10px; font-size: 12px; color: var(--muted);
+}
+.cycle-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.cycle-legend-item.on { color: var(--text); font-weight: 600; }
+.cycle-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.cycle-swatch.cyc-winter { background: #38bdf8; }
+.cycle-swatch.cyc-spring { background: #34d399; }
+.cycle-swatch.cyc-summer { background: #facc15; }
+.cycle-swatch.cyc-autumn { background: #fb923c; }
+
+.cycle-count { margin-top: 10px; font-size: 14px; color: var(--text); }
 .cycle-count b { color: var(--accent); }
 .cycle-fertile {
     margin-top: 10px; padding: 8px 10px; border-radius: 10px;
-    background: rgba(167, 139, 250, .10); border: 1px solid rgba(167, 139, 250, .30);
+    background: rgba(250, 204, 21, .10); border: 1px solid rgba(250, 204, 21, .30);
     font-size: 12.5px; color: var(--text);
     display: flex; flex-direction: column; gap: 2px;
 }
-.cycle-fertile.active { background: rgba(167, 139, 250, .22); border-color: rgba(167, 139, 250, .55); }
+.cycle-fertile.active { background: rgba(250, 204, 21, .20); border-color: rgba(250, 204, 21, .55); }
 .cycle-caveat { font-size: 11px; color: var(--muted); }
+.cycle-fertile-toggle {
+    margin-top: 8px; background: transparent; border: 0; color: var(--accent);
+    font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; padding: 2px;
+}
+
+/* Mood & energy */
+.cycle-mood { margin-top: 14px; text-align: left; }
+.cycle-mood-head { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.cycle-me-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.cycle-me-label { flex: 0 0 52px; font-size: 12.5px; color: var(--muted); }
+.cycle-me-opts { display: flex; gap: 6px; }
+.cycle-me-opt {
+    width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+    background: var(--panel-2); border: 1px solid #26375c; padding: 0;
+    display: inline-flex; align-items: flex-end; justify-content: center; position: relative; overflow: hidden;
+}
+.cycle-me-opt.is-mood { font-size: 18px; align-items: center; }
+.cycle-me-opt.on { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56, 189, 248, .35); }
+.cycle-energy-fill { display: block; width: 60%; border-radius: 3px 3px 0 0; background: var(--accent); }
+.cycle-me-opt.on .cycle-energy-fill { background: #34d399; }
+
+.cycle-trend {
+    margin-top: 10px; display: flex; align-items: flex-end; gap: 3px;
+    height: 52px; padding: 4px; background: var(--panel-2); border-radius: 8px;
+}
+.cycle-trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px; }
+.cycle-trend-mood { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.cycle-trend-mood.empty { background: #26375c; }
+.cycle-trend-barwrap { width: 8px; height: 32px; display: flex; align-items: flex-end; }
+.cycle-trend-bar { width: 100%; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 2px; }
+.cycle-trend-bar.empty { background: #26375c; height: 2px; }
+.cycle-trend-legend { margin-top: 4px; font-size: 11px; color: var(--muted); }
 .cycle-recent { margin-top: 12px; text-align: left; }
 .cycle-recent-head { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .cycle-recent-row {
