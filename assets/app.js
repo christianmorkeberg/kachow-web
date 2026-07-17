@@ -1314,12 +1314,26 @@
             area = '<path class="prog-area" d="' + aPath + '"/>';
             line = '<path class="prog-line" d="' + d + '"/>';
         }
+        var showReal = card.metric === 'est_1rm';
         coords.forEach(function (c, i) {
             var last = i === n - 1;
+            var real = showReal && c.p.real;
             var title = progShortDate(c.p.date) + ' · ' + progFmt(c.p.value) + ' ' + (card.unit || '')
-                + (c.p.detail ? ' (' + c.p.detail + ')' : '');
-            dots += '<circle class="prog-dot' + (last ? ' last' : '') + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1)
-                + '" r="' + (last ? 4.5 : 3) + '"><title>' + progEsc(title) + '</title></circle>';
+                + (c.p.detail ? ' (' + c.p.detail + ')' : '')
+                + (showReal ? (real ? ' — tested max' : ' — estimated') : '');
+            var cls = 'prog-dot' + (real ? ' real' : '') + (last ? ' last' : '');
+            if (real) {
+                // Diamond marker for a tested (1-rep) max.
+                var s = last ? 5.5 : 4.5, x = c.x, y = c.y;
+                var d = 'M' + x.toFixed(1) + ' ' + (y - s).toFixed(1)
+                    + ' L' + (x + s).toFixed(1) + ' ' + y.toFixed(1)
+                    + ' L' + x.toFixed(1) + ' ' + (y + s).toFixed(1)
+                    + ' L' + (x - s).toFixed(1) + ' ' + y.toFixed(1) + ' Z';
+                dots += '<path class="' + cls + '" d="' + d + '"><title>' + progEsc(title) + '</title></path>';
+            } else {
+                dots += '<circle class="' + cls + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1)
+                    + '" r="' + (last ? 4.5 : 3) + '"><title>' + progEsc(title) + '</title></circle>';
+            }
         });
 
         // Value label on the latest point.
@@ -1399,6 +1413,15 @@
         chart.className = 'prog-chart';
         chart.innerHTML = progChartSvg(card);
         wrap.appendChild(chart);
+
+        // Legend distinguishing tested (1-rep) maxes from Epley estimates.
+        if (card.metric === 'est_1rm') {
+            var leg = document.createElement('div');
+            leg.className = 'prog-legend';
+            leg.innerHTML = '<span class="prog-leg real">◆</span> tested max'
+                + '<span class="prog-leg est">●</span> estimated';
+            wrap.appendChild(leg);
+        }
 
         if (s.sessions === 1) {
             var one = document.createElement('div');
