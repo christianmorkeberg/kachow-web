@@ -14,6 +14,7 @@ require __DIR__ . '/../bootstrap.php';
 
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\ExerciseAliases;
 use App\Data\RememberTokens;
 use App\Data\Users;
 use App\Data\Workouts;
@@ -50,7 +51,14 @@ $metric   = isset($in['metric']) ? (string) $in['metric'] : GetWorkoutProgress::
 $weeks    = isset($in['weeks']) && $in['weeks'] !== '' ? (int) $in['weeks'] : GetWorkoutProgress::DEFAULT_WEEKS;
 
 try {
-    $card = GetWorkoutProgress::buildCard(new Workouts(), $userId, $exercise, $metric, $weeks);
+    $card = GetWorkoutProgress::buildCard(
+        new Workouts(),
+        $userId,
+        $exercise,
+        $metric,
+        $weeks,
+        new ExerciseAliases(),
+    );
     out(200, ['ok' => true, 'card' => $card]);
 } catch (\Throwable $e) {
     error_log('workout-progress.php: ' . $e->getMessage());
