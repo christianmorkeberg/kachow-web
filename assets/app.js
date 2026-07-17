@@ -1315,6 +1315,7 @@
             line = '<path class="prog-line" d="' + d + '"/>';
         }
         var showReal = card.metric === 'est_1rm';
+        var hits = '';
         coords.forEach(function (c, i) {
             var last = i === n - 1;
             var real = showReal && c.p.real;
@@ -1329,11 +1330,13 @@
                     + ' L' + (x + s).toFixed(1) + ' ' + y.toFixed(1)
                     + ' L' + x.toFixed(1) + ' ' + (y + s).toFixed(1)
                     + ' L' + (x - s).toFixed(1) + ' ' + y.toFixed(1) + ' Z';
-                dots += '<path class="' + cls + '" d="' + d + '"><title>' + progEsc(title) + '</title></path>';
+                dots += '<path class="' + cls + '" data-idx="' + i + '" d="' + d + '"><title>' + progEsc(title) + '</title></path>';
             } else {
-                dots += '<circle class="' + cls + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1)
+                dots += '<circle class="' + cls + '" data-idx="' + i + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1)
                     + '" r="' + (last ? 4.5 : 3) + '"><title>' + progEsc(title) + '</title></circle>';
             }
+            // Big transparent tap target on top (finger-friendly on mobile).
+            hits += '<circle class="prog-hit" data-idx="' + i + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="13"/>';
         });
 
         // Value label on the latest point.
@@ -1350,7 +1353,7 @@
         }
 
         return '<svg class="prog-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img">'
-            + grid + area + line + dots + lastLbl + xlab + '</svg>';
+            + grid + area + line + dots + lastLbl + xlab + hits + '</svg>';
     }
 
     function renderProgression(card) {
@@ -1413,6 +1416,12 @@
         chart.className = 'prog-chart';
         chart.innerHTML = progChartSvg(card);
         wrap.appendChild(chart);
+
+        // Tap-to-inspect readout (mobile has no hover, so <title> alone isn't enough).
+        var readout = document.createElement('div');
+        readout.className = 'prog-readout';
+        wrap.appendChild(readout);
+        wireProgTaps(chart, readout, card);
 
         // Legend distinguishing tested (1-rep) maxes from Epley estimates.
         if (card.metric === 'est_1rm') {
@@ -1487,6 +1496,47 @@
             wrap.classList.remove('loading');
             if (res && res.card) buildProgression(wrap, res.card);
         }).catch(function () { wrap.classList.remove('loading'); });
+    }
+
+    function progLongDate(iso) {
+        var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return String(iso);
+        var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return parseInt(m[3], 10) + ' ' + months[parseInt(m[2], 10) - 1] + ' ' + m[1];
+    }
+
+    // Makes chart points tappable: a tap fills the readout with the point's real values
+    // and highlights it. Defaults to the latest point so the readout is never empty.
+    function wireProgTaps(chart, readout, card) {
+        var svg = chart.querySelector('.prog-svg');
+        if (!svg) return;
+        var points = card.points || [];
+        var showReal = card.metric === 'est_1rm';
+
+        function select(idx) {
+            var p = points[idx];
+            if (!p) return;
+            var prev = svg.querySelector('.prog-dot.sel');
+            if (prev) prev.classList.remove('sel');
+            var marker = svg.querySelector('.prog-dot[data-idx="' + idx + '"]');
+            if (marker) marker.classList.add('sel');
+
+            var tag = showReal
+                ? '<span class="prog-ro-tag ' + (p.real ? 'real' : 'est') + '">'
+                    + (p.real ? 'tested max' : 'estimated') + '</span>'
+                : '';
+            readout.innerHTML = '<span class="prog-ro-date">' + progEsc(progLongDate(p.date)) + '</span>'
+                + '<span class="prog-ro-val">' + progFmt(p.value) + ' ' + progEsc(card.unit || '') + '</span>'
+                + (p.detail ? '<span class="prog-ro-detail">' + progEsc(p.detail) + '</span>' : '')
+                + tag;
+        }
+
+        Array.prototype.forEach.call(svg.querySelectorAll('.prog-hit'), function (h) {
+            h.addEventListener('click', function () {
+                select(parseInt(h.getAttribute('data-idx'), 10));
+            });
+        });
+        select(points.length - 1);
     }
 
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.

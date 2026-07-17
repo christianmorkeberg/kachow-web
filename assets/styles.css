@@ -1186,10 +1186,25 @@ button.iconbtn.on {
     fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
     stroke-dasharray: 1200; stroke-dashoffset: 0; animation: prog-draw .9s ease-out;
 }
-.prog-dot { fill: var(--accent); }
+.prog-dot { fill: var(--accent); transition: transform .1s ease; }
 .prog-dot.real { fill: #facc15; }        /* tested (1-rep) max — gold diamond */
 .prog-dot.last { stroke: #fff; stroke-width: 1.6; }
+.prog-dot.sel { stroke: #fff; stroke-width: 2.4; }
+.prog-hit { fill: transparent; cursor: pointer; }
 .prog-last { fill: var(--accent); font-size: 11px; font-weight: 700; }
+
+/* Tap-to-inspect readout under the chart. */
+.prog-readout {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px;
+    margin-top: 6px; padding: 7px 10px; background: var(--panel-2);
+    border: 1px solid #26375c; border-radius: 10px; min-height: 18px;
+}
+.prog-ro-date { font-size: 12px; color: var(--muted); }
+.prog-ro-val { font-size: 16px; font-weight: 700; }
+.prog-ro-detail { font-size: 12.5px; color: var(--muted); }
+.prog-ro-tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: auto; }
+.prog-ro-tag.real { color: #3a2f04; background: #facc15; }
+.prog-ro-tag.est { color: #04263a; background: var(--accent); }
 .prog-legend { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); margin-top: 3px; }
 .prog-legend .prog-leg { font-size: 12px; line-height: 1; }
 .prog-legend .prog-leg.real { color: #facc15; margin-left: 2px; }
