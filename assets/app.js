@@ -132,6 +132,7 @@
         if (card.kind === 'email') { renderEmail(card); return; }
         if (card.kind === 'email_draft') { renderEmailDraft(card); return; }
         if (card.kind === 'cycle') { renderCycle(card); return; }
+        if (card.kind === 'progression') { renderProgression(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -1252,6 +1253,217 @@
         }).then(function (r) { return r.json(); }).then(function (res) {
             if (res && res.card) buildCycle(wrap, res.card);
         }).catch(function () { /* non-fatal */ });
+    }
+
+    // ---- Workout progression card ------------------------------------------------
+    var PROG_METRIC_SHORT = { est_1rm: 'Est. 1RM', top_weight: 'Top set', volume: 'Volume' };
+
+    // Escapes text before it goes into an SVG string (exercise names are user data).
+    function progEsc(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function progFmt(v) {
+        if (v == null) return '–';
+        var s = (Math.round(v * 10) / 10).toFixed(1);
+        return s.replace(/\.0$/, '');
+    }
+
+    function progShortDate(iso) {
+        var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return String(iso);
+        var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return parseInt(m[3], 10) + ' ' + months[parseInt(m[2], 10) - 1];
+    }
+
+    // Hand-rolled inline SVG line chart (no chart lib — matches the app's aesthetic).
+    function progChartSvg(card) {
+        var pts = card.points || [];
+        var W = 320, H = 150, padL = 8, padR = 10, padT = 12, padB = 22;
+        var innerW = W - padL - padR, innerH = H - padT - padB;
+        var vals = pts.map(function (p) { return p.value; });
+        var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+        var range = max - min;
+        var lo = range === 0 ? min - 1 : min - range * 0.12;
+        var hi = range === 0 ? max + 1 : max + range * 0.12;
+        var span = hi - lo || 1;
+        var n = pts.length;
+
+        function px(i) { return n === 1 ? padL + innerW / 2 : padL + (i / (n - 1)) * innerW; }
+        function py(v) { return padT + (1 - (v - lo) / span) * innerH; }
+
+        var coords = pts.map(function (p, i) { return { x: px(i), y: py(p.value), p: p }; });
+
+        // Baseline gridlines at the true min & max, with value labels.
+        var yMax = py(max), yMin = py(min);
+        var grid = '<line class="prog-grid" x1="' + padL + '" y1="' + yMax.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + yMax.toFixed(1) + '"/>'
+            + '<line class="prog-grid" x1="' + padL + '" y1="' + yMin.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + yMin.toFixed(1) + '"/>'
+            + '<text class="prog-ylab" x="' + padL + '" y="' + (yMax - 3).toFixed(1) + '">' + progFmt(max) + '</text>';
+        if (min !== max) {
+            grid += '<text class="prog-ylab" x="' + padL + '" y="' + (yMin + 10).toFixed(1) + '">' + progFmt(min) + '</text>';
+        }
+
+        var line = '', area = '', dots = '';
+        if (n > 1) {
+            var d = coords.map(function (c, i) { return (i ? 'L' : 'M') + c.x.toFixed(1) + ' ' + c.y.toFixed(1); }).join(' ');
+            var aPath = 'M' + coords[0].x.toFixed(1) + ' ' + (padT + innerH).toFixed(1) + ' '
+                + coords.map(function (c) { return 'L' + c.x.toFixed(1) + ' ' + c.y.toFixed(1); }).join(' ')
+                + ' L' + coords[n - 1].x.toFixed(1) + ' ' + (padT + innerH).toFixed(1) + ' Z';
+            area = '<path class="prog-area" d="' + aPath + '"/>';
+            line = '<path class="prog-line" d="' + d + '"/>';
+        }
+        coords.forEach(function (c, i) {
+            var last = i === n - 1;
+            var title = progShortDate(c.p.date) + ' · ' + progFmt(c.p.value) + ' ' + (card.unit || '')
+                + (c.p.detail ? ' (' + c.p.detail + ')' : '');
+            dots += '<circle class="prog-dot' + (last ? ' last' : '') + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1)
+                + '" r="' + (last ? 4.5 : 3) + '"><title>' + progEsc(title) + '</title></circle>';
+        });
+
+        // Value label on the latest point.
+        var lastC = coords[n - 1];
+        var lblX = Math.min(lastC.x, W - padR - 2);
+        var above = lastC.y > padT + 14;
+        var lastLbl = '<text class="prog-last" x="' + lblX.toFixed(1) + '" y="' + (above ? lastC.y - 8 : lastC.y + 14).toFixed(1)
+            + '" text-anchor="end">' + progFmt(lastC.p.value) + '</text>';
+
+        // X-axis: first & last date.
+        var xlab = '<text class="prog-xlab" x="' + padL + '" y="' + (H - 6) + '" text-anchor="start">' + progShortDate(pts[0].date) + '</text>';
+        if (n > 1) {
+            xlab += '<text class="prog-xlab" x="' + (W - padR) + '" y="' + (H - 6) + '" text-anchor="end">' + progShortDate(pts[n - 1].date) + '</text>';
+        }
+
+        return '<svg class="prog-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img">'
+            + grid + area + line + dots + lastLbl + xlab + '</svg>';
+    }
+
+    function renderProgression(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card prog-card';
+        buildProgression(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildProgression(wrap, card) {
+        wrap.innerHTML = '';
+
+        var title = document.createElement('div');
+        title.className = 'plan-card-title';
+        title.textContent = (card.exercise || 'Workout') + ' · progression';
+        wrap.appendChild(title);
+
+        // Exercise picker (only when there's more than one to choose from).
+        if ((card.exercises || []).length > 1) {
+            var sel = document.createElement('select');
+            sel.className = 'prog-exercise';
+            card.exercises.forEach(function (ex) {
+                var o = document.createElement('option');
+                o.value = ex; o.textContent = ex;
+                if (ex === card.exercise) o.selected = true;
+                sel.appendChild(o);
+            });
+            sel.addEventListener('change', function () {
+                progPost({ exercise: sel.value, metric: card.metric, weeks: card.weeks }, wrap);
+            });
+            wrap.appendChild(sel);
+        }
+
+        if (!card.has_data) {
+            var empty = document.createElement('div');
+            empty.className = 'prog-empty';
+            empty.textContent = card.exercise
+                ? 'No sets for ' + card.exercise + ' in the last ' + card.weeks + ' weeks.'
+                : 'Log some workouts and I’ll chart your progress here.';
+            wrap.appendChild(empty);
+            wrap.appendChild(progControls(card, wrap));
+            return;
+        }
+
+        // Summary line with trend direction/colour.
+        var s = card.summary;
+        var summary = document.createElement('div');
+        summary.className = 'prog-summary ' + (s.delta > 0 ? 'up' : (s.delta < 0 ? 'down' : 'flat'));
+        var arrow = s.delta > 0 ? '▲' : (s.delta < 0 ? '▼' : '■');
+        var deltaTxt = (s.delta > 0 ? '+' : '') + progFmt(s.delta) + ' ' + card.unit
+            + (s.pct ? ' (' + (s.pct > 0 ? '+' : '') + s.pct + '%)' : '');
+        summary.innerHTML = '<span class="prog-metric">' + (PROG_METRIC_SHORT[card.metric] || card.metric) + '</span>'
+            + '<span class="prog-delta">' + arrow + ' ' + progEsc(deltaTxt) + '</span>'
+            + '<span class="prog-sessions">' + s.sessions + ' session' + (s.sessions === 1 ? '' : 's') + '</span>';
+        wrap.appendChild(summary);
+
+        var chart = document.createElement('div');
+        chart.className = 'prog-chart';
+        chart.innerHTML = progChartSvg(card);
+        wrap.appendChild(chart);
+
+        if (s.sessions === 1) {
+            var one = document.createElement('div');
+            one.className = 'prog-hint';
+            one.textContent = 'Only one session in range — log more to see a trend.';
+            wrap.appendChild(one);
+        }
+        var best = document.createElement('div');
+        best.className = 'prog-hint';
+        best.textContent = 'Best: ' + progFmt(s.best) + ' ' + card.unit
+            + ' · latest ' + progFmt(s.last) + ' ' + card.unit;
+        wrap.appendChild(best);
+
+        wrap.appendChild(progControls(card, wrap));
+    }
+
+    // Metric + time-range segmented toggles.
+    function progControls(card, wrap) {
+        var box = document.createElement('div');
+        box.className = 'prog-controls';
+
+        var metrics = document.createElement('div');
+        metrics.className = 'prog-seg';
+        (card.metrics || []).forEach(function (m) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'prog-seg-btn' + (m.key === card.metric ? ' on' : '');
+            b.textContent = PROG_METRIC_SHORT[m.key] || m.label;
+            b.addEventListener('click', function () {
+                if (m.key === card.metric) return;
+                progPost({ exercise: card.exercise, metric: m.key, weeks: card.weeks }, wrap);
+            });
+            metrics.appendChild(b);
+        });
+        box.appendChild(metrics);
+
+        var ranges = document.createElement('div');
+        ranges.className = 'prog-seg';
+        (card.ranges || []).forEach(function (w) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'prog-seg-btn' + (w === card.weeks ? ' on' : '');
+            b.textContent = w >= 52 ? '1y' : (w + 'w');
+            b.addEventListener('click', function () {
+                if (w === card.weeks) return;
+                progPost({ exercise: card.exercise, metric: card.metric, weeks: w }, wrap);
+            });
+            ranges.appendChild(b);
+        });
+        box.appendChild(ranges);
+
+        return box;
+    }
+
+    function progPost(body, wrap) {
+        wrap.classList.add('loading');
+        return fetch('/api/workout-progress.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); }).then(function (res) {
+            wrap.classList.remove('loading');
+            if (res && res.card) buildProgression(wrap, res.card);
+        }).catch(function () { wrap.classList.remove('loading'); });
     }
 
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.

@@ -1160,6 +1160,51 @@ button.iconbtn.on {
     .cyc-arc { transition: none; }
 }
 
+/* ---------- Workout progression card ---------- */
+.prog-card.loading { opacity: .6; pointer-events: none; }
+.prog-exercise {
+    width: 100%; margin: 2px 0 4px; background: var(--panel-2); color: var(--text);
+    border: 1px solid #26375c; border-radius: 10px; padding: 8px 10px; font: inherit; outline: none;
+}
+.prog-exercise:focus { border-color: var(--accent); }
+.prog-summary {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin: 6px 0 2px;
+}
+.prog-summary .prog-metric { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.prog-summary .prog-delta { font-size: 20px; font-weight: 700; }
+.prog-summary .prog-sessions { font-size: 12px; color: var(--muted); margin-left: auto; }
+.prog-summary.up .prog-delta { color: #34d399; }
+.prog-summary.down .prog-delta { color: #f87171; }
+.prog-summary.flat .prog-delta { color: var(--muted); }
+
+.prog-chart { margin: 6px 0 2px; }
+.prog-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.prog-grid { stroke: #26375c; stroke-width: 1; stroke-dasharray: 3 4; }
+.prog-ylab, .prog-xlab { fill: var(--muted); font-size: 9px; }
+.prog-area { fill: var(--accent); opacity: .12; }
+.prog-line {
+    fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 1200; stroke-dashoffset: 0; animation: prog-draw .9s ease-out;
+}
+.prog-dot { fill: var(--accent); }
+.prog-dot.last { fill: #fff; stroke: var(--accent); stroke-width: 2.5; }
+.prog-last { fill: var(--accent); font-size: 11px; font-weight: 700; }
+@keyframes prog-draw { from { stroke-dashoffset: 1200; } to { stroke-dashoffset: 0; } }
+
+.prog-empty, .prog-hint { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+.prog-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.prog-seg { display: inline-flex; background: var(--panel-2); border: 1px solid #26375c; border-radius: 10px; overflow: hidden; }
+.prog-seg-btn {
+    background: transparent; color: var(--muted); border: 0; padding: 7px 12px;
+    font: inherit; font-size: 12.5px; cursor: pointer; border-left: 1px solid #26375c;
+}
+.prog-seg-btn:first-child { border-left: 0; }
+.prog-seg-btn.on { background: var(--accent); color: #04263a; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+    .prog-line { animation: none; }
+}
+
 /* ---------- Mobile: never zoom on input focus ----------
    The viewport meta locks zoom in the installed PWA; iOS Safari (a normal tab)
    ignores that, but it will NOT zoom into a focused field whose font-size is ≥16px.
