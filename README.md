@@ -11,7 +11,8 @@ architecture, features and screenshots.
 - **`index.php`** — the app shell (chat UI, top-bar menu, installable PWA).
 - **`assets/app.js`** — the front-end: the chat loop, and the interactive **cards**
   (workout checklist, editable receipt, animated weather, menstrual-cycle ring, email
-  reader, …) rendered from the typed payloads the assistant returns.
+  reader, and hand-rolled inline-SVG charts — workout progression and work-hours — with
+  tap-to-inspect points) rendered from the typed payloads the assistant returns.
 - **`assets/styles.css`** — a single hand-written stylesheet (dark theme, animations,
   `prefers-reduced-motion` aware).
 - **`api/*.php`** — small authenticated JSON endpoints (`chat.php`, `receipt.php`,
