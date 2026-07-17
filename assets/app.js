@@ -1095,9 +1095,8 @@
                 var row = document.createElement('div');
                 row.className = 'cycle-recent-row';
                 var lbl = document.createElement('span');
-                var flow = p.flow ? ' · ' + p.flow : '';
                 var len = p.length ? ' · ' + p.length + 'd' : '';
-                lbl.textContent = cycShortDate(p.start) + flow + len;
+                lbl.textContent = cycShortDate(p.start) + len;
                 row.appendChild(lbl);
                 if (!readOnly) {
                     var del = deleteButton('Remove period');
@@ -1120,12 +1119,11 @@
         return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
     }
 
-    // Log controls: a start-date picker (defaults to today, can backdate), flow chips,
-    // and the log button. The button label reflects the chosen date.
+    // Log controls: a start-date picker (defaults to today, can backdate) and the log
+    // button. The button label reflects the chosen date.
     function cycleLogControls(wrap, card) {
         var box = document.createElement('div');
         box.className = 'cycle-log';
-        var flow = null;
         var today = cycTodayIso();
 
         var dateRow = document.createElement('label');
@@ -1140,22 +1138,6 @@
         dateRow.appendChild(dateLbl);
         dateRow.appendChild(dateIn);
 
-        var chips = document.createElement('div');
-        chips.className = 'cycle-flow-chips';
-        (card.flows || ['light', 'medium', 'heavy']).forEach(function (f) {
-            var chip = document.createElement('button');
-            chip.type = 'button';
-            chip.className = 'cycle-flow-chip';
-            chip.textContent = f;
-            chip.addEventListener('click', function () {
-                if (flow === f) { flow = null; chip.classList.remove('on'); return; }
-                flow = f;
-                Array.prototype.forEach.call(chips.children, function (c) { c.classList.remove('on'); });
-                chip.classList.add('on');
-            });
-            chips.appendChild(chip);
-        });
-
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'cycle-log-btn';
@@ -1168,11 +1150,10 @@
         dateIn.addEventListener('change', syncBtn);
         btn.addEventListener('click', function () {
             btn.disabled = true;
-            cyclePost({ action: 'log', flow: flow, start_date: dateIn.value || today }, wrap);
+            cyclePost({ action: 'log', start_date: dateIn.value || today }, wrap);
         });
 
         box.appendChild(dateRow);
-        box.appendChild(chips);
         box.appendChild(btn);
         return box;
     }

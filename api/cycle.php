@@ -54,7 +54,7 @@ try {
             $userId,
             isset($in['start_date']) ? (string) $in['start_date'] : '',
             null,
-            isset($in['flow']) ? (string) $in['flow'] : null,
+            null,
         );
         out(200, ['ok' => true, 'card' => $cycle->card($userId)]);
     }
