@@ -1862,6 +1862,10 @@
     }
 
     // ---- Feedback report card (admin) -------------------------------------------
+    function fbPretty(t) {
+        try { return JSON.stringify(JSON.parse(t), null, 2); } catch (e) { return String(t); }
+    }
+
     function fbDate(s) {
         if (!s) return '';
         var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
@@ -1916,13 +1920,26 @@
             var thread = document.createElement('div');
             thread.className = 'fb-thread';
             conv.forEach(function (m) {
+                // Tool results are raw JSON — keep them for debugging but collapsed, so
+                // the thread reads like a normal conversation.
+                if (m.role === 'tool') {
+                    var d = document.createElement('details');
+                    d.className = 'fb-tool';
+                    var s = document.createElement('summary');
+                    s.textContent = '🔧 ' + (m.tool || 'tool') + ' — result';
+                    var pre = document.createElement('pre');
+                    pre.className = 'fb-tool-json';
+                    pre.textContent = fbPretty(m.text || '');
+                    d.appendChild(s);
+                    d.appendChild(pre);
+                    thread.appendChild(d);
+                    return;
+                }
                 var el = document.createElement('div');
                 el.className = 'fb-msg ' + (m.role || '') + (m.reported ? ' reported' : '');
-                var who = m.role === 'tool' ? ('🔧 ' + (m.tool || 'tool'))
-                    : (m.role === 'user' ? 'User' : 'Assistant');
                 var lbl = document.createElement('div');
                 lbl.className = 'fb-msg-role';
-                lbl.textContent = who + (m.reported ? ' · reported' : '');
+                lbl.textContent = (m.role === 'user' ? 'User' : 'Assistant') + (m.reported ? ' · reported' : '');
                 var txt = document.createElement('div');
                 txt.className = 'fb-msg-text';
                 txt.textContent = m.text || '';

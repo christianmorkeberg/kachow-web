@@ -1308,7 +1308,17 @@ body.devmode .msg-diag { display: block; }
 .fb-msg-role { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #8ea0c0; margin-bottom: 2px; }
 .fb-msg.reported .fb-msg-role { color: #fbbf24; }
 .fb-msg-text { font-size: 13px; white-space: pre-wrap; word-break: break-word; }
-.fb-msg.tool .fb-msg-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: #9fb0cc; max-height: 140px; overflow: auto; }
+
+/* Collapsed tool-result row in the thread (raw JSON hidden until expanded). */
+.fb-tool { font-size: 11.5px; }
+.fb-tool > summary { cursor: pointer; color: #7f8fb0; list-style: none; padding: 3px 2px; }
+.fb-tool > summary::-webkit-details-marker { display: none; }
+.fb-tool > summary::before { content: '▸ '; }
+.fb-tool[open] > summary::before { content: '▾ '; }
+.fb-tool-json {
+    margin: 4px 0 0; padding: 8px 10px; background: #0b1424; border: 1px solid #26375c; border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #9fb0cc;
+    max-height: 200px; overflow: auto; white-space: pre; }
 
 .fb-diag { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
 .fb-diag > summary { cursor: pointer; color: #7f8fb0; list-style: none; font-variant: small-caps; letter-spacing: .04em; }
