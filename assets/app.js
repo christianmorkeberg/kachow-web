@@ -156,7 +156,9 @@
         if (!bubble) return;
         if (meta.id) {
             bubble.dataset.msgId = meta.id;
-            wireReport(bubble, meta.id);
+            // Only assistant replies get the report affordance (you report a bad answer;
+            // the snapshot already carries the surrounding user turn as context).
+            if (bubble.classList.contains('assistant')) wireReport(bubble, meta.id);
         }
         if (meta.diagnostics) {
             // Insert after the whole message unit (the row/bubble that sits in `messages`),
@@ -179,15 +181,9 @@
         btn.addEventListener('click', function (e) { e.stopPropagation(); openReportDialog(msgId); });
         bubble.appendChild(btn);
 
+        // Desktop convenience; the visible ⚑ button is the primary path on touch (a
+        // long-press would fight native text selection, so we don't use it).
         bubble.addEventListener('contextmenu', function (e) { e.preventDefault(); openReportDialog(msgId); });
-
-        var timer = null;
-        bubble.addEventListener('touchstart', function () {
-            timer = setTimeout(function () { timer = null; openReportDialog(msgId); }, 550);
-        }, { passive: true });
-        ['touchend', 'touchmove', 'touchcancel'].forEach(function (ev) {
-            bubble.addEventListener(ev, function () { if (timer) { clearTimeout(timer); timer = null; } }, { passive: true });
-        });
     }
 
     function buildDiagPanel(d) {

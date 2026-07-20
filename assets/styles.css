@@ -1252,7 +1252,19 @@ button.iconbtn.on {
 }
 .msg.reportable:hover .msg-report-btn { opacity: .85; }
 .msg-report-btn:hover { opacity: 1; background: rgba(0,0,0,.45); }
-@media (hover: none) { .msg-report-btn { display: none; } }  /* touch uses long-press */
+/* On touch there's no hover, so keep the report button visible + finger-sized. */
+@media (hover: none) {
+    .msg-report-btn { opacity: .6; width: 28px; height: 28px; line-height: 28px; font-size: 13px; }
+}
+
+/* UI controls must never be text-selectable — long-press/drag was selecting button
+   glyphs (mic, send), menu items, avatars, etc. Message text stays selectable. */
+button, .tm-item, .avatar, .badge, .iconbtn {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
 
 /* Per-turn diagnostics — hidden unless developer mode is on. */
 .msg-diag { display: none; margin: 2px 0 8px 46px; font-size: 11.5px; color: var(--muted); }
