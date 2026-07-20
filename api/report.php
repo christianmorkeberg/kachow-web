@@ -71,7 +71,7 @@ try {
             break;
         }
     }
-    $window = array_slice($window, -6); // reported message + up to 5 preceding
+    $window = array_slice($window, -12); // reported message + up to 11 preceding, for context
 
     $context = array_map(static function (array $m): array {
         return [
