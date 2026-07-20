@@ -144,11 +144,14 @@ try {
     $reply = $loop->handle($userId, $conversationId, $message, $location);
 
     respond(200, [
-        'reply'           => $reply,
-        'reply_html'      => Markdown::toHtml($reply),
-        'conversation_id' => $conversationId,
-        'card'            => $loop->lastRender(),
-        'suggestions'     => $loop->lastSuggestions(),
+        'reply'                => $reply,
+        'reply_html'           => Markdown::toHtml($reply),
+        'conversation_id'      => $conversationId,
+        'card'                 => $loop->lastRender(),
+        'suggestions'          => $loop->lastSuggestions(),
+        'diagnostics'          => $loop->lastDiagnostics(),
+        'assistant_message_id' => $loop->lastAssistantMessageId(),
+        'user_message_id'      => $loop->lastUserMessageId(),
     ]);
 } catch (\Throwable $e) {
     // Friendly message in the chat bubble; full detail in `debug` for the browser

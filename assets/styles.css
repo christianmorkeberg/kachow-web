@@ -1241,6 +1241,69 @@ button.iconbtn.on {
 .wch-bar.sel { stroke: #fff; stroke-width: 1.6; }
 .wch-hit { fill: transparent; cursor: pointer; }
 
+/* ---------- Developer mode: diagnostics + report-to-developer ---------- */
+/* The "report" flag sits on each message; visible on hover (desktop). Long-press
+   works on touch regardless. */
+.msg.reportable { position: relative; }
+.msg-report-btn {
+    position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; padding: 0;
+    border: 0; border-radius: 6px; background: rgba(0,0,0,.25); color: #cdd8ec;
+    font-size: 12px; line-height: 22px; cursor: pointer; opacity: 0; transition: opacity .12s;
+}
+.msg.reportable:hover .msg-report-btn { opacity: .85; }
+.msg-report-btn:hover { opacity: 1; background: rgba(0,0,0,.45); }
+@media (hover: none) { .msg-report-btn { display: none; } }  /* touch uses long-press */
+
+/* Per-turn diagnostics — hidden unless developer mode is on. */
+.msg-diag { display: none; margin: 2px 0 8px 46px; font-size: 11.5px; color: var(--muted); }
+body.devmode .msg-diag { display: block; }
+.msg-diag > summary {
+    cursor: pointer; color: #7f8fb0; list-style: none; user-select: none;
+    font-variant: small-caps; letter-spacing: .04em;
+}
+.msg-diag > summary::before { content: '⚙ '; }
+.msg-diag-body {
+    margin-top: 4px; padding: 8px 10px; background: var(--panel-2); border: 1px solid #26375c;
+    border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5;
+    overflow-x: auto;
+}
+.msg-diag-body code { color: #9ecbff; }
+.diag-calls { margin: 4px 0 0; padding-left: 18px; }
+.diag-args { color: #6f7f9f; }
+.diag-err { color: #f87171; }
+.diag-none { color: #6f7f9f; font-style: italic; }
+.diag-thoughts-h { margin-top: 6px; }
+.diag-thought { margin-top: 3px; padding: 6px 8px; background: #0e192e; border-radius: 6px; white-space: pre-wrap; }
+
+/* Report dialog + toast. */
+.report-overlay {
+    position: fixed; inset: 0; background: rgba(3,8,18,.6); display: flex;
+    align-items: center; justify-content: center; z-index: 60; padding: 20px;
+}
+.report-box {
+    width: 100%; max-width: 420px; background: var(--panel); border: 1px solid #26375c;
+    border-radius: 14px; padding: 16px;
+}
+.report-title { font-weight: 700; font-size: 16px; }
+.report-sub { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
+.report-note {
+    width: 100%; background: var(--panel-2); border: 1px solid #26375c; color: var(--text);
+    border-radius: 10px; padding: 10px; font: inherit; resize: vertical; outline: none;
+}
+.report-note:focus { border-color: var(--accent); }
+.report-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.report-cancel, .report-send { border: 0; border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; }
+.report-cancel { background: var(--panel-2); color: var(--text); }
+.report-send { background: var(--accent); color: #04263a; }
+.report-send:disabled { opacity: .6; cursor: default; }
+.toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px);
+    background: #1b2a49; color: var(--text); border: 1px solid #2e4269; border-radius: 999px;
+    padding: 10px 18px; font-size: 14px; z-index: 70; opacity: 0; transition: opacity .25s, transform .25s;
+    max-width: 90vw; text-align: center;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* ---------- Mobile: never zoom on input focus ----------
    The viewport meta locks zoom in the installed PWA; iOS Safari (a normal tab)
    ignores that, but it will NOT zoom into a focused field whose font-size is ≥16px.

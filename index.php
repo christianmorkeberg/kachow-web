@@ -232,6 +232,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <div class="tm-sep"></div>
                         <button type="button" id="notifBtn" class="tm-item" hidden>🔔 Notifications</button>
                         <button type="button" id="ttsToggle" class="tm-item" aria-pressed="false" hidden>🔇 Read replies aloud</button>
+                        <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false">🛠️ Developer mode</button>
                         <a class="tm-item" href="index.php?action=logout">🚪 Log out</a>
                     </div>
                 </details>

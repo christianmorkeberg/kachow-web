@@ -115,6 +115,161 @@
         return el;
     }
 
+    // ---- Developer mode: per-message diagnostics + "report to developer" ----------
+    var DEV_KEY = 'kachow.dev';
+    var devMode = localStorage.getItem(DEV_KEY) === '1';
+
+    function applyDevMode() {
+        document.body.classList.toggle('devmode', devMode);
+        var b = document.getElementById('devModeToggle');
+        if (b) {
+            b.classList.toggle('tm-on', devMode);
+            b.setAttribute('aria-pressed', devMode ? 'true' : 'false');
+            b.textContent = devMode ? '🛠️ Developer mode — on' : '🛠️ Developer mode';
+        }
+    }
+    (function initDevMode() {
+        var b = document.getElementById('devModeToggle');
+        if (b) b.addEventListener('click', function () {
+            devMode = !devMode;
+            localStorage.setItem(DEV_KEY, devMode ? '1' : '0');
+            applyDevMode();
+        });
+        applyDevMode();
+    })();
+
+    function toast(msg) {
+        var t = document.createElement('div');
+        t.className = 'toast';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        requestAnimationFrame(function () { t.classList.add('show'); });
+        setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, 2600);
+    }
+
+    // Tags a rendered message with its DB id (enabling "report to developer") and,
+    // for assistant turns, appends a collapsible diagnostics panel (shown only in
+    // developer mode via CSS).
+    function attachMessageMeta(el, meta) {
+        if (!el || !meta) return;
+        var bubble = (el.classList && el.classList.contains('msg')) ? el : el.querySelector('.msg');
+        if (!bubble) return;
+        if (meta.id) {
+            bubble.dataset.msgId = meta.id;
+            wireReport(bubble, meta.id);
+        }
+        if (meta.diagnostics) {
+            // Insert after the whole message unit (the row/bubble that sits in `messages`),
+            // so the panel is full-width below the bubble, not inside the flex row.
+            el.insertAdjacentElement('afterend', buildDiagPanel(meta.diagnostics));
+        }
+    }
+
+    function wireReport(bubble, msgId) {
+        if (bubble._reportWired) return;
+        bubble._reportWired = true;
+        bubble.classList.add('reportable');
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'msg-report-btn';
+        btn.title = 'Report to developer';
+        btn.setAttribute('aria-label', 'Report to developer');
+        btn.textContent = '⚑';
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openReportDialog(msgId); });
+        bubble.appendChild(btn);
+
+        bubble.addEventListener('contextmenu', function (e) { e.preventDefault(); openReportDialog(msgId); });
+
+        var timer = null;
+        bubble.addEventListener('touchstart', function () {
+            timer = setTimeout(function () { timer = null; openReportDialog(msgId); }, 550);
+        }, { passive: true });
+        ['touchend', 'touchmove', 'touchcancel'].forEach(function (ev) {
+            bubble.addEventListener(ev, function () { if (timer) { clearTimeout(timer); timer = null; } }, { passive: true });
+        });
+    }
+
+    function buildDiagPanel(d) {
+        var wrap = document.createElement('details');
+        wrap.className = 'msg-diag';
+        var sum = document.createElement('summary');
+        sum.textContent = 'diagnostics';
+        wrap.appendChild(sum);
+
+        var parts = [];
+        parts.push('<div><b>routing:</b> ' + progEsc((d.routing || []).join(', ') || '—')
+            + ' · <b>tools sent:</b> ' + (d.tools_sent != null ? d.tools_sent : '?')
+            + (d.model ? ' · <b>model:</b> ' + progEsc(d.model) : '') + '</div>');
+        if (d.calls && d.calls.length) {
+            parts.push('<ul class="diag-calls">' + d.calls.map(function (c) {
+                return '<li><code>' + progEsc(c.name) + '</code> '
+                    + (c.ok === false ? '<span class="diag-err">✗ ' + progEsc(c.error || '') + '</span>' : '✓')
+                    + (c.args ? ' <span class="diag-args">' + progEsc(c.args) + '</span>' : '') + '</li>';
+            }).join('') + '</ul>');
+        } else {
+            parts.push('<div class="diag-none">no tool calls</div>');
+        }
+        if (d.thoughts && d.thoughts.length) {
+            parts.push('<div class="diag-thoughts-h"><b>thoughts:</b></div>'
+                + d.thoughts.map(function (t) { return '<div class="diag-thought">' + progEsc(t) + '</div>'; }).join(''));
+        }
+        var body = document.createElement('div');
+        body.className = 'msg-diag-body';
+        body.innerHTML = parts.join('');
+        wrap.appendChild(body);
+        return wrap;
+    }
+
+    function openReportDialog(msgId) {
+        if (document.getElementById('reportOverlay')) return;
+        var ov = document.createElement('div');
+        ov.id = 'reportOverlay';
+        ov.className = 'report-overlay';
+        var box = document.createElement('div');
+        box.className = 'report-box';
+        box.innerHTML = '<div class="report-title">Report to developer</div>'
+            + '<div class="report-sub">Something off with this message? Add a note (optional).</div>';
+        var ta = document.createElement('textarea');
+        ta.className = 'report-note';
+        ta.rows = 3;
+        ta.placeholder = 'What looked wrong?';
+        var actions = document.createElement('div');
+        actions.className = 'report-actions';
+        var cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'report-cancel';
+        cancel.textContent = 'Cancel';
+        var sendBtn = document.createElement('button');
+        sendBtn.type = 'button';
+        sendBtn.className = 'report-send';
+        sendBtn.textContent = 'Send to developer';
+        actions.appendChild(cancel);
+        actions.appendChild(sendBtn);
+        box.appendChild(ta);
+        box.appendChild(actions);
+        ov.appendChild(box);
+        document.body.appendChild(ov);
+        ta.focus();
+
+        function close() { ov.remove(); }
+        cancel.addEventListener('click', close);
+        ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+        sendBtn.addEventListener('click', function () {
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending…';
+            fetch('/api/report.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ message_id: Number(msgId), note: ta.value || undefined })
+            }).then(function (r) { return r.json(); }).then(function (res) {
+                close();
+                toast(res && res.ok ? 'Sent to developer — thanks!' : ((res && res.error) || 'Could not send.'));
+            }).catch(function () { close(); toast('Network error sending report.'); });
+        });
+    }
+
     // Render an interactive checklist card. Supports workout plans (days of
     // exercises → /api/workout-plan.php) and shopping lists (items → /api/shopping-list.php).
     function renderCard(card) {
@@ -2395,7 +2550,7 @@
         sendController = new AbortController();
         setSendStopMode(true);
         const wasNewConversation = !conversationId;
-        addMessage(text, 'user');
+        const userRow = addMessage(text, 'user');
 
         const typing = addMessage('…', 'assistant');
         typing.classList.add('typing');
@@ -2441,7 +2596,9 @@
                 conversationId = data.conversation_id;
                 localStorage.setItem(CONV_KEY, String(conversationId));
             }
-            addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
+            const replyRow = addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
+            attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
+            attachMessageMeta(userRow, { id: data.user_message_id });
             speak(data.reply || '');
             if (data.card) renderCard(data.card);
             if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
@@ -2520,10 +2677,12 @@
                 messages.innerHTML = '';
                 (data.messages || []).forEach(function (m) {
                     if (m.role === 'assistant') {
-                        addMessage(m.content, 'assistant', m.html);
+                        var row = addMessage(m.content, 'assistant', m.html);
+                        attachMessageMeta(row, { id: m.id, diagnostics: m.diagnostics });
                         if (m.card) renderCard(m.card); // re-show the interactive widget
                     } else {
-                        addMessage(m.content, 'user');
+                        var urow = addMessage(m.content, 'user');
+                        attachMessageMeta(urow, { id: m.id });
                     }
                 });
                 conversationId = id;

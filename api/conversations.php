@@ -89,11 +89,18 @@ try {
                 $decoded = json_decode((string) $m['card'], true);
                 $card    = is_array($decoded) ? $decoded : null;
             }
+            $diagnostics = null;
+            if ($role === 'assistant' && isset($m['diagnostics']) && $m['diagnostics'] !== null && $m['diagnostics'] !== '') {
+                $dd          = json_decode((string) $m['diagnostics'], true);
+                $diagnostics = is_array($dd) ? $dd : null;
+            }
             $out[] = [
-                'role'    => $role,
-                'content' => $content,
-                'html'    => $role === 'assistant' ? Markdown::toHtml($content) : null,
-                'card'    => $card,
+                'id'          => (int) $m['id'],
+                'role'        => $role,
+                'content'     => $content,
+                'html'        => $role === 'assistant' ? Markdown::toHtml($content) : null,
+                'card'        => $card,
+                'diagnostics' => $diagnostics,
             ];
         }
         out(200, ['id' => $id, 'title' => $conversations->title($userId, $id), 'messages' => $out]);
