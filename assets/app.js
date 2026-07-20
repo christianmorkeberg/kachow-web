@@ -285,6 +285,7 @@
         if (card.kind === 'cycle') { renderCycle(card); return; }
         if (card.kind === 'progression') { renderProgression(card); return; }
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
+        if (card.kind === 'feedback') { renderFeedback(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -1858,6 +1859,141 @@
         var def = bars.length - 1;
         for (var i = bars.length - 1; i >= 0; i--) { if (bars[i].minutes > 0) { def = i; break; } }
         select(def);
+    }
+
+    // ---- Feedback report card (admin) -------------------------------------------
+    function fbDate(s) {
+        if (!s) return '';
+        var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+        if (!m) return String(s);
+        var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return parseInt(m[3], 10) + ' ' + months[parseInt(m[2], 10) - 1] + ' ' + m[1] + ' · ' + m[4] + ':' + m[5];
+    }
+
+    function renderFeedback(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card feedback-card';
+        var title = document.createElement('div');
+        title.className = 'plan-card-title';
+        var n = (card.reports || []).length;
+        title.textContent = 'Feedback · ' + (card.status || 'new') + ' (' + n + ')';
+        wrap.appendChild(title);
+
+        if (!n) {
+            var empty = document.createElement('div');
+            empty.className = 'prog-empty';
+            empty.textContent = 'No reports.';
+            wrap.appendChild(empty);
+        } else {
+            card.reports.forEach(function (r) { wrap.appendChild(fbReport(r)); });
+        }
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function fbReport(r) {
+        var box = document.createElement('div');
+        box.className = 'fb-report';
+
+        var head = document.createElement('div');
+        head.className = 'fb-head';
+        head.innerHTML = '<span class="fb-id">#' + r.id + '</span>'
+            + '<span class="fb-from">' + progEsc(r.from || '') + '</span>'
+            + '<span class="fb-status ' + progEsc(r.status || '') + '">' + progEsc(r.status || '') + '</span>'
+            + '<span class="fb-when">' + progEsc(fbDate(r.when)) + '</span>';
+        box.appendChild(head);
+
+        if (r.note) {
+            var note = document.createElement('div');
+            note.className = 'fb-note';
+            note.textContent = '“' + r.note + '”';
+            box.appendChild(note);
+        }
+
+        var conv = r.conversation || [];
+        if (conv.length) {
+            var thread = document.createElement('div');
+            thread.className = 'fb-thread';
+            conv.forEach(function (m) {
+                var el = document.createElement('div');
+                el.className = 'fb-msg ' + (m.role || '') + (m.reported ? ' reported' : '');
+                var who = m.role === 'tool' ? ('🔧 ' + (m.tool || 'tool'))
+                    : (m.role === 'user' ? 'User' : 'Assistant');
+                var lbl = document.createElement('div');
+                lbl.className = 'fb-msg-role';
+                lbl.textContent = who + (m.reported ? ' · reported' : '');
+                var txt = document.createElement('div');
+                txt.className = 'fb-msg-text';
+                txt.textContent = m.text || '';
+                el.appendChild(lbl);
+                el.appendChild(txt);
+                thread.appendChild(el);
+            });
+            box.appendChild(thread);
+        }
+
+        var det = document.createElement('details');
+        det.className = 'fb-diag';
+        var sum = document.createElement('summary');
+        sum.textContent = 'diagnostics';
+        det.appendChild(sum);
+        var db = document.createElement('div');
+        db.className = 'fb-diag-body';
+        var parts = [];
+        parts.push('<div><b>routing:</b> ' + progEsc((r.routing || []).join(', ') || '—')
+            + (r.model ? ' · <b>model:</b> ' + progEsc(r.model) : '') + '</div>');
+        if (r.tool_calls && r.tool_calls.length) {
+            parts.push('<ul class="diag-calls">' + r.tool_calls.map(function (c) {
+                return '<li><code>' + progEsc(c.name) + '</code> '
+                    + (c.ok === false ? '<span class="diag-err">✗ ' + progEsc(c.error || '') + '</span>' : '✓')
+                    + (c.args ? ' <span class="diag-args">' + progEsc(c.args) + '</span>' : '') + '</li>';
+            }).join('') + '</ul>');
+        }
+        if (r.thoughts && r.thoughts.length) {
+            parts.push('<div class="diag-thoughts-h"><b>thoughts:</b></div>'
+                + r.thoughts.map(function (t) { return '<div class="diag-thought">' + progEsc(t) + '</div>'; }).join(''));
+        }
+        db.innerHTML = parts.join('');
+        det.appendChild(db);
+        box.appendChild(det);
+
+        if (r.status !== 'resolved') {
+            var actions = document.createElement('div');
+            actions.className = 'fb-actions';
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'fb-resolve';
+            btn.textContent = 'Mark resolved';
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                btn.textContent = '…';
+                fetch('/api/feedback.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ action: 'resolve', id: r.id })
+                }).then(function (x) { return x.json(); }).then(function (res) {
+                    if (res && res.ok) {
+                        var pill = head.querySelector('.fb-status');
+                        if (pill) { pill.className = 'fb-status resolved'; pill.textContent = 'resolved'; }
+                        actions.remove();
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = 'Mark resolved';
+                        toast((res && res.error) || 'Could not update.');
+                    }
+                }).catch(function () {
+                    btn.disabled = false;
+                    btn.textContent = 'Mark resolved';
+                    toast('Network error.');
+                });
+            });
+            actions.appendChild(btn);
+            box.appendChild(actions);
+        }
+
+        return box;
     }
 
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.
