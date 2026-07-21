@@ -2997,9 +2997,10 @@
     // Deep link from a tapped push notification: open a FRESH chat showing the card
     // that matches the notification (e.g. ?card=cycle). Takes priority over restoring
     // the last conversation.
-    var cardParam = new URLSearchParams(window.location.search).get('card');
+    var _params = new URLSearchParams(window.location.search);
+    var cardParam = _params.get('card');
     if (cardParam) {
-        openNotificationCard(cardParam);
+        openNotificationCard(cardParam, _params.get('rid'));
     } else if (conversationId) {
         // Restore the last conversation's messages on load (they persist server-side),
         // so a reload lands you back where you left off. Falls back to a fresh screen.
@@ -3012,15 +3013,17 @@
         showEmptyHint();
     }
 
-    function openNotificationCard(key) {
+    function openNotificationCard(key, rid) {
         // Start clean: no active conversation, empty transcript.
         conversationId = null;
         localStorage.removeItem(CONV_KEY);
         messages.innerHTML = '';
-        // Drop the ?card= param so a refresh doesn't re-trigger it.
+        // Drop the query params so a refresh doesn't re-trigger it.
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
 
-        fetch('/api/card.php?for=' + encodeURIComponent(key), { credentials: 'same-origin' })
+        var url = '/api/card.php?for=' + encodeURIComponent(key);
+        if (rid) url += '&rid=' + encodeURIComponent(rid);
+        fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
                 if (data && data.card) renderCard(data.card);

@@ -16,6 +16,7 @@ use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\CycleTracker;
 use App\Data\RememberTokens;
+use App\Data\Reminders;
 use App\Data\Users;
 use App\Data\WorkEvents;
 use App\Data\WorkLog;
@@ -60,6 +61,21 @@ try {
             $from = date('Y-m-d', strtotime('monday this week'));
             $to   = date('Y-m-d');
             $card = (new WorkLog())->card($userId, $from, $to, 'This week');
+            break;
+        case 'reminder':
+            $rid = isset($_GET['rid']) ? (int) $_GET['rid'] : 0;
+            $rem = $rid > 0 ? (new Reminders())->get($userId, $rid) : null;
+            if ($rem === null) {
+                out(404, ['error' => 'Reminder not found.']);
+            }
+            $when = (new DateTimeImmutable($rem['remind_at'], new DateTimeZone('UTC')))
+                ->setTimezone(new DateTimeZone('Europe/Copenhagen'));
+            $card = [
+                'kind'   => 'notice',
+                'tone'   => 'info',
+                'title'  => '⏰ ' . $rem['text'],
+                'detail' => 'Reminder · ' . $when->format('D j M, H:i'),
+            ];
             break;
         default:
             out(404, ['error' => 'Unknown card.']);
