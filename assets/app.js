@@ -2993,9 +2993,16 @@
     }
 
     fetchQuickActions();
-    // Restore the last conversation's messages on load (they persist server-side),
-    // so a reload lands you back where you left off. Falls back to a fresh screen.
-    if (conversationId) {
+
+    // Deep link from a tapped push notification: open a FRESH chat showing the card
+    // that matches the notification (e.g. ?card=cycle). Takes priority over restoring
+    // the last conversation.
+    var cardParam = new URLSearchParams(window.location.search).get('card');
+    if (cardParam) {
+        openNotificationCard(cardParam);
+    } else if (conversationId) {
+        // Restore the last conversation's messages on load (they persist server-side),
+        // so a reload lands you back where you left off. Falls back to a fresh screen.
         loadConversation(conversationId).catch(function () {
             conversationId = null;
             localStorage.removeItem(CONV_KEY);
@@ -3003,6 +3010,23 @@
         });
     } else {
         showEmptyHint();
+    }
+
+    function openNotificationCard(key) {
+        // Start clean: no active conversation, empty transcript.
+        conversationId = null;
+        localStorage.removeItem(CONV_KEY);
+        messages.innerHTML = '';
+        // Drop the ?card= param so a refresh doesn't re-trigger it.
+        try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
+
+        fetch('/api/card.php?for=' + encodeURIComponent(key), { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+            .then(function (data) {
+                if (data && data.card) renderCard(data.card);
+                else showEmptyHint();
+            })
+            .catch(function () { showEmptyHint(); });
     }
 
     // Location is requested lazily (only when a message actually needs it — see
