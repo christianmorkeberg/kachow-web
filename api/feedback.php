@@ -48,13 +48,16 @@ $in     = is_array($in) ? $in : [];
 $action = (string) ($in['action'] ?? 'resolve');
 $id     = (int) ($in['id'] ?? 0);
 
-if ($id <= 0 || !in_array($action, ['resolve', 'seen', 'new'], true)) {
+// The button sends the action verb "resolve"; map actions to the stored status values.
+$statusFor = ['resolve' => 'resolved', 'resolved' => 'resolved', 'seen' => 'seen', 'new' => 'new'];
+if ($id <= 0 || !isset($statusFor[$action])) {
     out(400, ['error' => 'A report id and a valid action are required.']);
 }
+$status = $statusFor[$action];
 
 try {
-    $ok = (new FeedbackReports())->setStatus($id, $action);
-    $ok ? out(200, ['ok' => true, 'status' => $action]) : out(404, ['error' => 'No such report.']);
+    $ok = (new FeedbackReports())->setStatus($id, $status);
+    $ok ? out(200, ['ok' => true, 'status' => $status]) : out(404, ['error' => 'No such report.']);
 } catch (\Throwable $e) {
     error_log('feedback.php: ' . $e->getMessage());
     out(500, ['error' => 'Something went wrong.']);
