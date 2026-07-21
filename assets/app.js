@@ -1553,15 +1553,13 @@
             return;
         }
 
-        // Summary line with trend direction/colour.
+        // Summary line — lead with the PEAK (best). No latest-vs-first delta/percentage:
+        // sub-max sessions make that misleading (a lighter day isn't "getting weaker").
         var s = card.summary;
         var summary = document.createElement('div');
-        summary.className = 'prog-summary ' + (s.delta > 0 ? 'up' : (s.delta < 0 ? 'down' : 'flat'));
-        var arrow = s.delta > 0 ? '▲' : (s.delta < 0 ? '▼' : '■');
-        var deltaTxt = (s.delta > 0 ? '+' : '') + progFmt(s.delta) + ' ' + card.unit
-            + (s.pct ? ' (' + (s.pct > 0 ? '+' : '') + s.pct + '%)' : '');
+        summary.className = 'prog-summary';
         summary.innerHTML = '<span class="prog-metric">' + (PROG_METRIC_SHORT[card.metric] || card.metric) + '</span>'
-            + '<span class="prog-delta">' + arrow + ' ' + progEsc(deltaTxt) + '</span>'
+            + '<span class="prog-best-val">best ' + progFmt(s.best) + ' ' + progEsc(card.unit) + '</span>'
             + '<span class="prog-sessions">' + s.sessions + ' session' + (s.sessions === 1 ? '' : 's') + '</span>';
         wrap.appendChild(summary);
 
@@ -1591,11 +1589,10 @@
             one.textContent = 'Only one session in range — log more to see a trend.';
             wrap.appendChild(one);
         }
-        var best = document.createElement('div');
-        best.className = 'prog-hint';
-        best.textContent = 'Best: ' + progFmt(s.best) + ' ' + card.unit
-            + ' · latest ' + progFmt(s.last) + ' ' + card.unit;
-        wrap.appendChild(best);
+        var latest = document.createElement('div');
+        latest.className = 'prog-hint';
+        latest.textContent = 'Latest: ' + progFmt(s.last) + ' ' + card.unit;
+        wrap.appendChild(latest);
 
         wrap.appendChild(progControls(card, wrap));
     }
