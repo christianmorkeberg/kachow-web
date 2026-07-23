@@ -197,10 +197,20 @@
         parts.push('<div><b>routing:</b> ' + progEsc((d.routing || []).join(', ') || '—')
             + ' · <b>tools sent:</b> ' + (d.tools_sent != null ? d.tools_sent : '?')
             + (d.model ? ' · <b>model:</b> ' + progEsc(d.model) : '') + '</div>');
+        if (d.timing) {
+            var t = d.timing;
+            var net = t.net_last
+                ? ' · net ' + t.net_last.conn + '/' + t.net_last.tls + '/' + t.net_last.think + 'ms (conn/tls/think)'
+                : '';
+            parts.push('<div class="diag-timing"><b>timing:</b> total ' + t.total_ms + 'ms · gemini '
+                + t.gemini_ms + 'ms (' + t.gemini_calls + ' call' + (t.gemini_calls === 1 ? '' : 's')
+                + ') · tools ' + t.tools_ms + 'ms · app ' + t.app_ms + 'ms · req ' + t.req_kb + 'kb' + net + '</div>');
+        }
         if (d.calls && d.calls.length) {
             parts.push('<ul class="diag-calls">' + d.calls.map(function (c) {
                 return '<li><code>' + progEsc(c.name) + '</code> '
                     + (c.ok === false ? '<span class="diag-err">✗ ' + progEsc(c.error || '') + '</span>' : '✓')
+                    + (c.ms != null ? ' <span class="diag-ms">' + c.ms + 'ms</span>' : '')
                     + (c.args ? ' <span class="diag-args">' + progEsc(c.args) + '</span>' : '') + '</li>';
             }).join('') + '</ul>');
         } else {

@@ -14,6 +14,13 @@ declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
 
+// Boot cost (autoload + .env + config) approximated from when PHP received the request
+// to now — a proxy for cold-start/warm-up overhead on the host.
+$bootMs = isset($_SERVER['REQUEST_TIME_FLOAT'])
+    ? (int) round((microtime(true) - (float) $_SERVER['REQUEST_TIME_FLOAT']) * 1000)
+    : 0;
+error_log('timing boot: ' . $bootMs . 'ms');
+
 use App\Assistant\AssistantLoop;
 use App\Assistant\GeminiClient;
 use App\Auth\GoogleOAuth;
@@ -142,6 +149,11 @@ try {
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories);
 
     $reply = $loop->handle($userId, $conversationId, $message, $location);
+
+    if (isset($_SERVER['REQUEST_TIME_FLOAT'])) {
+        error_log('timing request: total='
+            . (int) round((microtime(true) - (float) $_SERVER['REQUEST_TIME_FLOAT']) * 1000) . 'ms');
+    }
 
     respond(200, [
         'reply'                => $reply,

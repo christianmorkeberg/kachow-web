@@ -1279,6 +1279,8 @@ body.devmode .msg-diag { display: block; }
 .msg-diag-body code { color: #9ecbff; }
 .diag-calls { margin: 4px 0 0; padding-left: 18px; }
 .diag-args { color: #6f7f9f; }
+.diag-ms { color: #fbbf24; }
+.diag-timing { margin-top: 3px; color: #9fb0cc; }
 .diag-err { color: #f87171; }
 .diag-none { color: #6f7f9f; font-style: italic; }
 .diag-thoughts-h { margin-top: 6px; }
