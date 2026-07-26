@@ -12,7 +12,9 @@ architecture, features and screenshots.
 - **`assets/app.js`** — the front-end: the chat loop, and the interactive **cards**
   (workout checklist, editable receipt, animated weather, menstrual-cycle ring, email
   reader, and hand-rolled inline-SVG charts — workout progression and work-hours — with
-  tap-to-inspect points) rendered from the typed payloads the assistant returns.
+  tap-to-inspect points) rendered from the typed payloads the assistant returns. Cards
+  live in a **foldable panel** above the composer that updates in place and swaps by
+  topic, so the transcript stays a clean running log.
 - **`assets/styles.css`** — a single hand-written stylesheet (dark theme, animations,
   `prefers-reduced-motion` aware).
 - **`api/*.php`** — small authenticated JSON endpoints (`chat.php`, `receipt.php`,
