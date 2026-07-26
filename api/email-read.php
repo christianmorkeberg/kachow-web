@@ -45,6 +45,7 @@ $in        = json_decode((string) file_get_contents('php://input'), true);
 $in        = is_array($in) ? $in : [];
 $id        = trim((string) ($in['id'] ?? ''));
 $accountId = isset($in['account_id']) && $in['account_id'] !== null ? (int) $in['account_id'] : null;
+$unread    = !empty($in['unread']);   // client hint — only bother marking if it was unread
 if ($id === '') {
     out(400, ['error' => 'An email id is required.']);
 }
@@ -59,4 +60,20 @@ if ($msg === null) {
     out(404, ['error' => 'That email could not be found.']);
 }
 
-out(200, ['ok' => true, 'card' => ['kind' => 'email', 'account_id' => $accountId] + $msg->toArray(true)]);
+$card = ['kind' => 'email', 'account_id' => $accountId] + $msg->toArray(true);
+
+// Return the email to the client first, then mark it read — the extra round-trip
+// to the mail provider happens after the response is flushed, so it never slows
+// down opening the mail. Best-effort: a failure here is logged, not surfaced.
+echo json_encode(['ok' => true, 'card' => $card], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+}
+if ($unread) {
+    try {
+        EmailService::fromEnv()->markRead($userId, $accountId, $id);
+    } catch (\Throwable $e) {
+        error_log('email-read.php markRead: ' . $e->getMessage());
+    }
+}
+exit;

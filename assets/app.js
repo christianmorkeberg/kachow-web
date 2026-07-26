@@ -781,13 +781,17 @@
     // round-trip, so it's instant and free).
     function openEmail(accountId, m) {
         clearEmptyHint();
+        var wasUnread = !!m.unread;
+        // Optimistically mark read: mutate the item in the stored inbox card (same
+        // object), so returning via "← Inbox" shows it as read with no re-fetch.
+        m.unread = false;
         var loading = addMessage('Opening…', 'assistant');
         loading.classList.add('typing');
         fetch('/api/email-read.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({ account_id: accountId != null ? accountId : undefined, id: m.id }),
+            body: JSON.stringify({ account_id: accountId != null ? accountId : undefined, id: m.id, unread: wasUnread }),
         })
             .then(function (res) { return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, d: d }; }); })
             .then(function (r) {
