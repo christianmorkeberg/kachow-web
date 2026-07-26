@@ -720,8 +720,13 @@
     }
 
     // A list of recent/searched emails; each row is clickable to prefill the composer.
+    // Remember the last inbox list so an opened email can offer "← Inbox" (the panel
+    // shows one card at a time now, so the list is otherwise replaced with no way back).
+    var lastEmailListCard = null;
+
     function renderEmailList(card) {
         clearEmptyHint();
+        lastEmailListCard = card;
         var wrap = document.createElement('div');
         wrap.className = 'plan-card email-card';
 
@@ -844,6 +849,16 @@
         clearEmptyHint();
         var wrap = document.createElement('div');
         wrap.className = 'plan-card email-open';
+
+        // Back to the inbox overview (the panel replaced it when this email opened).
+        if (lastEmailListCard) {
+            var back = document.createElement('button');
+            back.type = 'button';
+            back.className = 'email-back-btn';
+            back.textContent = '← Inbox';
+            back.addEventListener('click', function () { presentCard(lastEmailListCard); });
+            wrap.appendChild(back);
+        }
 
         var subj = document.createElement('div');
         subj.className = 'plan-card-title';
