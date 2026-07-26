@@ -307,7 +307,10 @@
     };
 
     function cardTitleFor(card) {
-        return CARD_TITLES[card.kind] || (card.title || 'Card');
+        var base = CARD_TITLES[card.kind] || (card.title || 'Card');
+        // Attribute a connected person's card (e.g. "📈 Progression · Alex").
+        if (card.person && card.person.name) return base + ' · ' + card.person.name;
+        return base;
     }
 
     function cardSubFor(card) {
@@ -1653,6 +1656,14 @@
         title.textContent = (card.exercise || 'Workout') + ' · progression';
         wrap.appendChild(title);
 
+        // Attribution when charting a connected person's data.
+        if (card.person && card.person.name) {
+            var who = document.createElement('div');
+            who.className = 'prog-shared';
+            who.textContent = 'shared by ' + card.person.name;
+            wrap.appendChild(who);
+        }
+
         // Exercise picker (only when there's more than one to choose from).
         if ((card.exercises || []).length > 1) {
             var sel = document.createElement('select');
@@ -1664,7 +1675,7 @@
                 sel.appendChild(o);
             });
             sel.addEventListener('change', function () {
-                progPost({ exercise: sel.value, metric: card.metric, weeks: card.weeks }, wrap);
+                progPost({ exercise: sel.value, metric: card.metric, weeks: card.weeks, person: card.person_ref }, wrap);
             });
             wrap.appendChild(sel);
         }
@@ -1738,7 +1749,7 @@
             b.textContent = PROG_METRIC_SHORT[m.key] || m.label;
             b.addEventListener('click', function () {
                 if (m.key === card.metric) return;
-                progPost({ exercise: card.exercise, metric: m.key, weeks: card.weeks }, wrap);
+                progPost({ exercise: card.exercise, metric: m.key, weeks: card.weeks, person: card.person_ref }, wrap);
             });
             metrics.appendChild(b);
         });
@@ -1753,7 +1764,7 @@
             b.textContent = w >= 52 ? '1y' : (w + 'w');
             b.addEventListener('click', function () {
                 if (w === card.weeks) return;
-                progPost({ exercise: card.exercise, metric: card.metric, weeks: w }, wrap);
+                progPost({ exercise: card.exercise, metric: card.metric, weeks: w, person: card.person_ref }, wrap);
             });
             ranges.appendChild(b);
         });

@@ -1225,6 +1225,7 @@ button.iconbtn.on {
     border: 1px solid #26375c; border-radius: 10px; padding: 8px 10px; font: inherit; outline: none;
 }
 .prog-exercise:focus { border-color: var(--accent); }
+.prog-shared { font-size: 12px; color: var(--accent); margin: -2px 0 4px; }
 .prog-summary {
     display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin: 6px 0 2px;
 }

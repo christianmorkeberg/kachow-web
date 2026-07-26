@@ -5,19 +5,26 @@ declare(strict_types=1);
 /**
  * Workout progression card actions (authenticated session, JSON) — the tap
  * affordances on the progression card (switch exercise / metric / time range).
- * Own data only. Rebuilds the exact card shape the tool returns.
+ * Rebuilds the exact card shape the tool returns.
  *
- *   POST { exercise?, metric?, weeks? } → returns { card }
+ *   POST { exercise?, metric?, weeks?, person? } → returns { card }
+ *
+ * With `person`, charts a CONNECTED person's data: the owner is re-resolved
+ * through ConnectionAccess on every request (accepted connection + 'workouts'
+ * scope) — the client-supplied person is re-checked, never a trusted owner id.
  */
 
 require __DIR__ . '/../bootstrap.php';
 
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\Connections;
 use App\Data\ExerciseAliases;
 use App\Data\RememberTokens;
 use App\Data\Users;
 use App\Data\Workouts;
+use App\Tools\ConnectionAccess;
+use App\Tools\GetConnectedWorkoutProgress;
 use App\Tools\GetWorkoutProgress;
 
 header('Content-Type: application/json');
@@ -49,16 +56,31 @@ $in = is_array($in) ? $in : [];
 $exercise = isset($in['exercise']) && $in['exercise'] !== '' ? (string) $in['exercise'] : null;
 $metric   = isset($in['metric']) ? (string) $in['metric'] : GetWorkoutProgress::DEFAULT_METRIC;
 $weeks    = isset($in['weeks']) && $in['weeks'] !== '' ? (int) $in['weeks'] : GetWorkoutProgress::DEFAULT_WEEKS;
+$person   = isset($in['person']) && $in['person'] !== '' ? (string) $in['person'] : null;
 
 try {
+    // A connection's card: re-resolve the owner through the audited gate every time.
+    $ownerId = $userId;
+    $access  = null;
+    if ($person !== null) {
+        $access = ConnectionAccess::resolve(new Connections(), $userId, $person, 'workouts');
+        if (isset($access['error'])) {
+            out(403, ['error' => $access['error']]);
+        }
+        $ownerId = (int) $access['owner_id'];
+    }
+
     $card = GetWorkoutProgress::buildCard(
         new Workouts(),
-        $userId,
+        $ownerId,
         $exercise,
         $metric,
         $weeks,
         new ExerciseAliases(),
     );
+    if ($access !== null) {
+        $card = GetConnectedWorkoutProgress::tagPerson($card, $access['person']);
+    }
     out(200, ['ok' => true, 'card' => $card]);
 } catch (\Throwable $e) {
     error_log('workout-progress.php: ' . $e->getMessage());
