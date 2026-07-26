@@ -133,6 +133,11 @@ button.ghost {
     border-bottom: 1px solid #1e2d4d;
     background: rgba(15, 23, 42, .9);
     backdrop-filter: blur(6px);
+    /* Lift the whole bar (and its dropdown, which overflows below it) above the
+       message stream + card panel, which are later siblings. Stays below the
+       full-screen modals/toasts (z-index 50–100). */
+    position: relative;
+    z-index: 45;
 }
 .topbar-actions {
     display: flex;
