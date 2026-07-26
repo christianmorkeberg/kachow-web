@@ -328,6 +328,19 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
 
         <main id="messages" class="messages" aria-live="polite"></main>
 
+        <section id="cardPanel" class="card-panel" data-state="hidden" aria-label="Current card" hidden>
+            <div class="card-panel-head" id="cardPanelHead" title="Fold / unfold">
+                <span class="cp-grip" aria-hidden="true"></span>
+                <span class="cp-title" id="cardPanelTitle">Card</span>
+                <span class="cp-sub" id="cardPanelSub"></span>
+                <span class="cp-actions">
+                    <button type="button" class="cp-btn cp-min" id="cardPanelToggle" aria-label="Minimise">▾</button>
+                    <button type="button" class="cp-btn cp-close" id="cardPanelClose" aria-label="Close">✕</button>
+                </span>
+            </div>
+            <div class="card-panel-body" id="cardPanelBody"></div>
+        </section>
+
         <form id="composer" class="composer">
             <details class="composer-menu" id="composerMenu">
                 <summary class="ghost" title="More" aria-label="More actions">＋</summary>

@@ -276,6 +276,123 @@
         });
     }
 
+    // ---- Persistent card panel (mobile-first "canvas") -------------------------
+    // Cards live in their own foldable panel above the composer rather than being
+    // re-posted into the transcript on every turn. "add milk" updates the panel in
+    // place; switching topic swaps the card; the prose reply stays in the chat as
+    // the running log.
+    var cardPanel      = document.getElementById('cardPanel');
+    var cardPanelBody  = document.getElementById('cardPanelBody');
+    var cardPanelTitle = document.getElementById('cardPanelTitle');
+    var cardPanelSub   = document.getElementById('cardPanelSub');
+    var panelKind      = null;
+
+    var CARD_TITLES = {
+        shopping_list: '🛒 Shopping list',
+        workout_plan:  '🏋️ Workout plan',
+        agenda:        '📅 Agenda',
+        weather:       '🌤️ Weather',
+        work_hours:    '🕒 Work hours',
+        work_chart:    '📊 Work hours',
+        work_log:      '📝 Work log',
+        progression:   '📈 Progression',
+        cycle:         '🌙 Cycle',
+        receipt:       '🧾 Receipt',
+        expenses:      '💳 Expenses',
+        email_list:    '📥 Inbox',
+        email:         '✉️ Email',
+        email_draft:   '✍️ Draft',
+        feedback:      '🛠️ Feedback',
+        notice:        'ℹ️ Note'
+    };
+
+    function cardTitleFor(card) {
+        return CARD_TITLES[card.kind] || (card.title || 'Card');
+    }
+
+    function cardSubFor(card) {
+        if (typeof card.remaining === 'number') return card.remaining + ' left';
+        if (Array.isArray(card.items)) return card.items.length + (card.items.length === 1 ? ' item' : ' items');
+        return '';
+    }
+
+    function setPanelState(state) {
+        if (!cardPanel) return;
+        cardPanel.setAttribute('data-state', state);
+        var tgl = document.getElementById('cardPanelToggle');
+        if (tgl) tgl.setAttribute('aria-label', state === 'min' ? 'Expand' : 'Minimise');
+    }
+
+    function hidePanel() {
+        if (!cardPanel) return;
+        cardPanel.hidden = true;
+        setPanelState('hidden');
+        cardPanelBody.innerHTML = '';
+        panelKind = null;
+    }
+
+    function flashPanel() {
+        if (!cardPanel) return;
+        cardPanel.classList.remove('cp-flash');
+        void cardPanel.offsetWidth;          // reflow so the animation can retrigger
+        cardPanel.classList.add('cp-flash');
+    }
+
+    // Draw a card into the panel instead of the message stream. Every renderX()
+    // appends its node via messages.appendChild(); we briefly redirect that to the
+    // panel body, so none of the ~16 renderers need to change. Interactive updates
+    // (period toggles, checkboxes) mutate the card in place, so they keep working.
+    function presentCard(card) {
+        if (!card || !card.kind) return;
+        if (!cardPanel) { renderCard(card); return; }   // graceful fallback
+
+        var sameKind = (panelKind === card.kind);
+        var wasMin   = cardPanel.getAttribute('data-state') === 'min';
+
+        cardPanelBody.innerHTML = '';
+        var orig = messages.appendChild;
+        messages.appendChild = function (node) { return cardPanelBody.appendChild(node); };
+        try {
+            renderCard(card);
+        } finally {
+            messages.appendChild = orig;   // restore the real method no matter what
+        }
+
+        panelKind = card.kind;
+        cardPanelTitle.textContent = cardTitleFor(card);
+        cardPanelSub.textContent   = cardSubFor(card);
+        cardPanel.hidden = false;
+        // Respect a deliberate minimise only when the SAME card refreshes; a new
+        // kind (or a reopened panel) pops open so you see what changed.
+        if (sameKind && wasMin) {
+            setPanelState('min');
+        } else {
+            setPanelState('open');
+        }
+        flashPanel();
+    }
+
+    (function wireCardPanel() {
+        if (!cardPanel) return;
+        var head  = document.getElementById('cardPanelHead');
+        var close = document.getElementById('cardPanelClose');
+        var tgl   = document.getElementById('cardPanelToggle');
+        function toggleMin(e) {
+            if (e) e.stopPropagation();
+            setPanelState(cardPanel.getAttribute('data-state') === 'min' ? 'open' : 'min');
+        }
+        if (head)  head.addEventListener('click', toggleMin);
+        if (tgl)   tgl.addEventListener('click', toggleMin);
+        if (close) close.addEventListener('click', function (e) { e.stopPropagation(); hidePanel(); });
+    })();
+
+    // Display polish: capitalise the first letter of a list item (æøå-aware),
+    // without mutating the stored text (matching/dedup rely on the raw value).
+    function capFirst(s) {
+        s = (s == null ? '' : String(s));
+        return s ? s.charAt(0).toLocaleUpperCase('da-DK') + s.slice(1) : s;
+    }
+
     // Render an interactive checklist card. Supports workout plans (days of
     // exercises → /api/workout-plan.php) and shopping lists (items → /api/shopping-list.php).
     function renderCard(card) {
@@ -352,7 +469,7 @@
                     cb.checked = !!it.done;
                     cb.addEventListener('change', function () { toggleCardItem(cb, it.id, endpoint, doneKey); });
                     const span = document.createElement('span');
-                    span.textContent = it.label;
+                    span.textContent = capFirst(it.label);
                     label.appendChild(cb);
                     label.appendChild(span);
                     li.appendChild(label);
@@ -668,7 +785,7 @@
             .then(function (r) {
                 loading.remove();
                 if (r.ok && r.d && r.d.card) {
-                    renderCard(r.d.card);
+                    presentCard(r.d.card);
                 } else {
                     if (r.d && r.d.debug) console.error('[Kachow] email-read.php:', r.d.debug);
                     addMessage((r.d && r.d.error) || 'Could not open that email.', 'error');
@@ -2756,7 +2873,7 @@
             attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
             attachMessageMeta(userRow, { id: data.user_message_id });
             speak(data.reply || '');
-            if (data.card) renderCard(data.card);
+            if (data.card) presentCard(data.card);
             if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
 
             // For a brand-new conversation, generate its history title in the
@@ -2820,6 +2937,7 @@
         conversationId = null;
         localStorage.removeItem(CONV_KEY);
         messages.innerHTML = '';
+        hidePanel();
         showEmptyHint();
         input.focus();
     });
@@ -2831,16 +2949,21 @@
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
                 messages.innerHTML = '';
+                hidePanel();
+                // Cards live in the panel now (the "current view"), not inline in the
+                // transcript — so restore just the most recent one for this chat.
+                var lastCard = null;
                 (data.messages || []).forEach(function (m) {
                     if (m.role === 'assistant') {
                         var row = addMessage(m.content, 'assistant', m.html);
                         attachMessageMeta(row, { id: m.id, diagnostics: m.diagnostics });
-                        if (m.card) renderCard(m.card); // re-show the interactive widget
+                        if (m.card) lastCard = m.card;
                     } else {
                         var urow = addMessage(m.content, 'user');
                         attachMessageMeta(urow, { id: m.id });
                     }
                 });
+                if (lastCard) presentCard(lastCard);
                 conversationId = id;
                 localStorage.setItem(CONV_KEY, String(id));
                 if (!messages.children.length) showEmptyHint();
@@ -3025,6 +3148,7 @@
         conversationId = null;
         localStorage.removeItem(CONV_KEY);
         messages.innerHTML = '';
+        hidePanel();
         // Drop the query params so a refresh doesn't re-trigger it.
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
 
@@ -3033,7 +3157,7 @@
         fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
-                if (data && data.card) renderCard(data.card);
+                if (data && data.card) presentCard(data.card);
                 else showEmptyHint();
             })
             .catch(function () { showEmptyHint(); });

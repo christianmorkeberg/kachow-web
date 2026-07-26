@@ -731,6 +731,64 @@ button.ghost {
 }
 .msg.assistant a { color: var(--accent); }
 
+/* ---------- Persistent card panel ("canvas") — mobile-first ---------- */
+/* Sits between the message stream and the composer: the message list (flex:1)
+   shrinks to make room, the composer stays pinned at the bottom, and the panel
+   holds the current card, updating in place instead of re-posting the whole
+   thing into the transcript. Foldable (min) and closable. */
+.card-panel {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid #1e2d4d;
+    background: var(--bg);
+}
+.card-panel[hidden] { display: none; }
+.card-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--panel-2);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.cp-grip {
+    width: 26px; height: 4px; flex: 0 0 auto;
+    border-radius: 2px; background: #3a4d75;
+}
+.cp-title {
+    font-weight: 600; font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cp-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.cp-actions { margin-left: auto; display: flex; gap: 2px; flex: 0 0 auto; }
+.cp-btn {
+    background: transparent; border: 0; color: var(--muted);
+    font-size: 15px; line-height: 1; padding: 6px 9px;
+    border-radius: 8px; cursor: pointer;
+    user-select: none; -webkit-user-select: none;
+}
+.cp-btn:hover { background: rgba(56, 189, 248, .12); color: var(--text); }
+.card-panel[data-state="min"] .cp-min { transform: rotate(180deg); }
+.card-panel-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+    max-height: min(52vh, 460px);
+}
+.card-panel[data-state="min"] .card-panel-body { display: none; }
+/* Cards fill the panel seamlessly — drop their own outer chrome inside it. */
+.card-panel-body > .plan-card {
+    border: 0; border-radius: 0; padding: 0; background: transparent;
+}
+.card-panel-body > * { margin: 0; }
+/* Brief highlight when a fresh/updated card lands. */
+@keyframes cp-flash { from { background: rgba(56, 189, 248, .18); } to { background: var(--panel-2); } }
+.card-panel.cp-flash .card-panel-head { animation: cp-flash 1s ease-out; }
+
 .composer {
     display: flex;
     gap: 8px;
