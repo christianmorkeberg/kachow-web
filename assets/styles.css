@@ -256,6 +256,9 @@ button.ghost {
     transition: border-color .15s ease, color .15s ease;
 }
 .chip:hover { border-color: #3a4d75; color: var(--text); }
+/* "Pick up where you left off" pill — distinct accent so it reads as resume, not a prompt. */
+.chip-resume { border-color: #1e4a63; color: var(--accent); font-weight: 600; }
+.chip-resume:hover { border-color: var(--accent); color: var(--accent); background: rgba(56, 189, 248, .10); }
 
 /* Quick-reply chips under the latest assistant message (from [[suggest: …]]). */
 .suggestions {

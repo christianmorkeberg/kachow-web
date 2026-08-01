@@ -21,6 +21,8 @@
     // user manually switches back to text (by typing) or taps the mic off.
     let voiceMode = false;
     let quickActions = null;   // cached suggestions for the empty-screen chips
+    let resumeConversation = null;      // {id,title} offered as a "pick up where you left off" pill
+    const IDLE_RESUME_SECONDS = 3600;   // only auto-resume the last chat if <1h since its last message
     let deviceLocation = null; // {lat, lon} from the browser, for weather etc.
 
     function showEmptyHint() {
@@ -38,11 +40,26 @@
         renderChips(chips);
     }
 
-    // Quick-action chips: frequent-first suggestions from the server.
+    // Quick-action chips: frequent-first suggestions from the server, preceded by a
+    // "pick up where you left off" pill when an idle gap started a fresh chat.
     function renderChips(container) {
-        if (!quickActions || !quickActions.length) return;
         container.innerHTML = '';
-        quickActions.forEach(function (text) {
+
+        if (resumeConversation && resumeConversation.id) {
+            const da = (navigator.language || '').toLowerCase().indexOf('da') === 0;
+            const rb = document.createElement('button');
+            rb.type = 'button';
+            rb.className = 'chip chip-resume';
+            rb.textContent = da ? '↩ Fortsæt hvor du slap' : '↩ Pick up where you left off';
+            rb.addEventListener('click', function () {
+                const id = resumeConversation.id;
+                resumeConversation = null;
+                loadConversation(id).catch(function () { /* non-fatal */ });
+            });
+            container.appendChild(rb);
+        }
+
+        (quickActions || []).forEach(function (text) {
             const b = document.createElement('button');
             b.type = 'button';
             b.className = 'chip';
@@ -2848,6 +2865,7 @@
     async function send(text) {
         if (busy || !text.trim()) return;
         busy = true;
+        resumeConversation = null;          // committing to this fresh chat; drop the resume offer
         clearSuggestions();                 // any pending quick-reply chips are now moot
         // Keep the button enabled but turn it into a Stop control.
         sendController = new AbortController();
@@ -3161,15 +3179,40 @@
     var cardParam = _params.get('card');
     if (cardParam) {
         openNotificationCard(cardParam, _params.get('rid'));
-    } else if (conversationId) {
-        // Restore the last conversation's messages on load (they persist server-side),
-        // so a reload lands you back where you left off. Falls back to a fresh screen.
-        loadConversation(conversationId).catch(function () {
-            conversationId = null;
-            localStorage.removeItem(CONV_KEY);
-            showEmptyHint();
-        });
     } else {
+        decideStartupChat();
+    }
+
+    // Resume the last conversation only if it's still "warm" (server says its last
+    // message was <1h ago) — a quick refresh lands you back where you were. After a
+    // longer gap, start a fresh chat but offer a "pick up where you left off" pill.
+    // The idle age is measured server-side, so it's robust across devices/clock skew.
+    function decideStartupChat() {
+        fetch('/api/conversations.php?recent=1', { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                var recent = data && data.recent ? data.recent : null;
+                if (recent && recent.age_seconds <= IDLE_RESUME_SECONDS) {
+                    loadConversation(recent.id).catch(function () { startFreshChat(recent); });
+                } else {
+                    startFreshChat(recent);   // idle gap (or no history) → fresh screen
+                }
+            })
+            .catch(function () {
+                // Endpoint/network failure → fall back to the old restore behavior.
+                if (conversationId) {
+                    loadConversation(conversationId).catch(function () { startFreshChat(null); });
+                } else {
+                    startFreshChat(null);
+                }
+            });
+    }
+
+    function startFreshChat(recent) {
+        conversationId = null;
+        localStorage.removeItem(CONV_KEY);
+        resumeConversation = (recent && recent.id) ? recent : null;
+        messages.innerHTML = '';
         showEmptyHint();
     }
 

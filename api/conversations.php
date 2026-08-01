@@ -71,6 +71,12 @@ try {
         out(400, ['error' => 'Unknown action.']);
     }
 
+    // GET ?recent=1 → the most recent conversation + server-side idle age, so the
+    // client can decide whether to resume it or start fresh after a gap.
+    if (isset($_GET['recent'])) {
+        out(200, ['recent' => $conversations->mostRecent($userId)]);
+    }
+
     // GET: one conversation's messages (reopen).
     if (isset($_GET['id'])) {
         $id = (int) $_GET['id'];
