@@ -17,9 +17,9 @@ architecture, features and screenshots.
   topic, so the transcript stays a clean running log.
 - **`assets/styles.css`** — a single hand-written stylesheet (dark theme, animations,
   `prefers-reduced-motion` aware).
-- **`api/*.php`** — small authenticated JSON endpoints (`chat.php`, `receipt.php`,
-  `cycle.php`, OAuth callbacks, …). Each boots the app, checks the session, and calls
-  into `kachow-app`.
+- **`api/*.php`** — small authenticated JSON endpoints (`chat.php`, `photo.php` — read &
+  act on an uploaded photo, `receipt.php`, `cycle.php`, OAuth callbacks, …). Each boots
+  the app, checks the session, and calls into `kachow-app`.
 - **`error.php`** — playful, racing-themed animated HTTP error pages.
 
 ## How it fits together
