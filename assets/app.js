@@ -2267,9 +2267,18 @@
         det.appendChild(db);
         box.appendChild(det);
 
+        var actions = document.createElement('div');
+        actions.className = 'fb-actions';
+
+        // Download the full report as a Markdown bundle to hand to the developer/Claude.
+        var dl = document.createElement('button');
+        dl.type = 'button';
+        dl.className = 'fb-download';
+        dl.textContent = '⬇ Download for dev';
+        dl.addEventListener('click', function () { downloadUrl('/api/report-export.php?id=' + r.id); });
+        actions.appendChild(dl);
+
         if (r.status !== 'resolved') {
-            var actions = document.createElement('div');
-            actions.className = 'fb-actions';
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'fb-resolve';
@@ -2286,7 +2295,7 @@
                     if (res && res.ok) {
                         var pill = head.querySelector('.fb-status');
                         if (pill) { pill.className = 'fb-status resolved'; pill.textContent = 'resolved'; }
-                        actions.remove();
+                        btn.remove();   // keep the download button available after resolving
                     } else {
                         btn.disabled = false;
                         btn.textContent = 'Mark resolved';
@@ -2299,8 +2308,8 @@
                 });
             });
             actions.appendChild(btn);
-            box.appendChild(actions);
         }
+        box.appendChild(actions);
 
         return box;
     }

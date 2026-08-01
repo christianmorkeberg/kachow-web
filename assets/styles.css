@@ -1423,9 +1423,14 @@ body.devmode .msg-diag { display: block; }
 .fb-diag-body { margin-top: 4px; padding: 8px 10px; background: #0e192e; border: 1px solid #26375c; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; overflow-x: auto; }
 .fb-diag-body code { color: #9ecbff; }
 
-.fb-actions { margin-top: 10px; }
+.fb-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
 .fb-resolve { background: #34d399; color: #05372a; border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
 .fb-resolve:disabled { opacity: .6; cursor: default; }
+.fb-download {
+    background: transparent; color: var(--accent); border: 1px solid #1e4a63;
+    border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.fb-download:hover { border-color: var(--accent); background: rgba(56, 189, 248, .10); }
 
 /* Report dialog + toast. */
 .report-overlay {
