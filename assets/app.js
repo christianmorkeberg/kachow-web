@@ -3173,6 +3173,22 @@
         showEmptyHint();
     }
 
+    // Short contextual line shown in the fresh chat when a notification card opens, so
+    // it isn't just a card over an empty conversation. Language auto-picks from the
+    // device (Danish for da-*, English otherwise).
+    var CARD_INTRO = {
+        work_week:  { en: "Here's your work summary for last week 📊", da: 'Her er din arbejdsoversigt for sidste uge 📊' },
+        work_hours: { en: "Here are today's hours 🕒",                 da: 'Her er dagens timer 🕒' },
+        work_log:   { en: "Here's your work log for this week 📝",     da: 'Her er din arbejdslog for denne uge 📝' },
+        cycle:      { en: "Here's your cycle status 🌙",               da: 'Her er din cyklusstatus 🌙' },
+        reminder:   { en: "Here's your reminder ⏰",                   da: 'Her er din påmindelse ⏰' }
+    };
+    function cardIntro(key) {
+        var m = CARD_INTRO[key];
+        if (!m) return null;
+        return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? m.da : m.en;
+    }
+
     function openNotificationCard(key, rid) {
         // Start clean: no active conversation, empty transcript.
         conversationId = null;
@@ -3187,8 +3203,13 @@
         fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
-                if (data && data.card) presentCard(data.card);
-                else showEmptyHint();
+                if (data && data.card) {
+                    var intro = cardIntro(key);
+                    if (intro) addMessage(intro, 'assistant');
+                    presentCard(data.card);
+                } else {
+                    showEmptyHint();
+                }
             })
             .catch(function () { showEmptyHint(); });
     }
@@ -3208,6 +3229,18 @@
             if (refreshing || !hadController) return;
             refreshing = true;
             window.location.reload();
+        });
+
+        // A tapped notification on an already-open app: the SW hands us the deep-link
+        // URL (since iOS won't navigate it), and we open the matching card in a fresh chat.
+        navigator.serviceWorker.addEventListener('message', function (e) {
+            var d = e.data || {};
+            if (d.type !== 'kachow-open' || !d.url) return;
+            try {
+                var u = new URL(d.url, location.origin);
+                var card = u.searchParams.get('card');
+                if (card) openNotificationCard(card, u.searchParams.get('rid'));
+            } catch (err) { /* ignore malformed url */ }
         });
 
         window.addEventListener('load', function () {
@@ -3351,10 +3384,27 @@
             });
             body.appendChild(testBtn);
 
+            // Deep-linked test: a push that should open the work-week card on tap. Lets us
+            // verify the notification → card path on demand (no waiting for a real nudge).
+            var testCardBtn = document.createElement('button');
+            testCardBtn.className = 'notif-test';
+            testCardBtn.type = 'button';
+            testCardBtn.textContent = 'Send a test card notification';
+            testCardBtn.addEventListener('click', function () {
+                testCardBtn.disabled = true;
+                testCardBtn.textContent = 'Sending…';
+                api({ action: 'test_card' }).then(function (r) {
+                    testCardBtn.textContent = r && r.sent ? 'Sent ✓ — background the app, then tap it' : 'No device subscribed yet';
+                    setTimeout(function () { testCardBtn.disabled = false; testCardBtn.textContent = 'Send a test card notification'; }, 4000);
+                }).catch(function () { testCardBtn.disabled = false; testCardBtn.textContent = 'Send a test card notification'; });
+            });
+            body.appendChild(testCardBtn);
+
             function refreshMaster() {
                 currentSubscription().then(function (sub) {
                     masterSwitch.checkbox.checked = !!sub;
                     testBtn.disabled = !sub;
+                    testCardBtn.disabled = !sub;
                 });
             }
             function renderTypes() {

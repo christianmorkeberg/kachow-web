@@ -50,8 +50,14 @@ self.addEventListener('notificationclick', (event) => {
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
             for (const client of clients) {
-                if ('focus' in client) { client.navigate(target); return client.focus(); }
+                if ('focus' in client) {
+                    // An already-open window (esp. an iOS PWA) often ignores client.navigate(),
+                    // so hand the page the target URL and let it open the card itself, then focus.
+                    client.postMessage({ type: 'kachow-open', url: target });
+                    return client.focus();
+                }
             }
+            // Nothing open → launch fresh at the deep link (?card=… handled on load).
             return self.clients.openWindow(target);
         })
     );
