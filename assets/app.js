@@ -331,6 +331,10 @@
     }
 
     function cardSubFor(card) {
+        if (card.kind === 'shopping_list' && Array.isArray(card.items)) {
+            var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
+            return openN + (openN === 1 ? ' item' : ' items');
+        }
         if (typeof card.remaining === 'number') return card.remaining + ' left';
         if (Array.isArray(card.items)) return card.items.length + (card.items.length === 1 ? ' item' : ' items');
         return '';
@@ -433,6 +437,7 @@
         if (card.kind === 'progression') { renderProgression(card); return; }
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
+        if (card.kind === 'shopping_list') { renderShopping(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -444,10 +449,6 @@
                     items: d.items || [],
                 };
             });
-        } else if (card.kind === 'shopping_list') {
-            endpoint = '/api/shopping-list.php';
-            doneKey = 'checked';
-            sections = [{ head: null, items: card.items || [] }];
         } else {
             return;
         }
@@ -502,6 +503,126 @@
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Bilingual helper for small card-UI strings (picks from the device language).
+    function daText(en, da) {
+        return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? da : en;
+    }
+
+    // Shopping list: only OPEN items show by default; recently-ticked items (kept ~24h
+    // server-side, then purged) hide behind a reveal toggle; and you can add items right
+    // on the card without chatting. The card rebuilds in place after each change — ticking
+    // an item moves it into the hidden section, adding appends it.
+    function renderShopping(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card shopping-card';
+        buildShopping(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildShopping(wrap, card) {
+        wrap.innerHTML = '';
+        var items = card.items || [];
+        var open = items.filter(function (it) { return !it.done; });
+        var checked = items.filter(function (it) { return it.done; });
+
+        var h = document.createElement('div');
+        h.className = 'plan-card-title';
+        h.textContent = (card.title || 'Shopping list') + (open.length ? ' · ' + open.length + ' left' : '');
+        wrap.appendChild(h);
+
+        if (!open.length) {
+            var empty = document.createElement('div');
+            empty.className = 'plan-empty';
+            empty.textContent = daText('Nothing on the list.', 'Intet på listen.');
+            wrap.appendChild(empty);
+        } else {
+            var ul = document.createElement('ul');
+            ul.className = 'plan-items';
+            open.forEach(function (it) { ul.appendChild(shoppingLi(it, wrap, card)); });
+            wrap.appendChild(ul);
+        }
+
+        // Add-item row — type + Enter/＋, no chat round-trip.
+        var form = document.createElement('form');
+        form.className = 'shop-add';
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'shop-add-input';
+        inp.placeholder = daText('Add an item…', 'Tilføj en vare…');
+        inp.autocomplete = 'off';
+        var addBtn = document.createElement('button');
+        addBtn.type = 'submit';
+        addBtn.className = 'shop-add-btn';
+        addBtn.setAttribute('aria-label', daText('Add', 'Tilføj'));
+        addBtn.textContent = '＋';
+        form.appendChild(inp);
+        form.appendChild(addBtn);
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var val = inp.value.trim();
+            if (!val) return;
+            inp.value = '';
+            shopPost({ action: 'add', list_id: card.list_id, item: val }, wrap, true);
+        });
+        wrap.appendChild(form);
+
+        // Recently-ticked items, hidden behind a reveal toggle (recoverable ~24h).
+        if (checked.length) {
+            var det = document.createElement('details');
+            det.className = 'shop-checked';
+            var sum = document.createElement('summary');
+            sum.textContent = daText('Show ' + checked.length + ' recently ticked',
+                'Vis ' + checked.length + ' krydset af for nylig');
+            det.appendChild(sum);
+            var cul = document.createElement('ul');
+            cul.className = 'plan-items';
+            checked.forEach(function (it) { cul.appendChild(shoppingLi(it, wrap, card)); });
+            det.appendChild(cul);
+            wrap.appendChild(det);
+        }
+    }
+
+    function shoppingLi(it, wrap, card) {
+        var li = document.createElement('li');
+        if (it.done) li.classList.add('done');
+        var label = document.createElement('label');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!it.done;
+        cb.addEventListener('change', function () { shopPost({ item_id: it.id, checked: cb.checked }, wrap, false); });
+        var span = document.createElement('span');
+        span.textContent = capFirst(it.label);
+        label.appendChild(cb);
+        label.appendChild(span);
+        li.appendChild(label);
+        return li;
+    }
+
+    function shopPost(body, wrap, refocus) {
+        wrap.classList.add('loading');
+        return fetch('/api/shopping-list.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); }).then(function (res) {
+            wrap.classList.remove('loading');
+            if (res && res.card) {
+                buildShopping(wrap, res.card);
+                if (panelKind === 'shopping_list' && cardPanelSub) {
+                    var openN = (res.card.items || []).filter(function (i) { return !i.done; }).length;
+                    cardPanelSub.textContent = openN + (openN === 1 ? ' item' : ' items');
+                }
+                if (refocus) {
+                    var ni = wrap.querySelector('.shop-add-input');
+                    if (ni) ni.focus();
+                }
+            }
+        }).catch(function () { wrap.classList.remove('loading'); });
     }
 
     // Well-spread hues so distinct calendars are easy to tell apart.

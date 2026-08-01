@@ -5,8 +5,9 @@ declare(strict_types=1);
 /**
  * Shared shopping-list widget backend.
  *
- *   GET  ?list=NAME        → card for that list (default list if omitted)
- *   POST { item_id, checked } → tick/untick an item, returns the fresh card
+ *   GET  ?list=NAME             → card for that list (default list if omitted)
+ *   POST { item_id, checked }  → tick/untick an item, returns the fresh card
+ *   POST { action:'add', list_id, item } → add an item, returns the fresh card
  *
  * Requires an authenticated session (or remember-me cookie). Toggling is
  * authorised by connection membership inside ShoppingLists::toggleItem.
@@ -51,7 +52,26 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 try {
     if ($method === 'POST') {
         $in = json_decode((string) file_get_contents('php://input'), true);
-        if (!is_array($in) || !isset($in['item_id'])) {
+        $in = is_array($in) ? $in : [];
+
+        // Add an item straight from the card (no chat round-trip).
+        if (($in['action'] ?? '') === 'add') {
+            $listId = (int) ($in['list_id'] ?? 0);
+            $item   = trim((string) ($in['item'] ?? ''));
+            if ($listId <= 0 || $item === '') {
+                out(400, ['error' => 'list_id and item are required.']);
+            }
+            $res = $lists->addItemForUser($userId, $listId, $item);
+            if ($res === null) {
+                out(404, ['error' => 'No such list, or not shared with you.']);
+            }
+            out(200, [
+                'ok'   => true,
+                'card' => $lists->cardForList($res['connection_id'], $res['list_id'], $res['name']),
+            ]);
+        }
+
+        if (!isset($in['item_id'])) {
             out(400, ['error' => 'item_id is required.']);
         }
         $res = $lists->toggleItem($userId, (int) $in['item_id'], !empty($in['checked']));

@@ -283,6 +283,30 @@ button.ghost {
     padding: 12px 14px;
 }
 .plan-card-title { font-weight: 700; margin-bottom: 8px; }
+
+/* ---------- Shopping card: inline add + reveal recently-ticked ---------- */
+.shop-add { display: flex; gap: 8px; margin-top: 10px; }
+.shop-add-input {
+    flex: 1; min-width: 0;
+    background: var(--panel-2); border: 1px solid #26375c; color: var(--text);
+    border-radius: 10px; padding: 9px 11px; font: inherit; outline: none;
+}
+.shop-add-input:focus { border-color: var(--accent); }
+.shop-add-btn {
+    flex: 0 0 auto; width: 40px;
+    background: transparent; border: 1px solid #26375c; color: var(--accent);
+    border-radius: 10px; font-size: 20px; line-height: 1; cursor: pointer;
+}
+.shop-add-btn:hover { border-color: var(--accent); background: rgba(56, 189, 248, .10); }
+.shop-checked { margin-top: 10px; border-top: 1px solid #1e2d4d; padding-top: 8px; }
+.shop-checked > summary {
+    list-style: none; cursor: pointer; color: var(--muted); font-size: 13px;
+    user-select: none; -webkit-user-select: none;
+}
+.shop-checked > summary::-webkit-details-marker { display: none; }
+.shop-checked > summary::before { content: '▸ '; }
+.shop-checked[open] > summary::before { content: '▾ '; }
+.shop-checked .plan-items { margin-top: 8px; }
 .plan-day + .plan-day { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1e2d4d; }
 .plan-day-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .plan-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
