@@ -756,7 +756,10 @@
 
     // Loose weather-intent check (EN + DA) so we can show a themed waiting animation.
     function looksLikeWeather(text) {
-        return /(weather|forecast|temperature|rain|snow|sunny|sun\b|windy|cloud|storm|degrees|umbrella|vejr|regn|sne|solen|solskin|temperatur|vind|blæs|skyet|grader|paraply|byge)/i.test(String(text || ''));
+        // Leading \b on each stem so weather words don't match INSIDE unrelated words —
+        // e.g. Danish "regn" (rain) must not fire on "afregning" (billing), nor "rain"
+        // on "training", nor "storm" on "brainstorm".
+        return /(?:\bweather|\bforecast|\btemperature|\brain|\bsnow|\bsunny|\bsun\b|\bwindy|\bcloud|\bstorm|\bdegrees|\bumbrella|\bvejr|\bregn|\bsne|\bsolen|\bsolskin|\btemperatur|\bvind|\bblæs|\bskyet|\bgrader|\bparaply|\bbyge)/i.test(String(text || ''));
     }
 
     // Replace the "…" thinking bubble with a row of bobbing sky glyphs.
