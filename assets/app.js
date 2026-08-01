@@ -2684,6 +2684,91 @@
         media.appendChild(img);
     }
 
+    // General photo → assistant. Unlike a receipt (specialised read-and-book), this
+    // runs a full assistant turn with the image attached, so the model reads it and
+    // acts (calendar event, list item, reminder, expense…). Response is handled just
+    // like a chat reply. An optional caption (whatever's typed in the composer) rides
+    // along as an instruction.
+    function uploadPhoto(file, caption) {
+        if (busy) return;
+        busy = true;
+        clearEmptyHint();
+        resumeConversation = null;   // committing to this chat; drop any resume offer
+        clearSuggestions();
+        var wasNew = !conversationId;
+
+        var bubble = addMessage(caption || '', 'user');
+        var media = document.createElement('span');
+        media.className = 'receipt-media';
+        bubble.appendChild(media);
+        showPhotoPreview(media, URL.createObjectURL(file)); // falls back to a tile if undecodable (HEIC)
+
+        var typing = addMessage('…', 'assistant');
+        typing.classList.add('typing');
+        var av = typing.querySelector('.avatar');
+        if (av) av.src = AVATAR_FLYING;
+
+        var fd = new FormData();
+        fd.append('photo', file);
+        if (caption) fd.append('caption', caption);
+        if (conversationId) fd.append('conversation_id', String(conversationId));
+
+        fetch('/api/photo.php', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) {
+                return r.json().catch(function () { return {}; }).then(function (j) {
+                    return { ok: r.ok, status: r.status, j: j };
+                });
+            })
+            .then(function (res) {
+                typing.remove();
+                if (res.status === 401) { window.location.href = '/index.php'; return; }
+                if (!res.ok || !res.j || res.j.error) {
+                    if (res.j && res.j.debug) console.error('[Kachow] photo.php:', res.j.debug);
+                    addMessage((res.j && res.j.error) || 'Could not read that photo.', 'error');
+                    return;
+                }
+                var data = res.j;
+                if (data.conversation_id) {
+                    conversationId = data.conversation_id;
+                    localStorage.setItem(CONV_KEY, String(conversationId));
+                }
+                var replyRow = addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
+                attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
+                attachMessageMeta(bubble, { id: data.user_message_id });
+                speak(data.reply || '');
+                if (data.card) presentCard(data.card);
+                if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
+                if (wasNew && conversationId) {
+                    fetch('/api/conversations.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ action: 'generate_title', id: conversationId }),
+                    }).catch(function () { /* non-fatal */ });
+                }
+            })
+            .catch(function () { typing.remove(); addMessage('Network error uploading the photo.', 'error'); })
+            .finally(function () { busy = false; });
+    }
+
+    // Like showReceiptPreview but with a generic 🖼️ fallback tile for a photo.
+    function showPhotoPreview(media, url) {
+        var img = document.createElement('img');
+        img.className = 'receipt-thumb-msg';
+        img.alt = 'photo';
+        img.addEventListener('click', function () { openLightbox(url); });
+        img.addEventListener('error', function () {
+            var ph = document.createElement('span');
+            ph.className = 'receipt-thumb-ph';
+            ph.textContent = '🖼️';
+            media.innerHTML = '';
+            media.appendChild(ph);
+        });
+        img.src = url;
+        media.innerHTML = '';
+        media.appendChild(img);
+    }
+
     // Read-only work-hours card: a big total + the day's sessions (in–out).
     function renderWorkHours(card) {
         clearEmptyHint();
@@ -3679,6 +3764,24 @@
             var file = fileInput.files && fileInput.files[0];
             fileInput.value = ''; // allow re-picking the same file
             if (file) uploadReceipt(file);
+        });
+    })();
+
+    // ---------- General photo upload (read & act) ----------
+    (function initPhotoUpload() {
+        var btn = document.getElementById('photoBtn');
+        var fileInput = document.getElementById('photoInput');
+        if (!btn || !fileInput) return;
+        btn.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+            var file = fileInput.files && fileInput.files[0];
+            fileInput.value = ''; // allow re-picking the same file
+            if (!file) return;
+            // Whatever the user typed in the composer rides along as a caption/instruction.
+            var caption = (input.value || '').trim();
+            input.value = '';
+            autogrow();
+            uploadPhoto(file, caption);
         });
     })();
 
