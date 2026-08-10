@@ -3728,42 +3728,6 @@
         }
     })();
 
-    // ---------- iOS PWA: float the composer above the on-screen keyboard ----------
-    // Without this, opening the keyboard makes iOS resize/scroll the view and the message
-    // list jumps. Instead we measure the keyboard's height from visualViewport, expose it
-    // as --kbd on .app, and CSS lifts the composer + card panel by that much — the list
-    // stays put (no reflow) and the dock floats just above the keyboard, like a native app.
-    (function initKeyboardInset() {
-        var vv = window.visualViewport;
-        var app = document.querySelector('.app');
-        if (!vv || !app) return; // desktop / unsupported → leave layout as-is
-
-        function nearBottom() {
-            return messages.scrollHeight - messages.scrollTop - messages.clientHeight < 60;
-        }
-
-        function update() {
-            // How much of the app the keyboard (and any scroll offset) is covering.
-            // Measure against the app's OWN rendered height (100dvh), NOT window.innerHeight:
-            // in a standalone iOS PWA innerHeight shrinks WITH the keyboard, so it would report
-            // ~0 and the composer would stay hidden. app.clientHeight stays full (or, if dvh ever
-            // does shrink, this correctly yields ~0 lift since the app already cleared the keyboard).
-            var inset = Math.round(app.clientHeight - vv.height - vv.offsetTop);
-            if (inset < 80) inset = 0; // ignore sub-keyboard noise; a real iPhone keyboard is ~300px
-            var stick = inset > 0 || nearBottom();
-            app.style.setProperty('--kbd', inset + 'px');
-            if (stick) messages.scrollTop = messages.scrollHeight; // keep newest above the input
-        }
-
-        vv.addEventListener('resize', update);
-        vv.addEventListener('scroll', update);
-        // The keyboard animates in over a few hundred ms after focus; settle to bottom once.
-        input.addEventListener('focus', function () {
-            setTimeout(function () { messages.scrollTop = messages.scrollHeight; }, 350);
-        });
-        update();
-    })();
-
     // ---------- Composer overflow menu (＋ → New chat / Add receipt) ----------
     (function initComposerMenu() {
         var menu = document.getElementById('composerMenu');
