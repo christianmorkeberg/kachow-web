@@ -122,6 +122,9 @@ button.ghost {
     height: 100dvh;
     max-width: var(--maxw);
     margin: 0 auto;
+    /* Height of the on-screen keyboard, set from visualViewport (app.js) so the
+       composer + card panel can float above it on iOS. 0 when no keyboard. */
+    --kbd: 0px;
 }
 .topbar {
     display: flex;
@@ -190,6 +193,9 @@ button.ghost {
     flex: 1;
     overflow-y: auto;
     padding: 18px 16px;
+    /* Extra room at the bottom equal to the keyboard height, so the newest message can
+       scroll clear of the floating composer when the keyboard is open (see --kbd). */
+    padding-bottom: calc(18px + var(--kbd, 0px));
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -833,6 +839,15 @@ button.ghost {
     flex: 1;
     resize: none;
     max-height: 140px;
+}
+/* iOS PWA keyboard handling: the on-screen keyboard would otherwise cover the composer
+   and make iOS resize/scroll the whole view (the message list jumps). Instead we keep the
+   list put and lift the dock — card panel + composer — by the keyboard's height (--kbd,
+   set from visualViewport in app.js), so it floats just above the keyboard, overlaying the
+   unmoved messages. Both share var(--bg) so they cleanly cover what's behind. */
+#cardPanel,
+.composer {
+    transform: translateY(calc(-1 * var(--kbd, 0px)));
 }
 /* Compact icon Send button (up-arrow), swaps to a stop square while in flight. */
 #send {
