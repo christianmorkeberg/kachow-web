@@ -3743,8 +3743,12 @@
         }
 
         function update() {
-            // How much of the layout viewport the keyboard (and any offset) is covering.
-            var inset = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+            // How much of the app the keyboard (and any scroll offset) is covering.
+            // Measure against the app's OWN rendered height (100dvh), NOT window.innerHeight:
+            // in a standalone iOS PWA innerHeight shrinks WITH the keyboard, so it would report
+            // ~0 and the composer would stay hidden. app.clientHeight stays full (or, if dvh ever
+            // does shrink, this correctly yields ~0 lift since the app already cleared the keyboard).
+            var inset = Math.round(app.clientHeight - vv.height - vv.offsetTop);
             if (inset < 80) inset = 0; // ignore sub-keyboard noise; a real iPhone keyboard is ~300px
             var stick = inset > 0 || nearBottom();
             app.style.setProperty('--kbd', inset + 'px');
