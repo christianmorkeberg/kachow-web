@@ -146,7 +146,7 @@ try {
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
-    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories);
+    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories, new UserSettings());
 
     $reply = $loop->handle($userId, $conversationId, $message, $location);
 

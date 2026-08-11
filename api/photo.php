@@ -146,7 +146,7 @@ try {
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
-    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories);
+    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories, new UserSettings());
 
     // The persisted user turn is just the caption (or a neutral placeholder); the
     // photo itself is attached to the turn via $image and read multimodally.

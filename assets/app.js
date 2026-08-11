@@ -320,8 +320,29 @@
         email:         '✉️ Email',
         email_draft:   '✍️ Draft',
         feedback:      '🛠️ Feedback',
+        personality:   '🎭 Personality',
         notice:        'ℹ️ Note'
     };
+
+    // Personality dial stops (slider order). Labels/blurbs + a sample reply per level,
+    // bilingual — the sample uses a workout-PR moment so the tone difference is obvious.
+    var PERSONALITY_LEVELS = [
+        {
+            value: 'off',
+            en: { label: 'Off',    blurb: 'Plain and neutral.',            ex: 'Logged. New squat PR: 140 kg.' },
+            da: { label: 'Fra',    blurb: 'Neutral og enkel.',             ex: 'Noteret. Ny squat-rekord: 140 kg.' }
+        },
+        {
+            value: 'subtle',
+            en: { label: 'Subtle', blurb: 'A light touch of character.',   ex: 'Nice — new squat PR, 140 kg! 💪' },
+            da: { label: 'Let',    blurb: 'Et strejf af personlighed.',    ex: 'Flot — ny squat-rekord, 140 kg! 💪' }
+        },
+        {
+            value: 'full',
+            en: { label: 'Full',   blurb: 'Leans all the way in.',         ex: "LET'S GO! 140 kg squat — new PR, absolute unit! 🔥💪" },
+            da: { label: 'Fuld',   blurb: 'Går all-in.',                   ex: 'KOM SÅ! 140 kg squat — ny rekord, din maskine! 🔥💪' }
+        }
+    ];
 
     function cardTitleFor(card) {
         var base = CARD_TITLES[card.kind] || (card.title || 'Card');
@@ -331,6 +352,10 @@
     }
 
     function cardSubFor(card) {
+        if (card.kind === 'personality' && card.level) {
+            var lv = PERSONALITY_LEVELS.filter(function (l) { return l.value === card.level; })[0];
+            return lv ? daText(lv.en.label, lv.da.label) : '';
+        }
         if (card.kind === 'shopping_list' && Array.isArray(card.items)) {
             var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
             return openN + (openN === 1 ? ' item' : ' items');
@@ -437,6 +462,7 @@
         if (card.kind === 'progression') { renderProgression(card); return; }
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
+        if (card.kind === 'personality') { renderPersonality(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
 
         let sections, endpoint, doneKey;
@@ -822,6 +848,83 @@
 
     // Small standalone notice card (e.g. "Expense deleted") so a delete turn shows
     // a clear outcome instead of re-rendering the item as if it still exists.
+    // Personality slider card: a 3-stop range (Off / Subtle / Full) that saves the
+    // `personality` setting on release and live-previews a sample reply per level.
+    function renderPersonality(card) {
+        clearEmptyHint();
+        var levels = PERSONALITY_LEVELS;
+        var idx = levels.map(function (l) { return l.value; }).indexOf(card.level || 'subtle');
+        if (idx < 0) idx = 1;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card personality-card';
+
+        var intro = document.createElement('div');
+        intro.className = 'persona-intro';
+        intro.textContent = daText(
+            'How much character should I bring? Slide to taste.',
+            'Hvor meget personlighed skal jeg have? Skru efter behov.'
+        );
+        wrap.appendChild(intro);
+
+        var slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = '0'; slider.max = String(levels.length - 1); slider.step = '1';
+        slider.value = String(idx);
+        slider.className = 'persona-slider';
+        wrap.appendChild(slider);
+
+        var ticks = document.createElement('div');
+        ticks.className = 'persona-ticks';
+        levels.forEach(function (l, i) {
+            var t = document.createElement('button');
+            t.type = 'button';
+            t.className = 'persona-tick';
+            t.textContent = daText(l.en.label, l.da.label);
+            t.addEventListener('click', function () { slider.value = String(i); apply(i, true); });
+            ticks.appendChild(t);
+        });
+        wrap.appendChild(ticks);
+
+        var blurb = document.createElement('div');
+        blurb.className = 'persona-blurb';
+        wrap.appendChild(blurb);
+
+        var ex = document.createElement('div');
+        ex.className = 'persona-example';
+        wrap.appendChild(ex);
+
+        var saving = false;
+        function paint(i) {
+            var l = levels[i];
+            blurb.textContent = daText(l.en.blurb, l.da.blurb);
+            ex.textContent = '“' + daText(l.en.ex, l.da.ex) + '”';
+            Array.prototype.forEach.call(ticks.children, function (c, j) {
+                c.classList.toggle('is-on', j === i);
+            });
+        }
+        function apply(i, save) {
+            paint(i);
+            card.level = levels[i].value;   // keep the snapshot in sync (panel restore, sub label)
+            if (!save || saving) return;
+            saving = true;
+            fetch('/api/settings.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ key: 'personality', value: levels[i].value })
+            }).catch(function () { /* non-fatal — the model reads the setting fresh each turn */ })
+              .finally(function () { saving = false; });
+        }
+
+        slider.addEventListener('input', function () { paint(parseInt(slider.value, 10) || 0); });
+        slider.addEventListener('change', function () { apply(parseInt(slider.value, 10) || 0, true); });
+
+        paint(idx);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
     function renderNotice(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');

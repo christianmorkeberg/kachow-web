@@ -478,6 +478,22 @@ button.ghost {
 .notice-deleted .notice-title::before { content: "🗑 "; }
 .notice-deleted .notice-detail { text-decoration: line-through; }
 
+/* ---------- Personality slider card ---------- */
+.personality-card { display: flex; flex-direction: column; gap: 10px; }
+.persona-intro { font-size: 14px; color: var(--text); }
+.persona-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.persona-ticks { display: flex; gap: 6px; }
+.persona-tick {
+    flex: 1; background: var(--panel-2); border: 1px solid #26375c; color: var(--muted);
+    border-radius: 8px; padding: 6px 4px; font-size: 13px; cursor: pointer;
+}
+.persona-tick.is-on { color: var(--text); border-color: var(--accent); background: rgba(56, 189, 248, .12); }
+.persona-blurb { font-size: 13px; color: var(--muted); }
+.persona-example {
+    font-size: 14px; color: var(--text); background: var(--panel-2);
+    border: 1px solid #26375c; border-radius: 10px; padding: 10px 12px;
+}
+
 /* ---------- Receipt / expense card ---------- */
 .receipt-thumb {
     max-width: 140px; max-height: 160px;
