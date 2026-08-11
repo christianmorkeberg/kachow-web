@@ -321,6 +321,7 @@
         email_draft:   '✍️ Draft',
         feedback:      '🛠️ Feedback',
         personality:   '🎭 Personality',
+        appearance:    '🎨 Appearance',
         notice:        'ℹ️ Note'
     };
 
@@ -354,6 +355,46 @@
         }
     ];
 
+    // Visual themes. The palettes live in styles.css ([data-theme="…"]); these entries
+    // drive the picker swatches + the browser theme-color. Keep ids in sync with the CSS
+    // and with UserSettings::THEMES on the server.
+    var THEMES = [
+        { id: 'aurora',   label: 'Aurora',   bg: '#0f172a', panel: '#16233f', accent: '#38bdf8', text: '#e6edf7', radius: 14 },
+        { id: 'noir',     label: 'Noir',     bg: '#141414', panel: '#242424', accent: '#e0a24e', text: '#eaeaea', radius: 10 },
+        { id: 'paper',    label: 'Paper',    bg: '#f5f5f4', panel: '#ffffff', accent: '#2563eb', text: '#1c1c1c', radius: 10 },
+        { id: 'lavender', label: 'Lavender', bg: '#f3f0fb', panel: '#faf8ff', accent: '#8b5cf6', text: '#2e2545', radius: 16 },
+        { id: 'disco',    label: 'Disco',    bg: '#0d0221', panel: '#2a0e52', accent: '#ff2d95', text: '#ffe9ff', radius: 20 }
+    ];
+    var THEME_KEY = 'kachow-theme';
+
+    function currentTheme() {
+        return document.documentElement.getAttribute('data-theme')
+            || (function () { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } })()
+            || 'aurora';
+    }
+
+    // Apply a theme everywhere: set the CSS attribute, cache it (instant on next load),
+    // sync the browser chrome colour, and (when save) persist server-side for other devices.
+    function applyTheme(id, save) {
+        var t = THEMES.filter(function (x) { return x.id === id; })[0] || THEMES[0];
+        document.documentElement.setAttribute('data-theme', t.id);
+        try { localStorage.setItem(THEME_KEY, t.id); } catch (e) { /* private mode */ }
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', t.bg);
+        if (save) {
+            fetch('/api/settings.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ key: 'theme', value: t.id })
+            }).catch(function () { /* non-fatal — localStorage already holds it */ });
+        }
+    }
+
+    function openAppearanceCard() {
+        presentCard({ kind: 'appearance', theme: currentTheme() });
+    }
+
     function cardTitleFor(card) {
         var base = CARD_TITLES[card.kind] || (card.title || 'Card');
         // Attribute a connected person's card (e.g. "📈 Progression · Alex").
@@ -364,6 +405,10 @@
     function cardSubFor(card) {
         if (card.kind === 'personality' && card.level) {
             return daText('Level ', 'Niveau ') + card.level + '/5';
+        }
+        if (card.kind === 'appearance') {
+            var th = THEMES.filter(function (t) { return t.id === (card.theme || currentTheme()); })[0];
+            return th ? th.label : '';
         }
         if (card.kind === 'shopping_list' && Array.isArray(card.items)) {
             var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
@@ -472,6 +517,7 @@
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
         if (card.kind === 'personality') { renderPersonality(card); return; }
+        if (card.kind === 'appearance') { renderAppearance(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
 
         let sections, endpoint, doneKey;
@@ -930,6 +976,66 @@
         slider.addEventListener('change', function () { apply(parseInt(slider.value, 10) || 0, true); });
 
         paint(idx);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Appearance picker card: a grid of theme swatches; tap one to apply it live and
+    // save it. Each swatch mimics the theme (bg + a panel chip with accent dot + text bar,
+    // and its corner rounding), so you can see the look before committing.
+    function renderAppearance(card) {
+        clearEmptyHint();
+        var cur = card.theme || currentTheme();
+
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card appearance-card';
+
+        var intro = document.createElement('div');
+        intro.className = 'persona-intro';
+        intro.textContent = daText('Pick a look — tap to apply it instantly.',
+            'Vælg et udseende — tryk for at anvende det med det samme.');
+        wrap.appendChild(intro);
+
+        var grid = document.createElement('div');
+        grid.className = 'theme-grid';
+        THEMES.forEach(function (t) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'theme-opt' + (t.id === cur ? ' is-on' : '');
+            b.style.background = t.bg;
+            b.style.borderRadius = Math.max(8, Math.min(t.radius, 16)) + 'px';
+
+            var panel = document.createElement('span');
+            panel.className = 'theme-pv-panel';
+            panel.style.background = t.panel;
+            panel.style.borderRadius = Math.round(t.radius / 2) + 'px';
+            var dot = document.createElement('span');
+            dot.className = 'theme-pv-dot';
+            dot.style.background = t.accent;
+            var bar = document.createElement('span');
+            bar.className = 'theme-pv-bar';
+            bar.style.background = t.text;
+            panel.appendChild(dot);
+            panel.appendChild(bar);
+            b.appendChild(panel);
+
+            var name = document.createElement('span');
+            name.className = 'theme-name';
+            name.style.color = t.text;
+            name.textContent = t.label;
+            b.appendChild(name);
+
+            b.addEventListener('click', function () {
+                applyTheme(t.id, true);
+                card.theme = t.id;
+                Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove('is-on'); });
+                b.classList.add('is-on');
+                if (cardPanelSub && panelKind === 'appearance') cardPanelSub.textContent = t.label;
+            });
+            grid.appendChild(b);
+        });
+        wrap.appendChild(grid);
+
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
@@ -3864,6 +3970,28 @@
         // Opening Notifications hands off to its modal, so collapse the menu.
         var notif = document.getElementById('notifBtn');
         if (notif) notif.addEventListener('click', function () { menu.removeAttribute('open'); });
+        // Appearance → show the theme picker card.
+        var appBtn = document.getElementById('appearanceBtn');
+        if (appBtn) appBtn.addEventListener('click', function () {
+            menu.removeAttribute('open');
+            openAppearanceCard();
+        });
+    })();
+
+    // ---------- Theme: sync chrome colour on load, reconcile with server ----------
+    (function initTheme() {
+        // The inline <head> script already set data-theme from localStorage (no flash);
+        // re-apply so the browser theme-colour meta matches too.
+        applyTheme(currentTheme(), false);
+        // Pull the account's saved theme (set on another device) and apply if different.
+        fetch('/api/settings.php', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.values && j.values.theme && j.values.theme !== currentTheme()) {
+                    applyTheme(j.values.theme, false);
+                }
+            })
+            .catch(function () { /* offline / not logged in — keep the local theme */ });
     })();
 
     // ---------- Receipt photo upload ----------

@@ -40,6 +40,17 @@ if (!$session->isLoggedIn()) {
 }
 $userId = (int) $session->userId();
 
+// GET → the user's current setting values, so the app can apply the saved theme on
+// load across devices (after the instant localStorage apply that avoids a flash).
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    $read   = new UserSettings();
+    $values = [];
+    foreach (UserSettings::keys() as $k) {
+        $values[$k] = $read->get($userId, $k);
+    }
+    out(200, ['ok' => true, 'values' => $values]);
+}
+
 $in    = json_decode((string) file_get_contents('php://input'), true);
 $key   = is_array($in) ? trim((string) ($in['key'] ?? '')) : '';
 $value = is_array($in) ? trim((string) ($in['value'] ?? '')) : '';
@@ -47,18 +58,22 @@ $value = is_array($in) ? trim((string) ($in['value'] ?? '')) : '';
 if (!UserSettings::exists($key)) {
     out(400, ['error' => 'Unknown setting.']);
 }
-// The slider drives the 1–5 personality dial; canonicalise whatever it sends.
+// Canonicalise the values the cards drive.
 if ($key === 'personality') {
     $value = UserSettings::normalizePersonality($value);
+} elseif ($key === 'theme') {
+    $value = UserSettings::normalizeTheme($value);
 }
 
 $settings = new UserSettings();
 $settings->set($userId, $key, $value);
 $saved = $settings->get($userId, $key) ?? '';
 
-out(200, [
-    'ok'    => true,
-    'key'   => $key,
-    'value' => $saved,
-    'card'  => $key === 'personality' ? UserSettings::personalityCard($saved) : null,
-]);
+$card = null;
+if ($key === 'personality') {
+    $card = UserSettings::personalityCard($saved);
+} elseif ($key === 'theme') {
+    $card = UserSettings::appearanceCard($saved);
+}
+
+out(200, ['ok' => true, 'key' => $key, 'value' => $saved, 'card' => $card]);

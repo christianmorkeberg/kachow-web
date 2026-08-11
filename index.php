@@ -171,6 +171,8 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a">
+    <!-- Apply the saved look before the stylesheet paints, so there's no flash of the default theme. -->
+    <script>try{var t=localStorage.getItem('kachow-theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}</script>
     <title>Kachow Assistant</title>
     <link rel="manifest" href="/assets/manifest.json">
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
@@ -232,6 +234,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <div class="tm-sep"></div>
                         <button type="button" id="notifBtn" class="tm-item" hidden>🔔 Notifications</button>
                         <button type="button" id="ttsToggle" class="tm-item" aria-pressed="false" hidden>🔇 Read replies aloud</button>
+                        <button type="button" id="appearanceBtn" class="tm-item">🎨 Appearance</button>
                         <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false">🛠️ Developer mode</button>
                         <a class="tm-item" href="index.php?action=logout">🚪 Log out</a>
                     </div>
