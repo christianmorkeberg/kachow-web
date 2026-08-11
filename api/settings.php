@@ -47,9 +47,9 @@ $value = is_array($in) ? trim((string) ($in['value'] ?? '')) : '';
 if (!UserSettings::exists($key)) {
     out(400, ['error' => 'Unknown setting.']);
 }
-// The slider only drives the personality dial; keep it to its known values.
-if ($key === 'personality' && !in_array(strtolower($value), UserSettings::PERSONALITY_LEVELS, true)) {
-    out(400, ['error' => 'Invalid personality level.']);
+// The slider drives the 1–5 personality dial; canonicalise whatever it sends.
+if ($key === 'personality') {
+    $value = UserSettings::normalizePersonality($value);
 }
 
 $settings = new UserSettings();

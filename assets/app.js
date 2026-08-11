@@ -324,23 +324,33 @@
         notice:        'ℹ️ Note'
     };
 
-    // Personality dial stops (slider order). Labels/blurbs + a sample reply per level,
-    // bilingual — the sample uses a workout-PR moment so the tone difference is obvious.
+    // Personality dial: 1–5 (1 = off, 5 = max). Number label + blurb + a sample reply per
+    // level, bilingual — the sample uses a workout-PR moment so the tone escalation is obvious.
     var PERSONALITY_LEVELS = [
         {
-            value: 'off',
-            en: { label: 'Off',    blurb: 'Plain and neutral.',            ex: 'Logged. New squat PR: 140 kg.' },
-            da: { label: 'Fra',    blurb: 'Neutral og enkel.',             ex: 'Noteret. Ny squat-rekord: 140 kg.' }
+            value: '1',
+            en: { label: '1', blurb: 'Off — plain and neutral.',        ex: 'Logged. New squat PR: 140 kg.' },
+            da: { label: '1', blurb: 'Fra — neutral og enkel.',         ex: 'Noteret. Ny squat-rekord: 140 kg.' }
         },
         {
-            value: 'subtle',
-            en: { label: 'Subtle', blurb: 'A light touch of character.',   ex: 'Nice — new squat PR, 140 kg! 💪' },
-            da: { label: 'Let',    blurb: 'Et strejf af personlighed.',    ex: 'Flot — ny squat-rekord, 140 kg! 💪' }
+            value: '2',
+            en: { label: '2', blurb: 'A faint touch of character.',      ex: 'Nice — new squat PR, 140 kg.' },
+            da: { label: '2', blurb: 'Et svagt strejf af personlighed.', ex: 'Flot — ny squat-rekord, 140 kg.' }
         },
         {
-            value: 'full',
-            en: { label: 'Full',   blurb: 'Leans all the way in.',         ex: "LET'S GO! 140 kg squat — new PR, absolute unit! 🔥💪" },
-            da: { label: 'Fuld',   blurb: 'Går all-in.',                   ex: 'KOM SÅ! 140 kg squat — ny rekord, din maskine! 🔥💪' }
+            value: '3',
+            en: { label: '3', blurb: 'A balanced amount of personality.', ex: 'Solid! New squat PR at 140 kg 💪' },
+            da: { label: '3', blurb: 'Afbalanceret personlighed.',        ex: 'Stærkt! Ny squat-rekord på 140 kg 💪' }
+        },
+        {
+            value: '4',
+            en: { label: '4', blurb: 'Clearly characterful.',           ex: "Yesss, 140 kg squat — that's a PR! 🔥" },
+            da: { label: '4', blurb: 'Tydelig personlighed.',           ex: 'Yes, 140 kg squat — det er rekord! 🔥' }
+        },
+        {
+            value: '5',
+            en: { label: '5', blurb: 'Full-on, all the energy.',        ex: "LET'S GOOO! 140 kg squat, NEW PR — absolute unit! 🔥💪" },
+            da: { label: '5', blurb: 'Fuld knald på, al energien.',      ex: 'KOM SÅ! 140 kg squat, NY REKORD — din maskine! 🔥💪' }
         }
     ];
 
@@ -353,8 +363,7 @@
 
     function cardSubFor(card) {
         if (card.kind === 'personality' && card.level) {
-            var lv = PERSONALITY_LEVELS.filter(function (l) { return l.value === card.level; })[0];
-            return lv ? daText(lv.en.label, lv.da.label) : '';
+            return daText('Level ', 'Niveau ') + card.level + '/5';
         }
         if (card.kind === 'shopping_list' && Array.isArray(card.items)) {
             var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
@@ -853,7 +862,7 @@
     function renderPersonality(card) {
         clearEmptyHint();
         var levels = PERSONALITY_LEVELS;
-        var idx = levels.map(function (l) { return l.value; }).indexOf(card.level || 'subtle');
+        var idx = levels.map(function (l) { return l.value; }).indexOf(String(card.level || '2'));
         if (idx < 0) idx = 1;
 
         var wrap = document.createElement('div');
