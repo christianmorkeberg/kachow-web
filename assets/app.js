@@ -363,6 +363,7 @@
         { id: 'noir',     label: 'Noir',     bg: '#141414', panel: '#242424', accent: '#e0a24e', text: '#eaeaea', radius: 10 },
         { id: 'paper',    label: 'Paper',    bg: '#f5f5f4', panel: '#ffffff', accent: '#2563eb', text: '#1c1c1c', radius: 10 },
         { id: 'lavender', label: 'Lavender', bg: '#f3f0fb', panel: '#faf8ff', accent: '#8b5cf6', text: '#2e2545', radius: 16 },
+        { id: 'blush',    label: 'Blush',    bg: '#fdf2f6', panel: '#fffafc', accent: '#ec4899', text: '#3d2233', radius: 18 },
         { id: 'disco',    label: 'Disco',    bg: '#0d0221', panel: '#2a0e52', accent: '#ff2d95', text: '#ffe9ff', radius: 20 }
     ];
     var THEME_KEY = 'kachow-theme';

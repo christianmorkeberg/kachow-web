@@ -66,6 +66,16 @@
     --radius: 16px; --radius-md: 12px; --radius-sm: 9px;
 }
 
+/* Blush — soft pink, light and gentle. Rounded corners. */
+:root[data-theme="blush"] {
+    --bg: #fdf2f6; --panel: #fffafc; --panel-2: #fbe6ef; --topbar-bg: rgba(253, 242, 246, .92);
+    --text: #3d2233; --text-strong: #2a0f20; --muted: #a67c92;
+    --border: #f3d6e3; --border-strong: #e6b3cc; --line: #f7e3ec;
+    --accent: #ec4899; --accent-ink: #ffffff; --accent-soft: rgba(236, 72, 153, .12); --accent-line: #f3c2da;
+    --user: #ec4899;
+    --radius: 18px; --radius-md: 14px; --radius-sm: 10px;
+}
+
 /* Disco — neon on deep purple, cranked up. Big playful corners. */
 :root[data-theme="disco"] {
     --bg: #0d0221; --panel: #1a0938; --panel-2: #2a0e52; --topbar-bg: rgba(13, 2, 33, .9);
