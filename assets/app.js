@@ -3263,6 +3263,13 @@
             .catch(function () {});
     }
 
+    function booksExpenseEntry(wrap, id, backPeriod) {
+        fetch('/api/books.php?action=expense&id=' + id, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawBooksExpenseDetail(wrap, j.card, backPeriod); })
+            .catch(function () {});
+    }
+
     function booksTile(label, value, sub, tone) {
         var t = document.createElement('div');
         t.className = 'books-kpi' + (tone ? ' books-kpi-' + tone : '');
@@ -3324,7 +3331,7 @@
         var grid = document.createElement('div');
         grid.className = 'books-modules';
         grid.appendChild(booksIncomeModule(wrap, card, cur));
-        grid.appendChild(booksExpenseModule(card, cur));
+        grid.appendChild(booksExpenseModule(wrap, card, cur));
         grid.appendChild(booksDrawModule(card, cur));
         wrap.appendChild(grid);
     }
@@ -3379,7 +3386,7 @@
         return m;
     }
 
-    function booksExpenseModule(card, cur) {
+    function booksExpenseModule(wrap, card, cur) {
         var exp = card.expenses || {};
         var m = booksModule(daText('Expenses', 'Udgifter'));
         var tot = document.createElement('div');
@@ -3396,11 +3403,13 @@
         var list = document.createElement('ul');
         list.className = 'books-list';
         (exp.items || []).forEach(function (it) {
-            var li = document.createElement('li'); li.className = 'books-row';
+            var li = document.createElement('li'); li.className = 'books-row books-row-click';
+            li.title = daText('Open', 'Åbn');
             var left = document.createElement('div'); left.className = 'books-row-main';
             left.textContent = (it.date || '') + '  ' + (it.vendor || '—');
             var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.total, it.currency || cur);
             li.appendChild(left); li.appendChild(amt);
+            li.addEventListener('click', function () { booksExpenseEntry(wrap, it.id, card.period_key); });
             list.appendChild(li);
         });
         if (!(exp.items || []).length) list.appendChild(booksEmptyRow(daText('No expenses yet.', 'Ingen udgifter endnu.')));
@@ -3452,6 +3461,23 @@
         body.className = 'books-detail-body';
         wrap.appendChild(body);
         buildIncome(body, entryCard);   // reuse the income card (edit / confirm / mark paid)
+    }
+
+    // Drill-in: one expense as its full editable receipt card, with a back link.
+    function drawBooksExpenseDetail(wrap, receiptCard, backPeriod) {
+        wrap.innerHTML = '';
+        var bar = document.createElement('div');
+        bar.className = 'books-detail-bar';
+        var back = document.createElement('button');
+        back.type = 'button'; back.className = 'books-back';
+        back.textContent = daText('← Back to books', '← Tilbage til regnskab');
+        back.addEventListener('click', function () { booksFetch(wrap, backPeriod); });
+        bar.appendChild(back);
+        wrap.appendChild(bar);
+        var body = document.createElement('div');
+        body.className = 'books-detail-body';
+        wrap.appendChild(body);
+        buildReceipt(body, receiptCard);   // reuse the receipt card (edit / confirm / discard)
     }
 
     function uploadReceipt(file) {

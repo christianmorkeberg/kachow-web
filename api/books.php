@@ -60,6 +60,15 @@ try {
         out(200, ['ok' => true, 'card' => $card]);
     }
 
+    if ($action === 'expense') {
+        $id   = (int) ($_GET['id'] ?? 0);
+        $card = $id > 0 ? $books->expenseEntry($userId, $id) : null;
+        if ($card === null) {
+            out(404, ['error' => 'Expense not found.']);
+        }
+        out(200, ['ok' => true, 'card' => $card]);
+    }
+
     // Default: the overview for a period.
     $period = (string) ($_GET['period'] ?? 'this_quarter');
     $allowed = ['this_month', 'last_month', 'this_quarter', 'this_year', 'all'];
