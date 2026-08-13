@@ -334,6 +334,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
              panel as a persistent right column). -->
         <div class="workspace" id="workspace">
         <main id="messages" class="messages" aria-live="polite"></main>
+        <div class="ws-divider" id="wsDivider" title="Drag to resize" aria-hidden="true"></div>
 
         <section id="cardPanel" class="card-panel" data-state="hidden" aria-label="Current card" hidden>
             <div class="card-panel-head" id="cardPanelHead" title="Fold / unfold">

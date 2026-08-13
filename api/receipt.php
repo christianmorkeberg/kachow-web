@@ -14,6 +14,7 @@ require __DIR__ . '/../bootstrap.php';
 
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\BookkeepingAudit;
 use App\Data\Receipts;
 use App\Data\RememberTokens;
 use App\Data\Users;
@@ -53,9 +54,14 @@ $receipts = new Receipts();
 
 try {
     if ($action === 'discard') {
-        $fileRef = $receipts->delete($userId, $id);
+        $existing = $receipts->get($userId, $id);
+        $fileRef  = $receipts->delete($userId, $id);
         if ($fileRef !== null) {
             (new ReceiptStorage())->delete($userId, $fileRef);
+        }
+        // Trail the deletion (kontrolspor) — a booked/confirmed expense removed on purpose.
+        if ($existing !== null) {
+            (new BookkeepingAudit())->log($userId, 'expense', $id, 'delete', ['status' => (string) ($existing['status'] ?? '')]);
         }
         out(200, ['ok' => true, 'deleted' => true]);
     }

@@ -513,6 +513,41 @@
         if (close)  close.addEventListener('click', function (e) { e.stopPropagation(); hidePanel(); });
     })();
 
+    // Draggable divider: resize the desktop chat rail between 23% and 60% of the width,
+    // persisted. Does nothing on mobile (the divider is display:none, so no events fire).
+    (function wireSplitter() {
+        var workspace = document.getElementById('workspace');
+        var divider   = document.getElementById('wsDivider');
+        if (!workspace || !divider) return;
+        var KEY = 'kachow-chat-w';
+        try { var saved = localStorage.getItem(KEY); if (saved) workspace.style.setProperty('--chat-w', saved); } catch (e) { /* private mode */ }
+
+        var dragging = false;
+        function onMove(e) {
+            if (!dragging) return;
+            var rect = workspace.getBoundingClientRect();
+            if (rect.width <= 0) return;
+            var pct = (e.clientX - rect.left) / rect.width * 100;
+            pct = Math.max(23, Math.min(60, pct));
+            workspace.style.setProperty('--chat-w', pct.toFixed(1) + '%');
+        }
+        function onUp() {
+            if (!dragging) return;
+            dragging = false;
+            document.body.classList.remove('ws-resizing');
+            try { localStorage.setItem(KEY, workspace.style.getPropertyValue('--chat-w') || ''); } catch (e) { /* ignore */ }
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+        }
+        divider.addEventListener('pointerdown', function (e) {
+            dragging = true;
+            document.body.classList.add('ws-resizing');
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+            e.preventDefault();
+        });
+    })();
+
     // Display polish: capitalise the first letter of a list item (æøå-aware),
     // without mutating the stored text (matching/dedup rely on the raw value).
     function capFirst(s) {
@@ -2573,7 +2608,7 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    function buildReceipt(wrap, card) {
+    function buildReceipt(wrap, card, onChange) {
         wrap.innerHTML = '';
         var confirmed = card.status === 'confirmed';
 
@@ -2825,7 +2860,25 @@
         }
         checkVat();
 
-        if (confirmed) return;
+        // A booked/confirmed expense stays deletable (corrections, test cleanup) — the
+        // delete is trailed server-side. No edit fields, just a Delete action.
+        if (confirmed) {
+            var cactions = document.createElement('div');
+            cactions.className = 'receipt-actions';
+            var delOnly = document.createElement('button');
+            delOnly.type = 'button'; delOnly.className = 'receipt-discard'; delOnly.textContent = 'Delete';
+            cactions.appendChild(delOnly);
+            wrap.appendChild(cactions);
+            delOnly.addEventListener('click', function () {
+                if (!window.confirm('Delete this expense?')) return;
+                delOnly.disabled = true;
+                receiptAction({ action: 'discard', id: card.id }).then(function (res) {
+                    if (res && res.deleted) { if (onChange) onChange(); else wrap.remove(); }
+                    else delOnly.disabled = false;
+                }).catch(function () { delOnly.disabled = false; });
+            });
+            return;
+        }
 
         // Editing Total/VAT by hand takes manual control (unlinks from the items sum).
         inputs.total.addEventListener('input', function () {
@@ -2859,14 +2912,14 @@
             Object.keys(inputs).forEach(function (k) { body[k] = inputs[k].value; });
             body.line_items = lineItems;
             receiptAction(body).then(function (res) {
-                if (res && res.card) buildReceipt(wrap, res.card);
+                if (res && res.card) { if (onChange) onChange(); else buildReceipt(wrap, res.card); }
                 else { confirmBtn.disabled = false; discardBtn.disabled = false; }
             }).catch(function () { confirmBtn.disabled = false; discardBtn.disabled = false; });
         });
         discardBtn.addEventListener('click', function () {
             if (!window.confirm('Discard this expense?')) return;
             receiptAction({ action: 'discard', id: card.id }).then(function (res) {
-                if (res && res.deleted) wrap.remove();
+                if (res && res.deleted) { if (onChange) onChange(); else wrap.remove(); }
             }).catch(function () {});
         });
     }
@@ -2891,7 +2944,7 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    function buildIncome(wrap, card) {
+    function buildIncome(wrap, card, onChange) {
         wrap.innerHTML = '';
         var booked = card.status === 'booked';
 
@@ -3017,7 +3070,10 @@
                 payBtn.addEventListener('click', function () {
                     payBtn.disabled = true;
                     incomeAction({ action: 'mark_paid', id: card.id, date: paidDate.value })
-                        .then(function (res) { if (res && res.card) buildIncome(wrap, res.card); else payBtn.disabled = false; })
+                        .then(function (res) {
+                            if (res && res.card) { if (onChange) onChange(); else buildIncome(wrap, res.card); }
+                            else payBtn.disabled = false;
+                        })
                         .catch(function () { payBtn.disabled = false; });
                 });
             }
@@ -3042,14 +3098,14 @@
             Object.keys(inputs).forEach(function (k) { body[k] = inputs[k].value; });
             body.paid_at = paidChk.checked ? (paidDate.value || body.date) : '';
             incomeAction(body).then(function (res) {
-                if (res && res.card) buildIncome(wrap, res.card);
+                if (res && res.card) { if (onChange) onChange(); else buildIncome(wrap, res.card); }
                 else { confirmBtn.disabled = false; discardBtn.disabled = false; }
             }).catch(function () { confirmBtn.disabled = false; discardBtn.disabled = false; });
         });
         discardBtn.addEventListener('click', function () {
             if (!window.confirm(daText('Discard this income entry?', 'Kassér denne indtægt?'))) return;
             incomeAction({ action: 'discard', id: card.id }).then(function (res) {
-                if (res && res.deleted) wrap.remove();
+                if (res && res.deleted) { if (onChange) onChange(); else wrap.remove(); }
             }).catch(function () {});
         });
     }
@@ -3460,7 +3516,9 @@
         var body = document.createElement('div');
         body.className = 'books-detail-body';
         wrap.appendChild(body);
-        buildIncome(body, entryCard);   // reuse the income card (edit / confirm / mark paid)
+        // onChange: any edit/confirm/paid/delete auto-refreshes the cockpit (and returns
+        // to the updated overview) so the KPIs and lists reflect the change immediately.
+        buildIncome(body, entryCard, function () { booksFetch(wrap, backPeriod); });
     }
 
     // Drill-in: one expense as its full editable receipt card, with a back link.
@@ -3477,7 +3535,8 @@
         var body = document.createElement('div');
         body.className = 'books-detail-body';
         wrap.appendChild(body);
-        buildReceipt(body, receiptCard);   // reuse the receipt card (edit / confirm / discard)
+        // onChange: confirm/delete auto-refreshes the cockpit back to the updated overview.
+        buildReceipt(body, receiptCard, function () { booksFetch(wrap, backPeriod); });
     }
 
     function uploadReceipt(file) {
