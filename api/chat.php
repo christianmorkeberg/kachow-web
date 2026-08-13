@@ -27,13 +27,16 @@ use App\Auth\GoogleOAuth;
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\ApiTokens;
+use App\Data\BookkeepingAudit;
 use App\Data\Calendar;
 use App\Data\Connections;
 use App\Data\Conversations;
 use App\Data\CycleTracker;
 use App\Data\DevIdeas;
+use App\Data\Income;
 use App\Data\Invites;
 use App\Data\Memories;
+use App\Data\OwnerDraws;
 use App\Data\Receipts;
 use App\Data\RememberTokens;
 use App\Data\ShoppingLists;
@@ -143,6 +146,9 @@ try {
         EmailService::fromEnv(),
         new CycleTracker(),
         new UserSettings(),
+        new Income(),
+        new OwnerDraws(),
+        new BookkeepingAudit(),
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();

@@ -316,6 +316,9 @@
         cycle:         '🌙 Cycle',
         receipt:       '🧾 Receipt',
         expenses:      '💳 Expenses',
+        income:        '📩 Income',
+        income_summary:'📈 Income',
+        owner_draws:   '💰 Owner draws',
         email_list:    '📥 Inbox',
         email:         '✉️ Email',
         email_draft:   '✍️ Draft',
@@ -508,6 +511,9 @@
         if (card.kind === 'work_hours') { renderWorkHours(card); return; }
         if (card.kind === 'receipt') { renderReceipt(card); return; }
         if (card.kind === 'expenses') { renderExpenses(card); return; }
+        if (card.kind === 'income') { renderIncome(card); return; }
+        if (card.kind === 'income_summary') { renderIncomeSummary(card); return; }
+        if (card.kind === 'owner_draws') { renderOwnerDraws(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -2851,6 +2857,328 @@
             credentials: 'same-origin',
             body: JSON.stringify(body),
         }).then(function (r) { return r.json(); });
+    }
+
+    // ---- Income (invoices / revenue) — the income-side sibling of the receipt card ----
+
+    function renderIncome(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card receipt-card income-card';
+        buildIncome(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildIncome(wrap, card) {
+        wrap.innerHTML = '';
+        var booked = card.status === 'booked';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = booked
+            ? daText('Income booked ✓', 'Indtægt bogført ✓')
+            : daText('New income — check & confirm', 'Ny indtægt — tjek & bekræft');
+        wrap.appendChild(head);
+
+        var fields = document.createElement('div');
+        fields.className = 'receipt-fields';
+        var inputs = {};
+        function field(label, key, type, value, options) {
+            var row = document.createElement('label');
+            row.className = 'receipt-field';
+            var l = document.createElement('span');
+            l.className = 'receipt-label';
+            l.textContent = label;
+            row.appendChild(l);
+            var el;
+            if (type === 'select') {
+                el = document.createElement('select');
+                (options || []).forEach(function (c) {
+                    var o = document.createElement('option');
+                    o.value = c; o.textContent = c;
+                    if (c === value) o.selected = true;
+                    el.appendChild(o);
+                });
+            } else {
+                el = document.createElement('input');
+                el.type = type;
+                if (value !== null && value !== undefined) el.value = value;
+                if (type === 'number') { el.step = '0.01'; el.inputMode = 'decimal'; }
+            }
+            el.disabled = booked;
+            row.appendChild(el);
+            fields.appendChild(row);
+            inputs[key] = el;
+        }
+
+        var curOpts = ['DKK', 'EUR', 'USD', 'GBP', 'SEK', 'NOK', 'CHF'];
+        if (card.currency && curOpts.indexOf(card.currency) === -1) curOpts.unshift(card.currency);
+
+        field(daText('Customer', 'Kunde'), 'customer', 'text', card.customer);
+        field(daText('Invoice no.', 'Fakturanr.'), 'doc_number', 'text', card.doc_number);
+        field(daText('Date', 'Dato'), 'date', 'date', card.date);
+        field(daText('Amount (ex moms)', 'Beløb (ekskl. moms)'), 'amount_ex_vat', 'number', card.ex != null ? card.ex : '');
+        field(daText('Moms (25%)', 'Moms (25%)'), 'vat', 'number', card.vat != null ? card.vat : '');
+        field(daText('Total (incl. moms)', 'Total (inkl. moms)'), 'total', 'number', card.total != null ? card.total : '');
+        field(daText('Currency', 'Valuta'), 'currency', 'select', card.currency || 'DKK', curOpts);
+        field(daText('Category', 'Kategori'), 'category', 'select', card.category, card.categories);
+        field(daText('Note', 'Note'), 'note', 'text', card.note);
+        wrap.appendChild(fields);
+
+        function num(v) { return parseFloat(String(v).replace(',', '.')); }
+        function round2(n) { return Math.round(n * 100) / 100; }
+
+        // Live moms derivation (DKK 25%): the three amounts stay consistent as the user
+        // edits, without forcing them to do the arithmetic. Editing one recomputes the others.
+        var vatable = (inputs.currency.value === 'DKK');
+        function fromTotal() {
+            var t = num(inputs.total.value);
+            if (isNaN(t)) return;
+            var v = vatable ? round2(t / 5) : 0;
+            inputs.vat.value = v;
+            inputs.amount_ex_vat.value = round2(t - v);
+        }
+        function fromEx() {
+            var ex = num(inputs.amount_ex_vat.value);
+            if (isNaN(ex)) return;
+            var v = vatable ? round2(ex * 0.25) : 0;
+            inputs.vat.value = v;
+            inputs.total.value = round2(ex + v);
+        }
+        function fromVat() {
+            var ex = num(inputs.amount_ex_vat.value);
+            var v = num(inputs.vat.value);
+            if (isNaN(ex) || isNaN(v)) return;
+            inputs.total.value = round2(ex + v);
+        }
+
+        // "Paid" toggle — records/clears the payment date. Outstanding until ticked.
+        var paidRow = document.createElement('label');
+        paidRow.className = 'receipt-field income-paid';
+        var paidLabel = document.createElement('span');
+        paidLabel.className = 'receipt-label';
+        paidLabel.textContent = daText('Paid', 'Betalt');
+        var paidWrap = document.createElement('span');
+        paidWrap.className = 'income-paid-controls';
+        var paidChk = document.createElement('input');
+        paidChk.type = 'checkbox';
+        paidChk.checked = !!card.paid;
+        paidChk.disabled = booked && !!card.paid;   // once booked, still allow marking paid later
+        var paidDate = document.createElement('input');
+        paidDate.type = 'date';
+        paidDate.value = card.paid_at || card.date || '';
+        paidDate.hidden = !paidChk.checked;
+        paidWrap.appendChild(paidChk);
+        paidWrap.appendChild(paidDate);
+        paidRow.appendChild(paidLabel);
+        paidRow.appendChild(paidWrap);
+        wrap.appendChild(paidRow);
+        paidChk.addEventListener('change', function () { paidDate.hidden = !paidChk.checked; });
+
+        if (!booked) {
+            inputs.total.addEventListener('input', fromTotal);
+            inputs.amount_ex_vat.addEventListener('input', fromEx);
+            inputs.vat.addEventListener('input', fromVat);
+            inputs.currency.addEventListener('change', function () { vatable = (inputs.currency.value === 'DKK'); });
+        }
+
+        // When already booked, still allow a later "mark paid" without re-editing.
+        if (booked) {
+            if (!card.paid) {
+                var actionsB = document.createElement('div');
+                actionsB.className = 'receipt-actions';
+                var payBtn = document.createElement('button');
+                payBtn.type = 'button'; payBtn.className = 'receipt-confirm';
+                payBtn.textContent = daText('Mark paid', 'Markér betalt');
+                actionsB.appendChild(payBtn);
+                wrap.appendChild(actionsB);
+                payBtn.addEventListener('click', function () {
+                    payBtn.disabled = true;
+                    incomeAction({ action: 'mark_paid', id: card.id, date: paidDate.value })
+                        .then(function (res) { if (res && res.card) buildIncome(wrap, res.card); else payBtn.disabled = false; })
+                        .catch(function () { payBtn.disabled = false; });
+                });
+            }
+            return;
+        }
+
+        var actions = document.createElement('div');
+        actions.className = 'receipt-actions';
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button'; confirmBtn.className = 'receipt-confirm';
+        confirmBtn.textContent = daText('Confirm', 'Bekræft');
+        var discardBtn = document.createElement('button');
+        discardBtn.type = 'button'; discardBtn.className = 'receipt-discard';
+        discardBtn.textContent = daText('Discard', 'Kassér');
+        actions.appendChild(confirmBtn);
+        actions.appendChild(discardBtn);
+        wrap.appendChild(actions);
+
+        confirmBtn.addEventListener('click', function () {
+            confirmBtn.disabled = true; discardBtn.disabled = true;
+            var body = { action: 'confirm', id: card.id };
+            Object.keys(inputs).forEach(function (k) { body[k] = inputs[k].value; });
+            body.paid_at = paidChk.checked ? (paidDate.value || body.date) : '';
+            incomeAction(body).then(function (res) {
+                if (res && res.card) buildIncome(wrap, res.card);
+                else { confirmBtn.disabled = false; discardBtn.disabled = false; }
+            }).catch(function () { confirmBtn.disabled = false; discardBtn.disabled = false; });
+        });
+        discardBtn.addEventListener('click', function () {
+            if (!window.confirm(daText('Discard this income entry?', 'Kassér denne indtægt?'))) return;
+            incomeAction({ action: 'discard', id: card.id }).then(function (res) {
+                if (res && res.deleted) wrap.remove();
+            }).catch(function () {});
+        });
+    }
+
+    function incomeAction(body) {
+        return fetch('/api/income.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+        }).then(function (r) { return r.json(); });
+    }
+
+    // Income summary for a period — read-only (net / moms / gross per currency,
+    // outstanding invoices, per-customer breakdown). Mirrors the expenses summary.
+    function renderIncomeSummary(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card expenses-card income-summary-card';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || daText('Income', 'Indtægt');
+        wrap.appendChild(head);
+
+        var totals = document.createElement('div');
+        totals.className = 'exp-totals';
+        var currencies = card.currencies || [];
+        if (!currencies.length) {
+            var zrow = document.createElement('div'); zrow.className = 'exp-cur';
+            var zt = document.createElement('div'); zt.className = 'exp-total'; zt.textContent = fmtMoney(0, 'DKK');
+            zrow.appendChild(zt); totals.appendChild(zrow);
+        }
+        currencies.forEach(function (c) {
+            var row = document.createElement('div'); row.className = 'exp-cur';
+            var t = document.createElement('div'); t.className = 'exp-total'; t.textContent = fmtMoney(c.total, c.currency);
+            var s = document.createElement('div'); s.className = 'exp-sub';
+            s.textContent = c.count + (c.count === 1 ? ' invoice' : ' invoices')
+                + ' · ' + daText('net ', 'netto ') + fmtMoney(c.ex, c.currency)
+                + ' · moms ' + fmtMoney(c.vat, c.currency);
+            row.appendChild(t); row.appendChild(s); totals.appendChild(row);
+        });
+        wrap.appendChild(totals);
+
+        // Outstanding (unpaid) invoices — the debtor total.
+        (card.outstanding || []).forEach(function (o) {
+            var out = document.createElement('div');
+            out.className = 'income-outstanding';
+            out.textContent = daText('Outstanding: ', 'Udestående: ') + fmtMoney(o.total, o.currency)
+                + ' (' + o.count + ')';
+            wrap.appendChild(out);
+        });
+
+        // Per-customer chips.
+        if ((card.by_customer || []).length) {
+            var bd = document.createElement('div');
+            bd.className = 'exp-breakdown';
+            card.by_customer.forEach(function (c) {
+                var chip = document.createElement('span');
+                chip.className = 'exp-cat';
+                chip.textContent = (c.customer || '—') + ' · ' + fmtMoney(c.total, c.currency);
+                bd.appendChild(chip);
+            });
+            wrap.appendChild(bd);
+        }
+
+        var items = card.items || [];
+        if (items.length) {
+            var list = document.createElement('ul');
+            list.className = 'exp-list';
+            items.forEach(function (it) {
+                var li = document.createElement('li');
+                var left = document.createElement('div'); left.className = 'exp-when';
+                var main = document.createElement('div'); main.className = 'exp-main';
+                main.textContent = (it.date || '') + '  ' + (it.customer || (it.doc_number || ''));
+                left.appendChild(main);
+                var right = document.createElement('span');
+                right.className = 'exp-amt';
+                right.textContent = fmtMoney(it.total, it.currency);
+                if (!it.paid) {
+                    var badge = document.createElement('span');
+                    badge.className = 'income-unpaid-badge';
+                    badge.textContent = daText('unpaid', 'ubetalt');
+                    left.appendChild(badge);
+                }
+                li.appendChild(left); li.appendChild(right);
+                list.appendChild(li);
+            });
+            wrap.appendChild(list);
+        }
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Owner drawings (private hævninger) for a period — read-only total + list.
+    function renderOwnerDraws(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card expenses-card owner-draws-card';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || daText('Owner draws', 'Hævninger');
+        wrap.appendChild(head);
+
+        var totals = document.createElement('div');
+        totals.className = 'exp-totals';
+        var t2 = (card.totals || []);
+        if (!t2.length) {
+            var zr = document.createElement('div'); zr.className = 'exp-cur';
+            var zt2 = document.createElement('div'); zt2.className = 'exp-total'; zt2.textContent = fmtMoney(0, 'DKK');
+            zr.appendChild(zt2); totals.appendChild(zr);
+        }
+        t2.forEach(function (c) {
+            var row = document.createElement('div'); row.className = 'exp-cur';
+            var t = document.createElement('div'); t.className = 'exp-total'; t.textContent = fmtMoney(c.total, c.currency);
+            var s = document.createElement('div'); s.className = 'exp-sub';
+            s.textContent = c.count + (c.count === 1 ? ' draw' : ' draws');
+            row.appendChild(t); row.appendChild(s); totals.appendChild(row);
+        });
+        wrap.appendChild(totals);
+
+        var hint = document.createElement('div');
+        hint.className = 'income-outstanding';
+        hint.textContent = daText('Private drawings — not an expense; excluded from profit & moms.',
+                                  'Private hævninger — ikke en udgift; tæller ikke i overskud & moms.');
+        wrap.appendChild(hint);
+
+        var items = card.items || [];
+        if (items.length) {
+            var list = document.createElement('ul');
+            list.className = 'exp-list';
+            items.forEach(function (it) {
+                var li = document.createElement('li');
+                var left = document.createElement('div'); left.className = 'exp-when';
+                var main = document.createElement('div'); main.className = 'exp-main';
+                main.textContent = (it.date || '') + (it.note ? '  ' + it.note : '');
+                left.appendChild(main);
+                var right = document.createElement('span');
+                right.className = 'exp-amt';
+                right.textContent = fmtMoney(it.amount, it.currency);
+                li.appendChild(left); li.appendChild(right);
+                list.appendChild(li);
+            });
+            wrap.appendChild(list);
+        }
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
     }
 
     function uploadReceipt(file) {
