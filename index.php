@@ -350,6 +350,10 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <div class="card-panel-body" id="cardPanelBody"></div>
         </section>
 
+        <!-- Desktop-only card rail: staple quick-cards (📊 Books, 🎨 Appearance) plus the
+             cards you've opened this session, so you can switch and come back. -->
+        <nav class="card-rail" id="cardRail" aria-label="Card switcher"></nav>
+
         <form id="composer" class="composer">
             <details class="composer-menu" id="composerMenu">
                 <summary class="ghost" title="More" aria-label="More actions">＋</summary>

@@ -442,6 +442,7 @@
         // state rather than a stale card title.
         if (cardPanelTitle) cardPanelTitle.textContent = 'Workspace';
         if (cardPanelSub) cardPanelSub.textContent = '';
+        renderRail();
     }
 
     function flashPanel() {
@@ -472,6 +473,8 @@
         }
 
         panelKind = card.kind;
+        recordRailCard(card);
+        renderRail();
         cardPanelTitle.textContent = cardTitleFor(card);
         cardPanelSub.textContent   = cardSubFor(card);
         cardPanel.hidden = false;
@@ -547,6 +550,66 @@
             e.preventDefault();
         });
     })();
+
+    // ---- Desktop card rail: staple quick-cards + this session's opened cards ----
+    // Staples are always present and open FRESH (live). Recents accumulate the other
+    // cards you open (deduped by kind, newest first, max 6) and restore their snapshot.
+    var RAIL_STAPLES = [
+        { kind: 'bookkeeping', emoji: '📊', label: 'Books',      open: function () { openBooksFresh(); } },
+        { kind: 'appearance',  emoji: '🎨', label: 'Appearance', open: function () { openAppearanceCard(); } }
+    ];
+    var RAIL_STAPLE_KINDS = RAIL_STAPLES.map(function (s) { return s.kind; });
+    var railRecents = [];
+
+    function railInfo(card) {
+        var t = CARD_TITLES[card.kind] || '';
+        var emoji = t ? t.split(' ')[0] : '🗂️';
+        var label = t ? t.slice(emoji.length).trim() : (card.title || card.kind);
+        return { emoji: emoji, label: label };
+    }
+
+    function openBooksFresh() {
+        fetch('/api/books.php?granularity=quarter&offset=0', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) presentCard(j.card); })
+            .catch(function () {});
+    }
+
+    function recordRailCard(card) {
+        if (!card || !card.kind) return;
+        if (RAIL_STAPLE_KINDS.indexOf(card.kind) !== -1) return;   // staples are pinned, not recents
+        railRecents = railRecents.filter(function (r) { return r.kind !== card.kind; });  // dedupe by kind
+        var info = railInfo(card);
+        railRecents.unshift({ kind: card.kind, emoji: info.emoji, label: info.label, card: card });
+        if (railRecents.length > 6) railRecents = railRecents.slice(0, 6);
+    }
+
+    function renderRail() {
+        var rail = document.getElementById('cardRail');
+        if (!rail) return;
+        rail.innerHTML = '';
+        function railBtn(emoji, title, active, onClick) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'rail-btn' + (active ? ' is-active' : '');
+            b.textContent = emoji;
+            b.title = title;
+            b.setAttribute('aria-label', title);
+            b.addEventListener('click', onClick);
+            return b;
+        }
+        RAIL_STAPLES.forEach(function (s) {
+            rail.appendChild(railBtn(s.emoji, s.label, panelKind === s.kind, s.open));
+        });
+        if (railRecents.length) {
+            var sep = document.createElement('div'); sep.className = 'rail-sep'; rail.appendChild(sep);
+            railRecents.forEach(function (r) {
+                rail.appendChild(railBtn(r.emoji, r.label, panelKind === r.kind, function () { presentCard(r.card); }));
+            });
+        }
+    }
+
+    renderRail();   // seed the rail with staples on load
 
     // Display polish: capitalise the first letter of a list item (æøå-aware),
     // without mutating the stored text (matching/dedup rely on the raw value).
