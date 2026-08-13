@@ -565,6 +565,17 @@ button.ghost {
 }
 .books-period.is-active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
 .books-period:hover { color: var(--text); }
+.books-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.books-nav { display: inline-flex; align-items: center; gap: 6px; }
+.books-navbtn {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: var(--radius-sm); cursor: pointer;
+    width: 26px; height: 26px; line-height: 1; font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.books-navbtn:hover { border-color: var(--accent); color: var(--accent); }
+.books-navbtn:disabled { opacity: .4; cursor: default; }
+.books-navlabel { font-size: 13px; font-weight: 600; min-width: 84px; text-align: center; }
 
 /* KPI tiles */
 .books-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }

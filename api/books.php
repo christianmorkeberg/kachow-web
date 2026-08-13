@@ -22,7 +22,6 @@ use App\Data\Receipts;
 use App\Data\RememberTokens;
 use App\Data\Users;
 use App\Data\UserSettings;
-use App\Tools\GetExpenses;
 
 header('Content-Type: application/json');
 
@@ -69,15 +68,15 @@ try {
         out(200, ['ok' => true, 'card' => $card]);
     }
 
-    // Default: the overview for a period.
-    $period = (string) ($_GET['period'] ?? 'this_quarter');
-    $allowed = ['this_month', 'last_month', 'this_quarter', 'this_year', 'all'];
-    if (!in_array($period, $allowed, true)) {
-        $period = 'this_quarter';
+    // Default: the overview for a granularity + offset (0 = current, -1 = previous, …).
+    $gran = (string) ($_GET['granularity'] ?? 'quarter');
+    if (!in_array($gran, ['month', 'quarter', 'year', 'all'], true)) {
+        $gran = 'quarter';
     }
-    [$from, $to, $label] = GetExpenses::resolveRange($period, null, null);
+    $offset = (int) ($_GET['offset'] ?? 0);
+    $offset = max(-600, min(0, $offset));   // clamp; never navigate into the future
 
-    out(200, ['ok' => true, 'card' => $books->overview($userId, $from, $to, $label, $period)]);
+    out(200, ['ok' => true, 'card' => $books->overview($userId, $gran, $offset)]);
 } catch (\Throwable $e) {
     error_log('books.php: ' . $e->getMessage());
     out(500, ['error' => 'Something went wrong loading the books.']);

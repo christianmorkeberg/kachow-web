@@ -3325,24 +3325,24 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    function booksFetch(wrap, period) {
-        fetch('/api/books.php?period=' + encodeURIComponent(period), { credentials: 'same-origin' })
+    function booksFetch(wrap, gran, offset) {
+        fetch('/api/books.php?granularity=' + encodeURIComponent(gran) + '&offset=' + (offset || 0), { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (j) { if (j && j.card) drawBooksOverview(wrap, j.card); })
             .catch(function () {});
     }
 
-    function booksEntry(wrap, id, backPeriod) {
+    function booksEntry(wrap, id, backGran, backOffset) {
         fetch('/api/books.php?action=entry&id=' + id, { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) drawBooksIncomeDetail(wrap, j.card, backPeriod); })
+            .then(function (j) { if (j && j.card) drawBooksIncomeDetail(wrap, j.card, backGran, backOffset); })
             .catch(function () {});
     }
 
-    function booksExpenseEntry(wrap, id, backPeriod) {
+    function booksExpenseEntry(wrap, id, backGran, backOffset) {
         fetch('/api/books.php?action=expense&id=' + id, { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) drawBooksExpenseDetail(wrap, j.card, backPeriod); })
+            .then(function (j) { if (j && j.card) drawBooksExpenseDetail(wrap, j.card, backGran, backOffset); })
             .catch(function () {});
     }
 
@@ -3361,24 +3361,52 @@
         var cur = card.currency || 'DKK';
         var k = card.kpis || {};
 
-        // Header: title + period switcher.
+        // Header: title, granularity chips, and prev/next period navigation.
         var head = document.createElement('div');
         head.className = 'books-head';
         var title = document.createElement('div');
         title.className = 'books-title';
-        title.textContent = daText('Books', 'Regnskab') + ' · ' + (card.period_label || '');
+        title.textContent = daText('Books', 'Regnskab');
         head.appendChild(title);
-        var per = document.createElement('div');
-        per.className = 'books-periods';
-        (card.periods || []).forEach(function (p) {
+
+        var controls = document.createElement('div');
+        controls.className = 'books-controls';
+
+        var grans = document.createElement('div');
+        grans.className = 'books-periods';
+        (card.granularities || []).forEach(function (g) {
             var b = document.createElement('button');
             b.type = 'button';
-            b.className = 'books-period' + (p.key === card.period_key ? ' is-active' : '');
-            b.textContent = p.label;
-            b.addEventListener('click', function () { booksFetch(wrap, p.key); });
-            per.appendChild(b);
+            b.className = 'books-period' + (g.key === card.granularity ? ' is-active' : '');
+            b.textContent = g.label;
+            b.addEventListener('click', function () { booksFetch(wrap, g.key, 0); });
+            grans.appendChild(b);
         });
-        head.appendChild(per);
+        controls.appendChild(grans);
+
+        // Prev ‹ [period] › next — paging back through periods (hidden for "All").
+        var nav = document.createElement('div');
+        nav.className = 'books-nav';
+        if (card.granularity !== 'all') {
+            var prev = document.createElement('button');
+            prev.type = 'button'; prev.className = 'books-navbtn'; prev.textContent = '‹';
+            prev.setAttribute('aria-label', daText('Previous period', 'Forrige periode'));
+            prev.addEventListener('click', function () { booksFetch(wrap, card.granularity, (card.offset || 0) - 1); });
+            var lbl = document.createElement('span');
+            lbl.className = 'books-navlabel'; lbl.textContent = card.period_label || '';
+            var next = document.createElement('button');
+            next.type = 'button'; next.className = 'books-navbtn'; next.textContent = '›';
+            next.setAttribute('aria-label', daText('Next period', 'Næste periode'));
+            next.disabled = !card.can_next;
+            next.addEventListener('click', function () { if (card.can_next) booksFetch(wrap, card.granularity, (card.offset || 0) + 1); });
+            nav.appendChild(prev); nav.appendChild(lbl); nav.appendChild(next);
+        } else {
+            var allLbl = document.createElement('span');
+            allLbl.className = 'books-navlabel'; allLbl.textContent = card.period_label || '';
+            nav.appendChild(allLbl);
+        }
+        controls.appendChild(nav);
+        head.appendChild(controls);
         wrap.appendChild(head);
 
         // KPI tiles.
@@ -3454,7 +3482,7 @@
             var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.total, it.currency || cur);
             left.appendChild(badge);
             li.appendChild(left); li.appendChild(amt);
-            li.addEventListener('click', function () { booksEntry(wrap, it.id, card.period_key); });
+            li.addEventListener('click', function () { booksEntry(wrap, it.id, card.granularity, card.offset); });
             list.appendChild(li);
         });
         if (!(inc.items || []).length) list.appendChild(booksEmptyRow(daText('No income yet.', 'Ingen indtægt endnu.')));
@@ -3485,7 +3513,7 @@
             left.textContent = (it.date || '') + '  ' + (it.vendor || '—');
             var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.total, it.currency || cur);
             li.appendChild(left); li.appendChild(amt);
-            li.addEventListener('click', function () { booksExpenseEntry(wrap, it.id, card.period_key); });
+            li.addEventListener('click', function () { booksExpenseEntry(wrap, it.id, card.granularity, card.offset); });
             list.appendChild(li);
         });
         if (!(exp.items || []).length) list.appendChild(booksEmptyRow(daText('No expenses yet.', 'Ingen udgifter endnu.')));
@@ -3523,14 +3551,14 @@
     }
 
     // Drill-in: one income entry as its full editable card, with a back link to the overview.
-    function drawBooksIncomeDetail(wrap, entryCard, backPeriod) {
+    function drawBooksIncomeDetail(wrap, entryCard, backGran, backOffset) {
         wrap.innerHTML = '';
         var bar = document.createElement('div');
         bar.className = 'books-detail-bar';
         var back = document.createElement('button');
         back.type = 'button'; back.className = 'books-back';
         back.textContent = daText('← Back to books', '← Tilbage til regnskab');
-        back.addEventListener('click', function () { booksFetch(wrap, backPeriod); });
+        back.addEventListener('click', function () { booksFetch(wrap, backGran, backOffset); });
         bar.appendChild(back);
         wrap.appendChild(bar);
         var body = document.createElement('div');
@@ -3538,25 +3566,25 @@
         wrap.appendChild(body);
         // onChange: any edit/confirm/paid/delete auto-refreshes the cockpit (and returns
         // to the updated overview) so the KPIs and lists reflect the change immediately.
-        buildIncome(body, entryCard, function () { booksFetch(wrap, backPeriod); });
+        buildIncome(body, entryCard, function () { booksFetch(wrap, backGran, backOffset); });
     }
 
     // Drill-in: one expense as its full editable receipt card, with a back link.
-    function drawBooksExpenseDetail(wrap, receiptCard, backPeriod) {
+    function drawBooksExpenseDetail(wrap, receiptCard, backGran, backOffset) {
         wrap.innerHTML = '';
         var bar = document.createElement('div');
         bar.className = 'books-detail-bar';
         var back = document.createElement('button');
         back.type = 'button'; back.className = 'books-back';
         back.textContent = daText('← Back to books', '← Tilbage til regnskab');
-        back.addEventListener('click', function () { booksFetch(wrap, backPeriod); });
+        back.addEventListener('click', function () { booksFetch(wrap, backGran, backOffset); });
         bar.appendChild(back);
         wrap.appendChild(bar);
         var body = document.createElement('div');
         body.className = 'books-detail-body';
         wrap.appendChild(body);
         // onChange: confirm/delete auto-refreshes the cockpit back to the updated overview.
-        buildReceipt(body, receiptCard, function () { booksFetch(wrap, backPeriod); });
+        buildReceipt(body, receiptCard, function () { booksFetch(wrap, backGran, backOffset); });
     }
 
     function uploadReceipt(file) {
