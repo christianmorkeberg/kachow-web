@@ -329,12 +329,16 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             </div>
         </div>
 
+        <!-- Chat + card workspace: a flex column on mobile (card panel folds between
+             the stream and composer), a two-column grid on desktop (chat left, card
+             panel as a persistent right column). -->
+        <div class="workspace" id="workspace">
         <main id="messages" class="messages" aria-live="polite"></main>
 
         <section id="cardPanel" class="card-panel" data-state="hidden" aria-label="Current card" hidden>
             <div class="card-panel-head" id="cardPanelHead" title="Fold / unfold">
                 <span class="cp-grip" aria-hidden="true"></span>
-                <span class="cp-title" id="cardPanelTitle">Card</span>
+                <span class="cp-title" id="cardPanelTitle">Workspace</span>
                 <span class="cp-sub" id="cardPanelSub"></span>
                 <span class="cp-actions">
                     <button type="button" class="cp-btn cp-min" id="cardPanelToggle" aria-label="Minimise">▾</button>
@@ -359,6 +363,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden>🎤</button>
             <button type="submit" id="send" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </form>
+        </div><!-- /.workspace -->
     </div>
     <script src="<?= asset('app.js') ?>" defer></script>
 <?php endif; ?>

@@ -436,6 +436,11 @@
         setPanelState('hidden');
         cardPanelBody.innerHTML = '';
         panelKind = null;
+        // On desktop the panel is a permanent column (CSS keeps it visible even when
+        // "hidden"); reset the header so a cleared column reads as the neutral empty
+        // state rather than a stale card title.
+        if (cardPanelTitle) cardPanelTitle.textContent = 'Workspace';
+        if (cardPanelSub) cardPanelSub.textContent = '';
     }
 
     function flashPanel() {

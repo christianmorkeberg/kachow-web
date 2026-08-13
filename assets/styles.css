@@ -195,6 +195,15 @@ button.ghost {
     max-width: var(--maxw);
     margin: 0 auto;
 }
+/* Holds messages + card panel + composer. Mobile: a flex column (card panel folds
+   between the stream and the composer — the original behaviour). Desktop: a grid,
+   see the min-width block below. */
+.workspace {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
 .topbar {
     display: flex;
     align-items: center;
@@ -260,6 +269,7 @@ button.ghost {
 
 .messages {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 18px 16px;
     display: flex;
@@ -942,6 +952,50 @@ button.ghost {
 /* Brief highlight when a fresh/updated card lands. */
 @keyframes cp-flash { from { background: var(--accent-soft); } to { background: var(--panel-2); } }
 .card-panel.cp-flash .card-panel-head { animation: cp-flash 1s ease-out; }
+
+/* ---------- Desktop: two-column workspace (chat | persistent card panel) ---------- */
+@media (min-width: 1024px) {
+    .app { max-width: 1200px; }
+    .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 400px;
+        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "messages card"
+            "composer card";
+    }
+    #messages { grid-area: messages; }
+    #composer { grid-area: composer; }
+    #cardPanel { grid-area: card; }
+
+    /* The card panel is a permanent right column now — a left border, always present
+       (even with no card), and it fills the column height with its own scroll. */
+    .card-panel {
+        border-top: 0;
+        border-left: 1px solid var(--line);
+        min-height: 0;
+    }
+    .card-panel[hidden] { display: flex; }          /* keep the column even when "closed" */
+    .card-panel-head { cursor: default; }
+    .cp-grip, .cp-min { display: none; }            /* folding is a mobile-only affordance */
+    .card-panel-body {
+        max-height: none;
+        flex: 1;
+        min-height: 0;
+    }
+    .card-panel[data-state="min"] .card-panel-body { display: block; }  /* never folded on desktop */
+
+    /* Empty-state hint when no card is loaded, so the column doesn't read as broken. */
+    .card-panel-body:empty::after {
+        content: "🗂️  Your cards appear here — invoices, expenses, plans, agenda…";
+        display: block;
+        padding: 28px 18px;
+        color: var(--muted);
+        font-size: 13px;
+        text-align: center;
+        line-height: 1.7;
+    }
+}
 
 .composer {
     display: flex;
