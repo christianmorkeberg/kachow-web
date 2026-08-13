@@ -3135,8 +3135,11 @@
         head.textContent = card.title || daText('Owner draws', 'Hævninger');
         wrap.appendChild(head);
 
+        // Per-currency totals, keyed so a row delete can update them live.
         var totals = document.createElement('div');
         totals.className = 'exp-totals';
+        var curState = {};
+        function drawSub(count) { return count + (count === 1 ? ' draw' : ' draws'); }
         var t2 = (card.totals || []);
         if (!t2.length) {
             var zr = document.createElement('div'); zr.className = 'exp-cur';
@@ -3146,9 +3149,9 @@
         t2.forEach(function (c) {
             var row = document.createElement('div'); row.className = 'exp-cur';
             var t = document.createElement('div'); t.className = 'exp-total'; t.textContent = fmtMoney(c.total, c.currency);
-            var s = document.createElement('div'); s.className = 'exp-sub';
-            s.textContent = c.count + (c.count === 1 ? ' draw' : ' draws');
+            var s = document.createElement('div'); s.className = 'exp-sub'; s.textContent = drawSub(c.count);
             row.appendChild(t); row.appendChild(s); totals.appendChild(row);
+            curState[c.currency] = { total: Number(c.total) || 0, count: c.count || 0, totalEl: t, subEl: s, rowEl: row };
         });
         wrap.appendChild(totals);
 
@@ -3171,7 +3174,36 @@
                 var right = document.createElement('span');
                 right.className = 'exp-amt';
                 right.textContent = fmtMoney(it.amount, it.currency);
-                li.appendChild(left); li.appendChild(right);
+
+                var del = deleteButton(daText('Delete draw', 'Slet hævning'));
+                del.addEventListener('click', function () {
+                    if (!window.confirm(daText('Delete this drawing?', 'Slet denne hævning?'))) return;
+                    del.disabled = true;
+                    fetch('/api/draws.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ action: 'discard', id: it.id })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res && res.deleted) {
+                            var st = curState[it.currency];
+                            if (st) {
+                                st.total -= Number(it.amount) || 0;
+                                st.count -= 1;
+                                if (st.count <= 0) { st.rowEl.remove(); delete curState[it.currency]; }
+                                else {
+                                    st.totalEl.textContent = fmtMoney(st.total, it.currency);
+                                    st.subEl.textContent = drawSub(st.count);
+                                }
+                            }
+                            li.remove();
+                        } else { del.disabled = false; }
+                    }).catch(function () { del.disabled = false; });
+                });
+
+                li.appendChild(left);
+                li.appendChild(right);
+                li.appendChild(del);
                 list.appendChild(li);
             });
             wrap.appendChild(list);
