@@ -4071,6 +4071,18 @@
             + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ', ' + (reserve.pct || 0) + '%)';
         wrap.appendChild(res);
 
+        // Expected moms refund SKAT owes you (not yet in the balance) — shown so it's not
+        // forgotten, with the "free once it lands" figure.
+        var refund = Number(card.refund_expected) || 0;
+        if (refund > 0) {
+            var rf = document.createElement('div');
+            rf.className = 'cash-refund';
+            rf.textContent = '🔁 ' + daText('SKAT owes you ', 'SKAT skylder dig ') + fmtMoney(refund, cur)
+                + daText(' (moms refund, not yet received) → ', ' (momsrefusion, ikke modtaget endnu) → ')
+                + fmtMoney(card.free_incl_refund, cur) + daText(' free once paid', ' frit når det er betalt');
+            wrap.appendChild(rf);
+        }
+
         // In / out breakdown.
         var flow = document.createElement('div');
         flow.className = 'cash-flow';

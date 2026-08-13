@@ -693,6 +693,7 @@ button.ghost {
 .cash-hero.is-negative .cash-hero-val { color: #ef4444; }
 .cash-hero-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .cash-reserve { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cash-refund { font-size: 12.5px; color: var(--ok); font-variant-numeric: tabular-nums; }
 .cash-flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
 .cash-col { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; }
 .cash-col-head { font-weight: 600; font-size: 13px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
