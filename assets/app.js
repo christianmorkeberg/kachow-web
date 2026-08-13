@@ -2955,6 +2955,26 @@
             : daText('New income — check & confirm', 'Ny indtægt — tjek & bekræft');
         wrap.appendChild(head);
 
+        // The attached bilag (invoice). PDFs open in a new tab; images show a thumb.
+        if (card.has_image && card.image_url) {
+            if ((card.mime || '').indexOf('pdf') !== -1) {
+                var pdfLink = document.createElement('a');
+                pdfLink.className = 'income-bilag';
+                pdfLink.href = card.image_url;
+                pdfLink.target = '_blank';
+                pdfLink.rel = 'noopener';
+                pdfLink.textContent = daText('📄 View invoice (PDF)', '📄 Åbn faktura (PDF)');
+                wrap.appendChild(pdfLink);
+            } else {
+                var img = document.createElement('img');
+                img.className = 'receipt-thumb';
+                img.src = card.image_url;
+                img.alt = 'invoice';
+                img.addEventListener('click', function () { openLightbox(card.image_url); });
+                wrap.appendChild(img);
+            }
+        }
+
         var fields = document.createElement('div');
         fields.className = 'receipt-fields';
         var inputs = {};
@@ -4709,6 +4729,43 @@
             input.value = '';
             autogrow();
             uploadPhoto(file, caption);
+        });
+    })();
+
+    // ---------- Invoice upload → income draft (image or PDF) ----------
+    function uploadInvoice(file) {
+        clearEmptyHint();
+        addMessage(daText('📩 Invoice', '📩 Faktura'), 'user');
+        var typing = addMessage(daText('Reading the invoice…', 'Læser fakturaen…'), 'assistant');
+        typing.classList.add('typing');
+        var av = typing.querySelector('.avatar');
+        if (av) av.src = AVATAR_FLYING;
+
+        var fd = new FormData();
+        fd.append('invoice', file);
+        fetch('/api/income-upload.php', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                typing.remove();
+                if (!res.ok || !res.j || res.j.error) {
+                    addMessage((res.j && res.j.error) || daText('Could not read that invoice.', 'Kunne ikke læse fakturaen.'), 'error');
+                    return;
+                }
+                addMessage(daText("Here's what I read — check and confirm:", 'Her er hvad jeg læste — tjek og bekræft:'), 'assistant');
+                if (res.j.card) presentCard(res.j.card);
+            })
+            .catch(function () { typing.remove(); addMessage(daText('Network error uploading the invoice.', 'Netværksfejl ved upload af fakturaen.'), 'error'); });
+    }
+
+    (function initInvoiceUpload() {
+        var btn = document.getElementById('invoiceBtn');
+        var fileInput = document.getElementById('invoiceInput');
+        if (!btn || !fileInput) return;
+        btn.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+            var file = fileInput.files && fileInput.files[0];
+            fileInput.value = ''; // allow re-picking the same file
+            if (file) uploadInvoice(file);
         });
     })();
 

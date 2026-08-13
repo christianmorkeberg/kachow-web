@@ -357,10 +357,12 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                     <button type="button" id="newChat" class="composer-menu-item">＋ New chat</button>
                     <button type="button" id="photoBtn" class="composer-menu-item">📷 Add photo</button>
                     <button type="button" id="receiptBtn" class="composer-menu-item">🧾 Add receipt</button>
+                    <button type="button" id="invoiceBtn" class="composer-menu-item">📩 Add invoice</button>
                 </div>
             </details>
             <input type="file" id="receiptInput" accept="image/*" hidden>
             <input type="file" id="photoInput" accept="image/*" hidden>
+            <input type="file" id="invoiceInput" accept="image/*,application/pdf" hidden>
             <textarea id="input" rows="1" placeholder="Message Kachow…" autocomplete="off"></textarea>
             <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden>🎤</button>
             <button type="submit" id="send" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
