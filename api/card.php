@@ -15,6 +15,9 @@ require __DIR__ . '/../bootstrap.php';
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\CycleTracker;
+use App\Data\Income;
+use App\Data\Moms;
+use App\Data\Receipts;
 use App\Data\RememberTokens;
 use App\Data\Reminders;
 use App\Data\Users;
@@ -61,6 +64,10 @@ try {
             $from = date('Y-m-d', strtotime('monday this week'));
             $to   = date('Y-m-d');
             $card = (new WorkLog())->card($userId, $from, $to, 'This week');
+            break;
+        case 'moms':
+            // The quarter awaiting filing (previous quarter) — what the nudge is about.
+            $card = (new Moms(new Income(), new Receipts()))->card($userId, -1);
             break;
         case 'reminder':
             $rid = isset($_GET['rid']) ? (int) $_GET['rid'] : 0;

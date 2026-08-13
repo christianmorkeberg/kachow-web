@@ -320,6 +320,7 @@
         income_summary:'📈 Income',
         owner_draws:   '💰 Owner draws',
         bookkeeping:   '📊 Books',
+        moms:          '🧾 Moms',
         email_list:    '📥 Inbox',
         email:         '✉️ Email',
         email_draft:   '✍️ Draft',
@@ -556,6 +557,7 @@
     // cards you open (deduped by kind, newest first, max 6) and restore their snapshot.
     var RAIL_STAPLES = [
         { kind: 'bookkeeping', emoji: '📊', label: 'Books',      open: function () { openBooksFresh(); } },
+        { kind: 'moms',        emoji: '🧾', label: 'Moms',       open: function () { openMomsFresh(); } },
         { kind: 'appearance',  emoji: '🎨', label: 'Appearance', open: function () { openAppearanceCard(); } }
     ];
     var RAIL_STAPLE_KINDS = RAIL_STAPLES.map(function (s) { return s.kind; });
@@ -570,6 +572,13 @@
 
     function openBooksFresh() {
         fetch('/api/books.php?granularity=quarter&offset=0', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) presentCard(j.card); })
+            .catch(function () {});
+    }
+
+    function openMomsFresh() {
+        fetch('/api/moms.php?offset=0', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (j) { if (j && j.card) presentCard(j.card); })
             .catch(function () {});
@@ -633,6 +642,7 @@
         if (card.kind === 'income_summary') { renderIncomeSummary(card); return; }
         if (card.kind === 'owner_draws') { renderOwnerDraws(card); return; }
         if (card.kind === 'bookkeeping') { renderBooks(card); return; }
+        if (card.kind === 'moms') { renderMoms(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -3650,6 +3660,137 @@
         buildReceipt(body, receiptCard, function () { booksFetch(wrap, backGran, backOffset); });
     }
 
+    // ---- Moms (quarterly VAT settlement) card ----------------------------------
+    // salgsmoms − købsmoms = tilsvar for a quarter, with the filing deadline. Pages
+    // between quarters in place via /api/moms.php (like the books cockpit).
+    function renderMoms(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card moms-card';
+        drawMoms(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function momsFetch(wrap, offset) {
+        fetch('/api/moms.php?offset=' + (offset || 0), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawMoms(wrap, j.card); })
+            .catch(function () {});
+    }
+
+    function drawMoms(wrap, card) {
+        wrap.innerHTML = '';
+        var cur = card.currency || 'DKK';
+        var pay = !!card.pay;
+        var tilsvar = Number(card.tilsvar) || 0;
+        var days = Number(card.days_left);
+
+        // Header: title + prev/next quarter navigation.
+        var head = document.createElement('div');
+        head.className = 'books-head';
+        var title = document.createElement('div');
+        title.className = 'books-title';
+        title.textContent = daText('Moms', 'Moms');
+        head.appendChild(title);
+
+        var nav = document.createElement('div');
+        nav.className = 'books-nav';
+        var prev = document.createElement('button');
+        prev.type = 'button'; prev.className = 'books-navbtn'; prev.textContent = '‹';
+        prev.setAttribute('aria-label', daText('Previous quarter', 'Forrige kvartal'));
+        prev.addEventListener('click', function () { momsFetch(wrap, (card.offset || 0) - 1); });
+        var lbl = document.createElement('span');
+        lbl.className = 'books-navlabel'; lbl.textContent = card.period_label || '';
+        var next = document.createElement('button');
+        next.type = 'button'; next.className = 'books-navbtn'; next.textContent = '›';
+        next.setAttribute('aria-label', daText('Next quarter', 'Næste kvartal'));
+        next.disabled = !card.can_next;
+        next.addEventListener('click', function () { if (card.can_next) momsFetch(wrap, (card.offset || 0) + 1); });
+        nav.appendChild(prev); nav.appendChild(lbl); nav.appendChild(next);
+        head.appendChild(nav);
+        wrap.appendChild(head);
+
+        // Hero: the tilsvar (what you pay, or get back).
+        var hero = document.createElement('div');
+        hero.className = 'moms-hero ' + (pay ? 'is-pay' : 'is-refund');
+        var heroLabel = document.createElement('div');
+        heroLabel.className = 'moms-hero-label';
+        heroLabel.textContent = pay
+            ? daText('Moms to pay', 'Moms at betale')
+            : daText('Moms to reclaim', 'Moms til gode');
+        var heroVal = document.createElement('div');
+        heroVal.className = 'moms-hero-val';
+        heroVal.textContent = fmtMoney(Math.abs(tilsvar), cur);
+        hero.appendChild(heroLabel); hero.appendChild(heroVal);
+        wrap.appendChild(hero);
+
+        // The salgs − købs = tilsvar breakdown.
+        var calc = document.createElement('div');
+        calc.className = 'moms-calc';
+        function row(label, value, op, strong) {
+            var r = document.createElement('div');
+            r.className = 'moms-row' + (strong ? ' is-total' : '');
+            var o = document.createElement('span'); o.className = 'moms-op'; o.textContent = op || '';
+            var l = document.createElement('span'); l.className = 'moms-row-label'; l.textContent = label;
+            var v = document.createElement('span'); v.className = 'moms-row-val'; v.textContent = fmtMoney(value, cur);
+            r.appendChild(o); r.appendChild(l); r.appendChild(v);
+            return r;
+        }
+        calc.appendChild(row(daText('Salgsmoms (on sales)', 'Salgsmoms (af salg)'), card.salgsmoms, ''));
+        calc.appendChild(row(daText('Købsmoms (on expenses)', 'Købsmoms (af udgifter)'), card.kobsmoms, '−'));
+        calc.appendChild(row(daText('Tilsvar', 'Tilsvar'), Math.abs(tilsvar), '=', true));
+        wrap.appendChild(calc);
+
+        // Deadline line, colour-coded by urgency.
+        var dl = document.createElement('div');
+        var dlTone = days < 0 ? 'is-overdue' : (days <= 14 ? 'is-soon' : '');
+        dl.className = 'moms-deadline ' + dlTone;
+        var when;
+        if (days < 0) {
+            when = daText('overdue by ', 'overskredet med ') + Math.abs(days) + daText(' days', ' dage');
+        } else if (days === 0) {
+            when = daText('due today', 'frist i dag');
+        } else {
+            when = daText('in ', 'om ') + days + daText(' days', ' dage');
+        }
+        dl.textContent = '📅 ' + daText('File & pay by ', 'Angiv & betal senest ') + card.deadline + ' (' + when + ')';
+        wrap.appendChild(dl);
+
+        // Caveats: period still open, or unbooked drafts not yet included.
+        var notes = [];
+        if (card.period_open) {
+            notes.push(daText(
+                'This quarter is still open — figures will keep changing until it ends.',
+                'Kvartalet er stadig åbent — tallene ændrer sig indtil det slutter.'));
+        }
+        var drafts = (Number(card.draft_income) || 0) + (Number(card.draft_expense) || 0);
+        if (drafts > 0) {
+            notes.push(daText(
+                drafts + ' unbooked draft' + (drafts === 1 ? '' : 's') + ' not yet counted — book them for the real figure.',
+                drafts + ' ikke-bogført' + (drafts === 1 ? ' kladde' : 'e kladder') + ' tælles ikke med endnu — bogfør dem for det rigtige tal.'));
+        }
+        if (!card.sales_count && !card.expense_count) {
+            notes.push(daText(
+                'No booked activity this quarter — a zero return may still be required.',
+                'Ingen bogført aktivitet i kvartalet — en nul-angivelse kan stadig være påkrævet.'));
+        }
+        notes.forEach(function (n) {
+            var el = document.createElement('div');
+            el.className = 'moms-note';
+            el.textContent = '⚠️ ' + n;
+            wrap.appendChild(el);
+        });
+
+        // Footer: this is an estimate to help you file, not a filed figure.
+        var foot = document.createElement('div');
+        foot.className = 'moms-foot';
+        foot.textContent = daText(
+            'An estimate to help you file in TastSelv Erhverv — Kachow is your bookkeeping assistant, not the system of record.',
+            'Et estimat der hjælper dig med at angive i TastSelv Erhverv — Kachow er din bogføringsassistent, ikke det officielle system.');
+        wrap.appendChild(foot);
+    }
+
     function uploadReceipt(file) {
         clearEmptyHint();
         var bubble = addMessage('', 'user');
@@ -4458,6 +4599,7 @@
         work_hours: { en: "Here are today's hours 🕒",                 da: 'Her er dagens timer 🕒' },
         work_log:   { en: "Here's your work log for this week 📝",     da: 'Her er din arbejdslog for denne uge 📝' },
         cycle:      { en: "Here's your cycle status 🌙",               da: 'Her er din cyklusstatus 🌙' },
+        moms:        { en: "Here's the moms to file for the quarter 🧾", da: 'Her er momsen at angive for kvartalet 🧾' },
         reminder:   { en: "Here's your reminder ⏰",                   da: 'Her er din påmindelse ⏰' }
     };
     function cardIntro(key) {
