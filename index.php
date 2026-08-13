@@ -341,6 +341,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <span class="cp-title" id="cardPanelTitle">Workspace</span>
                 <span class="cp-sub" id="cardPanelSub"></span>
                 <span class="cp-actions">
+                    <button type="button" class="cp-btn cp-expand" id="cardPanelExpand" aria-label="Expand to full width" title="Expand / collapse">⤢</button>
                     <button type="button" class="cp-btn cp-min" id="cardPanelToggle" aria-label="Minimise">▾</button>
                     <button type="button" class="cp-btn cp-close" id="cardPanelClose" aria-label="Close">✕</button>
                 </span>

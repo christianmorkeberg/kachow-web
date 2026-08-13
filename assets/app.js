@@ -486,16 +486,30 @@
 
     (function wireCardPanel() {
         if (!cardPanel) return;
-        var head  = document.getElementById('cardPanelHead');
-        var close = document.getElementById('cardPanelClose');
-        var tgl   = document.getElementById('cardPanelToggle');
+        var head   = document.getElementById('cardPanelHead');
+        var close  = document.getElementById('cardPanelClose');
+        var tgl    = document.getElementById('cardPanelToggle');
+        var expand = document.getElementById('cardPanelExpand');
+        var workspace = document.getElementById('workspace');
         function toggleMin(e) {
             if (e) e.stopPropagation();
             setPanelState(cardPanel.getAttribute('data-state') === 'min' ? 'open' : 'min');
         }
-        if (head)  head.addEventListener('click', toggleMin);
-        if (tgl)   tgl.addEventListener('click', toggleMin);
-        if (close) close.addEventListener('click', function (e) { e.stopPropagation(); hidePanel(); });
+        // Desktop-only: expand the card canvas to the full viewport width (collapse the
+        // chat rail) for large widgets, and back. The class does nothing on mobile.
+        function toggleExpand(e) {
+            if (e) e.stopPropagation();
+            if (!workspace) return;
+            var full = workspace.classList.toggle('ws-focus-card');
+            if (expand) {
+                expand.textContent = full ? '⤡' : '⤢';
+                expand.setAttribute('aria-label', full ? 'Collapse to split view' : 'Expand to full width');
+            }
+        }
+        if (head)   head.addEventListener('click', toggleMin);
+        if (tgl)    tgl.addEventListener('click', toggleMin);
+        if (expand) expand.addEventListener('click', toggleExpand);
+        if (close)  close.addEventListener('click', function (e) { e.stopPropagation(); hidePanel(); });
     })();
 
     // Display polish: capitalise the first letter of a list item (æøå-aware),

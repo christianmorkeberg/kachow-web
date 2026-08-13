@@ -929,6 +929,7 @@ button.ghost {
 }
 .cp-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .cp-actions { margin-left: auto; display: flex; gap: 2px; flex: 0 0 auto; }
+.cp-expand { display: none; }   /* desktop-only (shown in the min-width block) */
 .cp-btn {
     background: transparent; border: 0; color: var(--muted);
     font-size: 15px; line-height: 1; padding: 6px 9px;
@@ -953,12 +954,14 @@ button.ghost {
 @keyframes cp-flash { from { background: var(--accent-soft); } to { background: var(--panel-2); } }
 .card-panel.cp-flash .card-panel-head { animation: cp-flash 1s ease-out; }
 
-/* ---------- Desktop: two-column workspace (chat | persistent card panel) ---------- */
+/* ---------- Desktop: two-column workspace (chat rail | large card canvas) ---------- */
 @media (min-width: 1024px) {
-    .app { max-width: 1200px; }
+    /* Use the full viewport width — the card canvas is meant to host large widgets
+       (calendars, the bookkeeping cockpit), so it gets all the room it can. */
+    .app { max-width: none; }
     .workspace {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 400px;
+        grid-template-columns: var(--chat-w, 400px) minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) auto;
         grid-template-areas:
             "messages card"
@@ -967,6 +970,13 @@ button.ghost {
     #messages { grid-area: messages; }
     #composer { grid-area: composer; }
     #cardPanel { grid-area: card; }
+
+    /* Focus mode: the card canvas takes the ENTIRE width (chat rail collapses) — for
+       full-bleed widgets. Toggled by the ⤢ button in the panel header. */
+    .workspace.ws-focus-card { grid-template-columns: 0 minmax(0, 1fr); }
+    .workspace.ws-focus-card #messages,
+    .workspace.ws-focus-card #composer { display: none; }
+    .cp-expand { display: inline-flex; }
 
     /* The card panel is a permanent right column now — a left border, always present
        (even with no card), and it fills the column height with its own scroll. */
