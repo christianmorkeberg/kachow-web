@@ -5,6 +5,7 @@ declare(strict_types=1);
 /**
  * Receipt card actions (authenticated session, JSON).
  *
+ *   POST { action:'create'[, fields…] }     → new draft (blank if no fields), returns card
  *   POST { action:'update',  id, fields… }  → edit fields, returns fresh card
  *   POST { action:'confirm', id, fields… }  → save edits + mark confirmed
  *   POST { action:'discard', id }           → delete draft/receipt and its image
@@ -15,6 +16,7 @@ require __DIR__ . '/../bootstrap.php';
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\BookkeepingAudit;
+use App\Data\Income;
 use App\Data\Receipts;
 use App\Data\RememberTokens;
 use App\Data\Users;
@@ -46,13 +48,31 @@ $userId = (int) $session->userId();
 $in     = json_decode((string) file_get_contents('php://input'), true);
 $action = is_array($in) ? (string) ($in['action'] ?? '') : '';
 $id     = (int) ($in['id'] ?? 0);
-if ($id <= 0) {
-    out(400, ['error' => 'A receipt id is required.']);
-}
 
 $receipts = new Receipts();
 
 try {
+    // Create a fresh draft (from the cockpit "+ Add" — usually blank, filled in the editor).
+    if ($action === 'create') {
+        $fields = [];
+        foreach (['vendor', 'total', 'vat', 'currency', 'category', 'note'] as $f) {
+            if (array_key_exists($f, (array) $in)) {
+                $fields[$f] = $in[$f];
+            }
+        }
+        $fields['purchased_at'] = array_key_exists('date', (array) $in) && (string) $in['date'] !== ''
+            ? (string) $in['date'] : Income::today();
+
+        $newId = $receipts->create($userId, $fields, 'manual');
+        (new BookkeepingAudit())->log($userId, 'expense', $newId, 'create', ['source' => 'manual']);
+        $row = $receipts->get($userId, $newId);
+        out(200, ['ok' => true, 'card' => $row !== null ? $receipts->cardWithChecks($userId, $row) : null]);
+    }
+
+    if ($id <= 0) {
+        out(400, ['error' => 'A receipt id is required.']);
+    }
+
     if ($action === 'discard') {
         $existing = $receipts->get($userId, $id);
         $fileRef  = $receipts->delete($userId, $id);

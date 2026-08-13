@@ -6,6 +6,7 @@ declare(strict_types=1);
  * Income card actions (authenticated session, JSON) — the income-side sibling of
  * receipt.php.
  *
+ *   POST { action:'create'[, fields…] }       → new draft (blank if no fields), returns card
  *   POST { action:'update',   id, fields… }  → edit fields, returns fresh card
  *   POST { action:'confirm',  id, fields… }  → save edits + book it (status=booked)
  *   POST { action:'mark_paid',id[, date] }   → record the payment date
@@ -50,14 +51,39 @@ $userId = (int) $session->userId();
 $in     = json_decode((string) file_get_contents('php://input'), true);
 $action = is_array($in) ? (string) ($in['action'] ?? '') : '';
 $id     = (int) ($in['id'] ?? 0);
-if ($id <= 0) {
-    out(400, ['error' => 'An income id is required.']);
-}
 
 $income = new Income();
 $audit  = new BookkeepingAudit();
 
 try {
+    // Create a fresh draft (from the cockpit "+ Add" — usually blank, filled in the editor).
+    if ($action === 'create') {
+        $fields = [];
+        foreach (['customer', 'doc_number', 'kind', 'currency', 'category', 'note'] as $f) {
+            if (array_key_exists($f, (array) $in)) {
+                $fields[$f] = $in[$f];
+            }
+        }
+        $fields['issued_at'] = array_key_exists('date', (array) $in) && (string) $in['date'] !== ''
+            ? (string) $in['date'] : Income::today();
+
+        $num = static fn (string $k): ?float => isset($in[$k]) && $in[$k] !== '' ? (float) $in[$k] : null;
+        $ex = $num('amount_ex_vat'); $vat = $num('vat'); $total = $num('total');
+        if ($ex !== null || $vat !== null || $total !== null) {
+            [$ex, $vat, $total] = Income::deriveVat($ex, $vat, $total);
+            $fields['amount_ex_vat'] = $ex; $fields['vat'] = $vat; $fields['total'] = $total;
+        }
+
+        $newId = $income->create($userId, $fields, 'manual');
+        $audit->log($userId, 'income', $newId, 'create', ['source' => 'manual']);
+        $row = $income->get($userId, $newId);
+        out(200, ['ok' => true, 'card' => $row !== null ? $income->card($row) : null]);
+    }
+
+    if ($id <= 0) {
+        out(400, ['error' => 'An income id is required.']);
+    }
+
     if ($action === 'discard') {
         $fileRef = $income->delete($userId, $id);
         if ($fileRef !== null) {

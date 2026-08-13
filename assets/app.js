@@ -3509,24 +3509,61 @@
         grid.className = 'books-modules';
         grid.appendChild(booksIncomeModule(wrap, card, cur));
         grid.appendChild(booksExpenseModule(wrap, card, cur));
-        grid.appendChild(booksDrawModule(card, cur));
+        grid.appendChild(booksDrawModule(wrap, card, cur));
         wrap.appendChild(grid);
     }
 
-    function booksModule(titleText) {
+    function booksModule(titleText, onAdd) {
         var m = document.createElement('div');
         m.className = 'books-module';
         var h = document.createElement('div');
         h.className = 'books-module-head';
-        h.textContent = titleText;
+        var t = document.createElement('span');
+        t.className = 'books-module-title';
+        t.textContent = titleText;
+        h.appendChild(t);
+        if (onAdd) {
+            var add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'books-add';
+            add.textContent = '+ ' + daText('Add', 'Tilføj');
+            add.title = daText('Add an entry', 'Tilføj en post');
+            add.addEventListener('click', onAdd);
+            h.appendChild(add);
+        }
         m.appendChild(h);
         return m;
+    }
+
+    // "+ Add" from the Income module: make a blank draft and open the income editor
+    // (customer / amount / VAT / date) — Confirm books it and the cockpit auto-refreshes.
+    function booksAddIncome(wrap, card) {
+        fetch('/api/income.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'create' })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawBooksIncomeDetail(wrap, j.card, card.granularity, card.offset); })
+            .catch(function () {});
+    }
+
+    // "+ Add" from the Expenses module: blank draft receipt → the expense editor.
+    function booksAddExpense(wrap, card) {
+        fetch('/api/receipt.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'create' })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawBooksExpenseDetail(wrap, j.card, card.granularity, card.offset); })
+            .catch(function () {});
     }
 
     function booksIncomeModule(wrap, card, cur) {
         var inc = card.income || {};
         var counts = inc.counts || {};
-        var m = booksModule(daText('Income', 'Indtægt'));
+        var m = booksModule(daText('Income', 'Indtægt'), function () { booksAddIncome(wrap, card); });
 
         var chips = document.createElement('div');
         chips.className = 'books-chips';
@@ -3565,7 +3602,7 @@
 
     function booksExpenseModule(wrap, card, cur) {
         var exp = card.expenses || {};
-        var m = booksModule(daText('Expenses', 'Udgifter'));
+        var m = booksModule(daText('Expenses', 'Udgifter'), function () { booksAddExpense(wrap, card); });
         var tot = document.createElement('div');
         tot.className = 'books-module-total';
         tot.textContent = fmtMoney(exp.total, cur) + '  ·  ' + daText('moms ', 'moms ') + fmtMoney(exp.vat, cur);
@@ -3594,13 +3631,53 @@
         return m;
     }
 
-    function booksDrawModule(card, cur) {
+    function booksDrawModule(wrap, card, cur) {
         var dr = card.draws || {};
-        var m = booksModule(daText('Owner draws', 'Hævninger'));
+        // Draws have no draft/confirm editor, so "+ Add" reveals a small inline form.
+        var m = booksModule(daText('Owner draws', 'Hævninger'), function () { toggleForm(); });
         var tot = document.createElement('div');
         tot.className = 'books-module-total';
         tot.textContent = fmtMoney(dr.total, cur) + '  ·  ' + (dr.count || 0) + ' ' + daText('draws', 'hævninger');
         m.appendChild(tot);
+
+        // Inline add form (hidden until "+ Add"): amount + optional note → records at once.
+        var form = document.createElement('div');
+        form.className = 'books-addform';
+        form.style.display = 'none';
+        var amt = document.createElement('input');
+        amt.type = 'number'; amt.step = '0.01'; amt.min = '0';
+        amt.className = 'books-addinput';
+        amt.placeholder = daText('Amount (kr)', 'Beløb (kr)');
+        var note = document.createElement('input');
+        note.type = 'text'; note.className = 'books-addinput';
+        note.placeholder = daText('Note (optional)', 'Note (valgfri)');
+        var save = document.createElement('button');
+        save.type = 'button'; save.className = 'books-addsave';
+        save.textContent = daText('Add', 'Tilføj');
+        function submit() {
+            var v = parseFloat(amt.value);
+            if (!(v > 0)) { amt.focus(); return; }
+            save.disabled = true;
+            fetch('/api/draws.php', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'create', amount: v, note: note.value || '' })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function () { booksFetch(wrap, card.granularity, card.offset); })
+                .catch(function () { save.disabled = false; });
+        }
+        save.addEventListener('click', submit);
+        amt.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+        note.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+        form.appendChild(amt); form.appendChild(note); form.appendChild(save);
+        m.appendChild(form);
+        function toggleForm() {
+            var show = form.style.display === 'none';
+            form.style.display = show ? 'flex' : 'none';
+            if (show) amt.focus();
+        }
+
         var list = document.createElement('ul');
         list.className = 'books-list';
         (dr.items || []).forEach(function (it) {
