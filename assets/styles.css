@@ -547,6 +547,72 @@ button.ghost {
     background: rgba(245, 158, 11, .16); border-radius: 999px; padding: 1px 8px;
 }
 
+/* ---------- Bookkeeping cockpit (kind: bookkeeping) ---------- */
+.books { display: flex; flex-direction: column; gap: 14px; }
+.books-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.books-title { font-weight: 700; font-size: 16px; }
+.books-periods { display: inline-flex; gap: 4px; }
+.books-period {
+    font-size: 12.5px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+}
+.books-period.is-active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.books-period:hover { color: var(--text); }
+
+/* KPI tiles */
+.books-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.books-kpi {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 12px 14px;
+}
+.books-kpi-label { font-size: 12px; color: var(--muted); }
+.books-kpi-val { font-size: 24px; font-weight: 700; margin: 3px 0 2px; font-variant-numeric: tabular-nums; }
+.books-kpi-sub { font-size: 11.5px; color: var(--muted); }
+.books-kpi-warn .books-kpi-val { color: var(--warn); }
+.books-kpi-ok .books-kpi-val { color: var(--ok); }
+.books-kpi-accent { border-color: var(--accent-line); }
+.books-kpi-accent .books-kpi-val { color: var(--accent); }
+.books-strap { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Modules grid */
+.books-modules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.books-module {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 12px; min-width: 0;
+}
+.books-module-head { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+.books-module-total { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.books-note { font-size: 12px; color: var(--warn); margin-top: 4px; }
+
+.books-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.books-chip {
+    font-size: 11.5px; padding: 2px 8px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+}
+.books-chip-unpaid { color: var(--warn); }
+.books-chip-paid { color: var(--ok); }
+
+.books-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.books-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.books-row:first-child { border-top: 0; }
+.books-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.books-amt { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-size: 13px; }
+.books-row-click { cursor: pointer; border-radius: var(--radius-sm); }
+.books-row-click:hover { background: var(--accent-soft); }
+.books-empty { color: var(--muted); font-size: 12.5px; justify-content: center; }
+
+.books-badge { font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 1px 7px; flex: 0 0 auto; }
+.books-badge-draft { color: var(--muted); background: var(--panel-2); }
+.books-badge-unpaid { color: var(--warn); background: rgba(245, 158, 11, .16); }
+.books-badge-paid { color: var(--ok); background: rgba(52, 211, 153, .16); }
+
+.books-detail-bar { margin-bottom: 10px; }
+.books-back {
+    background: transparent; border: 0; color: var(--accent); cursor: pointer;
+    font-size: 13px; padding: 4px 0;
+}
+
 /* Shared visible delete button (SVG in currentColor) */
 .icon-del {
     flex: 0 0 auto;
@@ -961,7 +1027,8 @@ button.ghost {
     .app { max-width: none; }
     .workspace {
         display: grid;
-        grid-template-columns: var(--chat-w, 400px) minmax(0, 1fr);
+        /* Chat rail = 1/3, card canvas = 2/3 (proportional, scales with the viewport). */
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
         grid-template-rows: minmax(0, 1fr) auto;
         grid-template-areas:
             "messages card"

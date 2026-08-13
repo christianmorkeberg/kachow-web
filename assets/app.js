@@ -319,6 +319,7 @@
         income:        '📩 Income',
         income_summary:'📈 Income',
         owner_draws:   '💰 Owner draws',
+        bookkeeping:   '📊 Books',
         email_list:    '📥 Inbox',
         email:         '✉️ Email',
         email_draft:   '✍️ Draft',
@@ -533,6 +534,7 @@
         if (card.kind === 'income') { renderIncome(card); return; }
         if (card.kind === 'income_summary') { renderIncomeSummary(card); return; }
         if (card.kind === 'owner_draws') { renderOwnerDraws(card); return; }
+        if (card.kind === 'bookkeeping') { renderBooks(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -3230,6 +3232,226 @@
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
+    }
+
+    // ---- Bookkeeping cockpit (kind: bookkeeping) — a modular dashboard ----
+    // Composed of KPI tiles + income/expense/draw modules, with overview→detail drill-in
+    // and period switching. Interactive on its own via /api/books.php (no chat turn).
+    // Re-draws mutate the same container in place, so it works in the card panel or the
+    // message stream (the panel-redirect only applies on the first render).
+
+    function renderBooks(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card books';
+        drawBooksOverview(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function booksFetch(wrap, period) {
+        fetch('/api/books.php?period=' + encodeURIComponent(period), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawBooksOverview(wrap, j.card); })
+            .catch(function () {});
+    }
+
+    function booksEntry(wrap, id, backPeriod) {
+        fetch('/api/books.php?action=entry&id=' + id, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawBooksIncomeDetail(wrap, j.card, backPeriod); })
+            .catch(function () {});
+    }
+
+    function booksTile(label, value, sub, tone) {
+        var t = document.createElement('div');
+        t.className = 'books-kpi' + (tone ? ' books-kpi-' + tone : '');
+        var l = document.createElement('div'); l.className = 'books-kpi-label'; l.textContent = label;
+        var v = document.createElement('div'); v.className = 'books-kpi-val'; v.textContent = value;
+        t.appendChild(l); t.appendChild(v);
+        if (sub) { var s = document.createElement('div'); s.className = 'books-kpi-sub'; s.textContent = sub; t.appendChild(s); }
+        return t;
+    }
+
+    function drawBooksOverview(wrap, card) {
+        wrap.innerHTML = '';
+        var cur = card.currency || 'DKK';
+        var k = card.kpis || {};
+
+        // Header: title + period switcher.
+        var head = document.createElement('div');
+        head.className = 'books-head';
+        var title = document.createElement('div');
+        title.className = 'books-title';
+        title.textContent = daText('Books', 'Regnskab') + ' · ' + (card.period_label || '');
+        head.appendChild(title);
+        var per = document.createElement('div');
+        per.className = 'books-periods';
+        (card.periods || []).forEach(function (p) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'books-period' + (p.key === card.period_key ? ' is-active' : '');
+            b.textContent = p.label;
+            b.addEventListener('click', function () { booksFetch(wrap, p.key); });
+            per.appendChild(b);
+        });
+        head.appendChild(per);
+        wrap.appendChild(head);
+
+        // KPI tiles.
+        var kpis = document.createElement('div');
+        kpis.className = 'books-kpis';
+        var reserve = k.reserve || {};
+        var momsTone = (k.net_moms || 0) > 0 ? 'warn' : 'ok';
+        var momsSub  = (k.net_moms || 0) >= 0
+            ? daText('to pay · salgs − købs', 'at betale · salgs − købs')
+            : daText('to reclaim', 'til gode');
+        kpis.appendChild(booksTile(daText('Revenue', 'Omsætning'), fmtMoney(k.revenue, cur), daText('ex. moms', 'ekskl. moms')));
+        kpis.appendChild(booksTile(daText('Net moms', 'Moms (netto)'), fmtMoney(k.net_moms, cur), momsSub, momsTone));
+        kpis.appendChild(booksTile(daText('Expenses', 'Udgifter'), fmtMoney(k.expenses, cur), daText('incl. moms', 'inkl. moms')));
+        kpis.appendChild(booksTile(daText('Outstanding', 'Udestående'), fmtMoney(k.outstanding, cur), daText('unpaid invoices', 'ubetalte fakturaer')));
+        kpis.appendChild(booksTile(daText('Reserve', 'Hensæt'), fmtMoney(reserve.total, cur),
+            daText('moms ', 'moms ') + fmtMoney(reserve.moms, cur) + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ' (' + (reserve.pct || 0) + '%)', 'accent'));
+        wrap.appendChild(kpis);
+
+        // A profit strap line under the tiles.
+        var strap = document.createElement('div');
+        strap.className = 'books-strap';
+        strap.textContent = daText('Profit (revenue − expenses): ', 'Overskud (omsætning − udgifter): ') + fmtMoney(k.profit, cur);
+        wrap.appendChild(strap);
+
+        // Modules grid.
+        var grid = document.createElement('div');
+        grid.className = 'books-modules';
+        grid.appendChild(booksIncomeModule(wrap, card, cur));
+        grid.appendChild(booksExpenseModule(card, cur));
+        grid.appendChild(booksDrawModule(card, cur));
+        wrap.appendChild(grid);
+    }
+
+    function booksModule(titleText) {
+        var m = document.createElement('div');
+        m.className = 'books-module';
+        var h = document.createElement('div');
+        h.className = 'books-module-head';
+        h.textContent = titleText;
+        m.appendChild(h);
+        return m;
+    }
+
+    function booksIncomeModule(wrap, card, cur) {
+        var inc = card.income || {};
+        var counts = inc.counts || {};
+        var m = booksModule(daText('Income', 'Indtægt'));
+
+        var chips = document.createElement('div');
+        chips.className = 'books-chips';
+        [['draft', daText('Drafts', 'Kladder')], ['booked', daText('Booked', 'Bogført')],
+         ['unpaid', daText('Unpaid', 'Ubetalt')], ['paid', daText('Paid', 'Betalt')]].forEach(function (c) {
+            var chip = document.createElement('span');
+            chip.className = 'books-chip books-chip-' + c[0];
+            chip.textContent = c[1] + ' ' + (counts[c[0]] || 0);
+            chips.appendChild(chip);
+        });
+        m.appendChild(chips);
+
+        var list = document.createElement('ul');
+        list.className = 'books-list';
+        (inc.items || []).forEach(function (it) {
+            var li = document.createElement('li');
+            li.className = 'books-row books-row-click';
+            li.title = daText('Open', 'Åbn');
+            var left = document.createElement('div'); left.className = 'books-row-main';
+            left.textContent = (it.date || '') + '  ' + (it.customer || it.doc_number || '—');
+            var badge = document.createElement('span');
+            var state = it.status === 'draft' ? 'draft' : (it.paid ? 'paid' : 'unpaid');
+            badge.className = 'books-badge books-badge-' + state;
+            badge.textContent = state === 'draft' ? daText('draft', 'kladde')
+                : (state === 'paid' ? daText('paid', 'betalt') : daText('unpaid', 'ubetalt'));
+            var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.total, it.currency || cur);
+            left.appendChild(badge);
+            li.appendChild(left); li.appendChild(amt);
+            li.addEventListener('click', function () { booksEntry(wrap, it.id, card.period_key); });
+            list.appendChild(li);
+        });
+        if (!(inc.items || []).length) list.appendChild(booksEmptyRow(daText('No income yet.', 'Ingen indtægt endnu.')));
+        m.appendChild(list);
+        return m;
+    }
+
+    function booksExpenseModule(card, cur) {
+        var exp = card.expenses || {};
+        var m = booksModule(daText('Expenses', 'Udgifter'));
+        var tot = document.createElement('div');
+        tot.className = 'books-module-total';
+        tot.textContent = fmtMoney(exp.total, cur) + '  ·  ' + daText('moms ', 'moms ') + fmtMoney(exp.vat, cur);
+        m.appendChild(tot);
+        var owed = (exp.udlaeg_owed || {});
+        if ((owed.total || 0) > 0) {
+            var u = document.createElement('div');
+            u.className = 'books-note';
+            u.textContent = daText('Udlæg owed to you: ', 'Udlæg du har til gode: ') + fmtMoney(owed.total, cur) + ' (' + (owed.count || 0) + ')';
+            m.appendChild(u);
+        }
+        var list = document.createElement('ul');
+        list.className = 'books-list';
+        (exp.items || []).forEach(function (it) {
+            var li = document.createElement('li'); li.className = 'books-row';
+            var left = document.createElement('div'); left.className = 'books-row-main';
+            left.textContent = (it.date || '') + '  ' + (it.vendor || '—');
+            var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.total, it.currency || cur);
+            li.appendChild(left); li.appendChild(amt);
+            list.appendChild(li);
+        });
+        if (!(exp.items || []).length) list.appendChild(booksEmptyRow(daText('No expenses yet.', 'Ingen udgifter endnu.')));
+        m.appendChild(list);
+        return m;
+    }
+
+    function booksDrawModule(card, cur) {
+        var dr = card.draws || {};
+        var m = booksModule(daText('Owner draws', 'Hævninger'));
+        var tot = document.createElement('div');
+        tot.className = 'books-module-total';
+        tot.textContent = fmtMoney(dr.total, cur) + '  ·  ' + (dr.count || 0) + ' ' + daText('draws', 'hævninger');
+        m.appendChild(tot);
+        var list = document.createElement('ul');
+        list.className = 'books-list';
+        (dr.items || []).forEach(function (it) {
+            var li = document.createElement('li'); li.className = 'books-row';
+            var left = document.createElement('div'); left.className = 'books-row-main';
+            left.textContent = (it.date || '') + (it.note ? '  ' + it.note : '');
+            var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.amount, it.currency || cur);
+            li.appendChild(left); li.appendChild(amt);
+            list.appendChild(li);
+        });
+        if (!(dr.items || []).length) list.appendChild(booksEmptyRow(daText('No draws yet.', 'Ingen hævninger endnu.')));
+        m.appendChild(list);
+        return m;
+    }
+
+    function booksEmptyRow(text) {
+        var li = document.createElement('li');
+        li.className = 'books-row books-empty';
+        li.textContent = text;
+        return li;
+    }
+
+    // Drill-in: one income entry as its full editable card, with a back link to the overview.
+    function drawBooksIncomeDetail(wrap, entryCard, backPeriod) {
+        wrap.innerHTML = '';
+        var bar = document.createElement('div');
+        bar.className = 'books-detail-bar';
+        var back = document.createElement('button');
+        back.type = 'button'; back.className = 'books-back';
+        back.textContent = daText('← Back to books', '← Tilbage til regnskab');
+        back.addEventListener('click', function () { booksFetch(wrap, backPeriod); });
+        bar.appendChild(back);
+        wrap.appendChild(bar);
+        var body = document.createElement('div');
+        body.className = 'books-detail-body';
+        wrap.appendChild(body);
+        buildIncome(body, entryCard);   // reuse the income card (edit / confirm / mark paid)
     }
 
     function uploadReceipt(file) {
