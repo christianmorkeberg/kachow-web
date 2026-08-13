@@ -321,6 +321,7 @@
         owner_draws:   '💰 Owner draws',
         bookkeeping:   '📊 Books',
         moms:          '🧾 Moms',
+        cash:          '🏦 Cash',
         email_list:    '📥 Inbox',
         email:         '✉️ Email',
         email_draft:   '✍️ Draft',
@@ -558,6 +559,7 @@
     var RAIL_STAPLES = [
         { kind: 'bookkeeping', emoji: '📊', label: 'Books',      open: function () { openBooksFresh(); } },
         { kind: 'moms',        emoji: '🧾', label: 'Moms',       open: function () { openMomsFresh(); } },
+        { kind: 'cash',        emoji: '🏦', label: 'Cash',       open: function () { openCashFresh(); } },
         { kind: 'appearance',  emoji: '🎨', label: 'Appearance', open: function () { openAppearanceCard(); } }
     ];
     var RAIL_STAPLE_KINDS = RAIL_STAPLES.map(function (s) { return s.kind; });
@@ -579,6 +581,13 @@
 
     function openMomsFresh() {
         fetch('/api/moms.php?offset=0', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) presentCard(j.card); })
+            .catch(function () {});
+    }
+
+    function openCashFresh() {
+        fetch('/api/cash.php', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (j) { if (j && j.card) presentCard(j.card); })
             .catch(function () {});
@@ -643,6 +652,7 @@
         if (card.kind === 'owner_draws') { renderOwnerDraws(card); return; }
         if (card.kind === 'bookkeeping') { renderBooks(card); return; }
         if (card.kind === 'moms') { renderMoms(card); return; }
+        if (card.kind === 'cash') { renderCash(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -3929,6 +3939,32 @@
         dl.textContent = '📅 ' + daText('File & pay by ', 'Angiv & betal senest ') + card.deadline + ' (' + when + ')';
         wrap.appendChild(dl);
 
+        // Record the moms payment (or refund) as a bank movement, so the cash balance
+        // stays right. Answers "I paid this moms back" in one tap.
+        if (Math.abs(tilsvar) > 0) {
+            var rec = document.createElement('button');
+            rec.type = 'button'; rec.className = 'moms-record';
+            rec.textContent = pay
+                ? daText('✓ Record moms payment', '✓ Registrér momsbetaling')
+                : daText('✓ Record moms refund', '✓ Registrér momsrefusion');
+            rec.addEventListener('click', function () {
+                var msg = (pay ? daText('Record a moms payment of ', 'Registrér en momsbetaling på ')
+                              : daText('Record a moms refund of ', 'Registrér en momsrefusion på '))
+                    + fmtMoney(Math.abs(tilsvar), cur) + ' → ' + daText('Cash?', 'Likviditet?');
+                if (!window.confirm(msg)) return;
+                rec.disabled = true;
+                fetch('/api/cash.php', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'add', direction: pay ? 'out' : 'in', amount: Math.abs(tilsvar), category: 'moms', note: (card.period_label || '') + ' moms' })
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function () { openCashFresh(); })
+                    .catch(function () { rec.disabled = false; });
+            });
+            wrap.appendChild(rec);
+        }
+
         // Caveats: period still open, or unbooked drafts not yet included.
         var notes = [];
         if (card.period_open) {
@@ -3960,6 +3996,187 @@
         foot.textContent = daText(
             'An estimate to help you file in TastSelv Erhverv — Kachow is your bookkeeping assistant, not the system of record.',
             'Et estimat der hjælper dig med at angive i TastSelv Erhverv — Kachow er din bogføringsassistent, ikke det officielle system.');
+        wrap.appendChild(foot);
+    }
+
+    // ---- Cash position (kind: cash) — expected bank balance + free-to-spend ----
+    // "How much should be in my account." Interactive: log/delete manual movements
+    // (moms payments, fees, deposits) in place via /api/cash.php.
+    var CASH_CAT_LABELS = {
+        moms:    { en: 'Moms payment', da: 'Momsbetaling' },
+        tax:     { en: 'Tax payment',  da: 'Skattebetaling' },
+        fee:     { en: 'Bank fee',     da: 'Bankgebyr' },
+        deposit: { en: 'Money in',     da: 'Indskud' },
+        other:   { en: 'Other',        da: 'Andet' }
+    };
+    function cashCatLabel(c) { var m = CASH_CAT_LABELS[c] || CASH_CAT_LABELS.other; return daText(m.en, m.da); }
+
+    function renderCash(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card cash-card';
+        drawCash(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function cashPost(wrap, body) {
+        fetch('/api/cash.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawCash(wrap, j.card); })
+            .catch(function () {});
+    }
+
+    function drawCash(wrap, card) {
+        wrap.innerHTML = '';
+        var cur = card.currency || 'DKK';
+        var reserve = card.reserve || {};
+        var mIn = card.money_in || {}, mOut = card.money_out || {};
+
+        var head = document.createElement('div');
+        head.className = 'books-head';
+        var title = document.createElement('div');
+        title.className = 'books-title';
+        title.textContent = daText('Cash position', 'Likviditet');
+        head.appendChild(title);
+        wrap.appendChild(head);
+
+        // Two heroes: expected bank balance, and free-to-spend after the reserve.
+        var heroes = document.createElement('div');
+        heroes.className = 'cash-heroes';
+        function hero(label, value, cls, sub) {
+            var h = document.createElement('div'); h.className = 'cash-hero ' + cls;
+            var l = document.createElement('div'); l.className = 'cash-hero-label'; l.textContent = label;
+            var v = document.createElement('div'); v.className = 'cash-hero-val'; v.textContent = fmtMoney(value, cur);
+            h.appendChild(l); h.appendChild(v);
+            if (sub) { var s = document.createElement('div'); s.className = 'cash-hero-sub'; s.textContent = sub; h.appendChild(s); }
+            return h;
+        }
+        heroes.appendChild(hero(daText('Expected balance', 'Forventet saldo'), card.expected, 'is-expected',
+            daText('what the bank should show', 'hvad banken bør vise')));
+        var free = Number(card.free_to_spend) || 0;
+        heroes.appendChild(hero(daText('Free to spend', 'Frit at bruge'), free, free < 0 ? 'is-negative' : 'is-free',
+            daText('after moms + tax set aside', 'efter moms + skat er hensat')));
+        wrap.appendChild(heroes);
+
+        // Reserve note (why free < expected).
+        var res = document.createElement('div');
+        res.className = 'cash-reserve';
+        res.textContent = '🔒 ' + daText('Set aside: ', 'Hensat: ') + fmtMoney(reserve.total, cur)
+            + ' (' + daText('moms ', 'moms ') + fmtMoney(reserve.moms, cur)
+            + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ', ' + (reserve.pct || 0) + '%)';
+        wrap.appendChild(res);
+
+        // In / out breakdown.
+        var flow = document.createElement('div');
+        flow.className = 'cash-flow';
+        function flowCol(titleTxt, cls, rows, total) {
+            var col = document.createElement('div'); col.className = 'cash-col ' + cls;
+            var h = document.createElement('div'); h.className = 'cash-col-head';
+            h.textContent = titleTxt + '  ' + fmtMoney(total, cur);
+            col.appendChild(h);
+            rows.forEach(function (r) {
+                if (!r[1]) return;
+                var line = document.createElement('div'); line.className = 'cash-col-row';
+                var l = document.createElement('span'); l.textContent = r[0];
+                var v = document.createElement('span'); v.className = 'books-amt'; v.textContent = fmtMoney(r[1], cur);
+                line.appendChild(l); line.appendChild(v); col.appendChild(line);
+            });
+            return col;
+        }
+        flow.appendChild(flowCol(daText('Money in', 'Ind'), 'cash-in', [
+            [daText('Invoices paid', 'Fakturaer betalt'), mIn.invoices_paid],
+            [daText('Other in', 'Andet ind'), mIn.other]
+        ], mIn.total));
+        flow.appendChild(flowCol(daText('Money out', 'Ud'), 'cash-out', [
+            [daText('Expenses', 'Udgifter'), mOut.expenses],
+            [daText('Owner draws', 'Hævninger'), mOut.draws],
+            [daText('Moms / other', 'Moms / andet'), mOut.other]
+        ], mOut.total));
+        if (card.opening) {
+            var op = document.createElement('div'); op.className = 'cash-opening';
+            op.textContent = daText('Opening balance: ', 'Startsaldo: ') + fmtMoney(card.opening, cur);
+            wrap.appendChild(op);
+        }
+        wrap.appendChild(flow);
+
+        // Manual movements list (with delete) — moms payments, fees, deposits.
+        var moves = card.movements || [];
+        if (moves.length) {
+            var mh = document.createElement('div'); mh.className = 'cash-moves-head';
+            mh.textContent = daText('Logged movements', 'Registrerede bevægelser');
+            wrap.appendChild(mh);
+            var list = document.createElement('ul'); list.className = 'books-list';
+            moves.forEach(function (it) {
+                var li = document.createElement('li'); li.className = 'books-row';
+                var left = document.createElement('div'); left.className = 'books-row-main';
+                var sign = it.direction === 'in' ? '+' : '−';
+                left.textContent = (it.date || '') + '  ' + cashCatLabel(it.category) + (it.note ? ' · ' + it.note : '');
+                var amt = document.createElement('span');
+                amt.className = 'books-amt cash-' + (it.direction === 'in' ? 'pos' : 'neg');
+                amt.textContent = sign + ' ' + fmtMoney(it.amount, cur);
+                var del = deleteButton(daText('Delete movement', 'Slet bevægelse'));
+                del.className += ' books-row-del';
+                del.addEventListener('click', function () {
+                    if (!window.confirm(daText('Delete this movement?', 'Slet denne bevægelse?'))) return;
+                    del.disabled = true;
+                    cashPost(wrap, { action: 'delete', id: it.id });
+                });
+                li.appendChild(left); li.appendChild(amt); li.appendChild(del);
+                list.appendChild(li);
+            });
+            wrap.appendChild(list);
+        }
+
+        // Inline "log a movement" form.
+        var form = document.createElement('div');
+        form.className = 'books-addform cash-addform';
+        form.style.display = 'none';
+        var dir = document.createElement('select'); dir.className = 'books-addinput';
+        [['out', daText('Out', 'Ud')], ['in', daText('In', 'Ind')]].forEach(function (o) {
+            var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; dir.appendChild(op);
+        });
+        var catSel = document.createElement('select'); catSel.className = 'books-addinput';
+        (card.categories || ['moms', 'tax', 'fee', 'deposit', 'other']).forEach(function (c) {
+            var op = document.createElement('option'); op.value = c; op.textContent = cashCatLabel(c); catSel.appendChild(op);
+        });
+        var amt2 = document.createElement('input'); amt2.type = 'number'; amt2.step = '0.01'; amt2.min = '0';
+        amt2.className = 'books-addinput'; amt2.placeholder = daText('Amount (kr)', 'Beløb (kr)');
+        var note2 = document.createElement('input'); note2.type = 'text'; note2.className = 'books-addinput';
+        note2.placeholder = daText('Note (optional)', 'Note (valgfri)');
+        var save = document.createElement('button'); save.type = 'button'; save.className = 'books-addsave';
+        save.textContent = daText('Add', 'Tilføj');
+        function submit() {
+            var v = parseFloat(amt2.value);
+            if (!(v > 0)) { amt2.focus(); return; }
+            save.disabled = true;
+            cashPost(wrap, { action: 'add', direction: dir.value, amount: v, category: catSel.value, note: note2.value || '' });
+        }
+        save.addEventListener('click', submit);
+        amt2.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+        note2.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+        form.appendChild(dir); form.appendChild(catSel); form.appendChild(amt2); form.appendChild(note2); form.appendChild(save);
+
+        var addBtn = document.createElement('button');
+        addBtn.type = 'button'; addBtn.className = 'books-add cash-add';
+        addBtn.textContent = '+ ' + daText('Log a movement', 'Registrér bevægelse');
+        addBtn.addEventListener('click', function () {
+            var show = form.style.display === 'none';
+            form.style.display = show ? 'flex' : 'none';
+            if (show) amt2.focus();
+        });
+        wrap.appendChild(addBtn);
+        wrap.appendChild(form);
+
+        var foot = document.createElement('div');
+        foot.className = 'moms-foot';
+        foot.textContent = daText(
+            'Expected balance from paid invoices, expenses, draws and the movements you log — a cash estimate, not your live bank feed.',
+            'Forventet saldo ud fra betalte fakturaer, udgifter, hævninger og de bevægelser du registrerer — et likviditetsestimat, ikke din live bankkonto.');
         wrap.appendChild(foot);
     }
 
