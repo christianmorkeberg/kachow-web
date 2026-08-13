@@ -598,7 +598,7 @@ button.ghost {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius-md); padding: 12px; min-width: 0;
 }
-.books-module-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.books-module-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .books-module-title { font-weight: 600; font-size: 14px; }
 .books-module-total { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .books-note { font-size: 12px; color: var(--warn); margin-top: 4px; }
@@ -620,6 +620,22 @@ button.ghost {
     background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm);
 }
 .books-addsave:disabled { opacity: .6; cursor: default; }
+/* "+ Add" choice popover (manual vs photo) */
+.books-addmenu {
+    position: absolute; top: 100%; right: 0; z-index: 20; margin-top: 4px;
+    display: flex; flex-direction: column; min-width: 168px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
+.books-addmenu-item {
+    text-align: left; padding: 8px 10px; font-size: 13px; cursor: pointer;
+    background: transparent; color: var(--text); border: none; border-radius: var(--radius-sm);
+}
+.books-addmenu-item:hover { background: var(--accent-soft); color: var(--accent); }
+.books-reading { font-size: 13px; color: var(--muted); padding: 14px 4px; }
+/* Owner-draw rows: reveal the delete affordance on hover/focus */
+.books-row-del { flex: 0 0 auto; opacity: .55; }
+.books-row-draw:hover .books-row-del, .books-row-del:focus-visible { opacity: 1; }
 
 /* Moms (quarterly VAT settlement) card */
 .moms-card { display: flex; flex-direction: column; gap: 12px; }

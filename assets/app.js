@@ -3535,6 +3535,79 @@
         return m;
     }
 
+    // A small popover under the "+ Add" button offering manual entry vs a photo/PDF read.
+    function booksAddChoice(btn, onManual, onPhoto) {
+        var head = btn.parentNode;
+        var open = head.querySelector('.books-addmenu');
+        if (open) { open.remove(); return; }   // toggle off
+        var menu = document.createElement('div');
+        menu.className = 'books-addmenu';
+        function item(label, fn) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.className = 'books-addmenu-item';
+            b.textContent = label;
+            b.addEventListener('click', function () { menu.remove(); fn(); });
+            return b;
+        }
+        menu.appendChild(item('✍️ ' + daText('Enter manually', 'Indtast manuelt'), onManual));
+        menu.appendChild(item('📷 ' + daText('Photo / PDF', 'Foto / PDF'), onPhoto));
+        head.appendChild(menu);
+        // Dismiss on the next outside click.
+        setTimeout(function () {
+            document.addEventListener('click', function off(ev) {
+                if (!menu.contains(ev.target) && ev.target !== btn) { menu.remove(); document.removeEventListener('click', off); }
+            });
+        }, 0);
+    }
+
+    // Ephemeral hidden <input type=file> → callback with the chosen file (no DOM left behind).
+    function pickFile(accept, cb) {
+        var inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = accept; inp.style.display = 'none';
+        document.body.appendChild(inp);
+        inp.addEventListener('change', function () {
+            var f = inp.files && inp.files[0];
+            document.body.removeChild(inp);
+            if (f) cb(f);
+        });
+        inp.click();
+    }
+
+    // A "reading…" placeholder shown in the card while Gemini parses an uploaded bilag.
+    function booksReadingState(wrap, label) {
+        wrap.innerHTML = '';
+        var body = document.createElement('div');
+        body.className = 'books-detail-body books-reading';
+        body.textContent = '⏳ ' + label;
+        wrap.appendChild(body);
+    }
+
+    // Photo/PDF invoice → income-upload.php reads it → open the draft in the cockpit editor.
+    function booksUploadIncome(wrap, card, file) {
+        booksReadingState(wrap, daText('Reading the invoice…', 'Læser fakturaen…'));
+        var fd = new FormData(); fd.append('invoice', file);
+        fetch('/api/income-upload.php', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.card) drawBooksIncomeDetail(wrap, j.card, card.granularity, card.offset);
+                else booksFetch(wrap, card.granularity, card.offset);
+            })
+            .catch(function () { booksFetch(wrap, card.granularity, card.offset); });
+    }
+
+    // Photo/PDF receipt → receipt-upload.php reads it → open the draft in the cockpit editor.
+    function booksUploadExpense(wrap, card, file) {
+        booksReadingState(wrap, daText('Reading the receipt…', 'Læser kvitteringen…'));
+        var fd = new FormData(); fd.append('photo', file);
+        fetch('/api/receipt-upload.php', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.card) drawBooksExpenseDetail(wrap, j.card, card.granularity, card.offset);
+                else booksFetch(wrap, card.granularity, card.offset);
+            })
+            .catch(function () { booksFetch(wrap, card.granularity, card.offset); });
+    }
+
     // "+ Add" from the Income module: make a blank draft and open the income editor
     // (customer / amount / VAT / date) — Confirm books it and the cockpit auto-refreshes.
     function booksAddIncome(wrap, card) {
@@ -3563,7 +3636,11 @@
     function booksIncomeModule(wrap, card, cur) {
         var inc = card.income || {};
         var counts = inc.counts || {};
-        var m = booksModule(daText('Income', 'Indtægt'), function () { booksAddIncome(wrap, card); });
+        var m = booksModule(daText('Income', 'Indtægt'), function (e) {
+            booksAddChoice(e.currentTarget,
+                function () { booksAddIncome(wrap, card); },
+                function () { pickFile('image/*,application/pdf', function (f) { booksUploadIncome(wrap, card, f); }); });
+        });
 
         var chips = document.createElement('div');
         chips.className = 'books-chips';
@@ -3602,7 +3679,11 @@
 
     function booksExpenseModule(wrap, card, cur) {
         var exp = card.expenses || {};
-        var m = booksModule(daText('Expenses', 'Udgifter'), function () { booksAddExpense(wrap, card); });
+        var m = booksModule(daText('Expenses', 'Udgifter'), function (e) {
+            booksAddChoice(e.currentTarget,
+                function () { booksAddExpense(wrap, card); },
+                function () { pickFile('image/*,application/pdf', function (f) { booksUploadExpense(wrap, card, f); }); });
+        });
         var tot = document.createElement('div');
         tot.className = 'books-module-total';
         tot.textContent = fmtMoney(exp.total, cur) + '  ·  ' + daText('moms ', 'moms ') + fmtMoney(exp.vat, cur);
@@ -3681,11 +3762,25 @@
         var list = document.createElement('ul');
         list.className = 'books-list';
         (dr.items || []).forEach(function (it) {
-            var li = document.createElement('li'); li.className = 'books-row';
+            var li = document.createElement('li'); li.className = 'books-row books-row-draw';
             var left = document.createElement('div'); left.className = 'books-row-main';
             left.textContent = (it.date || '') + (it.note ? '  ' + it.note : '');
             var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.amount, it.currency || cur);
-            li.appendChild(left); li.appendChild(amt);
+            var del = deleteButton(daText('Delete draw', 'Slet hævning'));
+            del.className += ' books-row-del';
+            del.addEventListener('click', function () {
+                if (!window.confirm(daText('Delete this drawing?', 'Slet denne hævning?'))) return;
+                del.disabled = true;
+                fetch('/api/draws.php', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'discard', id: it.id })
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function () { booksFetch(wrap, card.granularity, card.offset); })
+                    .catch(function () { del.disabled = false; });
+            });
+            li.appendChild(left); li.appendChild(amt); li.appendChild(del);
             list.appendChild(li);
         });
         if (!(dr.items || []).length) list.appendChild(booksEmptyRow(daText('No draws yet.', 'Ingen hævninger endnu.')));
