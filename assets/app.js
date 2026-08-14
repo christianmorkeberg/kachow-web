@@ -322,6 +322,7 @@
         bookkeeping:   '📊 Books',
         moms:          '🧾 Moms',
         cash:          '🏦 Cash',
+        pl:            '📈 P&L',
         email_list:    '📥 Inbox',
         email:         '✉️ Email',
         email_draft:   '✍️ Draft',
@@ -560,6 +561,7 @@
         { kind: 'bookkeeping', emoji: '📊', label: 'Books',      open: function () { openBooksFresh(); } },
         { kind: 'moms',        emoji: '🧾', label: 'Moms',       open: function () { openMomsFresh(); } },
         { kind: 'cash',        emoji: '🏦', label: 'Cash',       open: function () { openCashFresh(); } },
+        { kind: 'pl',          emoji: '📈', label: 'P&L',        open: function () { openPlFresh(); } },
         { kind: 'appearance',  emoji: '🎨', label: 'Appearance', open: function () { openAppearanceCard(); } }
     ];
     var RAIL_STAPLE_KINDS = RAIL_STAPLES.map(function (s) { return s.kind; });
@@ -588,6 +590,13 @@
 
     function openCashFresh() {
         fetch('/api/cash.php', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) presentCard(j.card); })
+            .catch(function () {});
+    }
+
+    function openPlFresh() {
+        fetch('/api/pl.php?granularity=year&offset=0', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (j) { if (j && j.card) presentCard(j.card); })
             .catch(function () {});
@@ -653,6 +662,7 @@
         if (card.kind === 'bookkeeping') { renderBooks(card); return; }
         if (card.kind === 'moms') { renderMoms(card); return; }
         if (card.kind === 'cash') { renderCash(card); return; }
+        if (card.kind === 'pl') { renderPl(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -3058,6 +3068,33 @@
             }
         }
 
+        // Generated (private) invoice: a printable document link + the line items.
+        if (card.invoice_url) {
+            var docLink = document.createElement('a');
+            docLink.className = 'income-bilag income-invoice-doc';
+            docLink.href = card.invoice_url;
+            docLink.target = '_blank';
+            docLink.rel = 'noopener';
+            docLink.textContent = daText('📄 Open / print invoice', '📄 Åbn / print faktura')
+                + (card.doc_number ? ' · ' + card.doc_number : '');
+            wrap.appendChild(docLink);
+
+            var lines = card.line_items || [];
+            if (lines.length) {
+                var ul = document.createElement('ul');
+                ul.className = 'income-lines';
+                lines.forEach(function (l) {
+                    var li = document.createElement('li');
+                    var d = document.createElement('span'); d.className = 'income-line-desc';
+                    d.textContent = (l.qty && l.qty !== 1 ? l.qty + '× ' : '') + (l.description || '');
+                    var a = document.createElement('span'); a.className = 'books-amt';
+                    a.textContent = fmtMoney(l.amount, card.currency || 'DKK');
+                    li.appendChild(d); li.appendChild(a); ul.appendChild(li);
+                });
+                wrap.appendChild(ul);
+            }
+        }
+
         var fields = document.createElement('div');
         fields.className = 'receipt-fields';
         var inputs = {};
@@ -4189,6 +4226,115 @@
         foot.textContent = daText(
             'Expected balance from paid invoices, expenses, draws and the movements you log — a cash estimate, not your live bank feed.',
             'Forventet saldo ud fra betalte fakturaer, udgifter, hævninger og de bevægelser du registrerer — et likviditetsestimat, ikke din live bankkonto.');
+        wrap.appendChild(foot);
+    }
+
+    // ---- Profit & loss (kind: pl) — resultatopgørelse, ex-VAT ----
+    function renderPl(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card pl-card';
+        drawPl(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function plFetch(wrap, gran, offset) {
+        fetch('/api/pl.php?granularity=' + encodeURIComponent(gran) + '&offset=' + (offset || 0), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) drawPl(wrap, j.card); })
+            .catch(function () {});
+    }
+
+    function drawPl(wrap, card) {
+        wrap.innerHTML = '';
+        var cur = card.currency || 'DKK';
+
+        // Header: title + granularity chips + prev/next period nav (mirrors the cockpit).
+        var head = document.createElement('div');
+        head.className = 'books-head';
+        var title = document.createElement('div');
+        title.className = 'books-title';
+        title.textContent = daText('Profit & loss', 'Resultatopgørelse');
+        head.appendChild(title);
+
+        var controls = document.createElement('div');
+        controls.className = 'books-controls';
+        var grans = document.createElement('div');
+        grans.className = 'books-periods';
+        (card.granularities || []).forEach(function (g) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'books-period' + (g.key === card.granularity ? ' is-active' : '');
+            b.textContent = g.label;
+            b.addEventListener('click', function () { plFetch(wrap, g.key, 0); });
+            grans.appendChild(b);
+        });
+        controls.appendChild(grans);
+        var nav = document.createElement('div');
+        nav.className = 'books-nav';
+        if (card.granularity !== 'all') {
+            var prev = document.createElement('button');
+            prev.type = 'button'; prev.className = 'books-navbtn'; prev.textContent = '‹';
+            prev.setAttribute('aria-label', daText('Previous period', 'Forrige periode'));
+            prev.addEventListener('click', function () { plFetch(wrap, card.granularity, (card.offset || 0) - 1); });
+            var lbl = document.createElement('span'); lbl.className = 'books-navlabel'; lbl.textContent = card.period_label || '';
+            var next = document.createElement('button');
+            next.type = 'button'; next.className = 'books-navbtn'; next.textContent = '›';
+            next.setAttribute('aria-label', daText('Next period', 'Næste periode'));
+            next.disabled = !card.can_next;
+            next.addEventListener('click', function () { if (card.can_next) plFetch(wrap, card.granularity, (card.offset || 0) + 1); });
+            nav.appendChild(prev); nav.appendChild(lbl); nav.appendChild(next);
+        } else {
+            var allLbl = document.createElement('span'); allLbl.className = 'books-navlabel'; allLbl.textContent = card.period_label || '';
+            nav.appendChild(allLbl);
+        }
+        controls.appendChild(nav);
+        head.appendChild(controls);
+        wrap.appendChild(head);
+
+        // Statement rows.
+        var stmt = document.createElement('div');
+        stmt.className = 'pl-statement';
+        function line(label, value, cls) {
+            var row = document.createElement('div');
+            row.className = 'pl-line' + (cls ? ' ' + cls : '');
+            var l = document.createElement('span'); l.className = 'pl-line-label'; l.textContent = label;
+            var v = document.createElement('span'); v.className = 'pl-line-val'; v.textContent = fmtMoney(value, cur);
+            row.appendChild(l); row.appendChild(v);
+            return row;
+        }
+        stmt.appendChild(line(daText('Revenue', 'Omsætning'), card.revenue, 'pl-revenue'));
+
+        // Expenses, by category (indented), then a subtotal.
+        var cats = card.expense_categories || [];
+        if (cats.length) {
+            var eh = document.createElement('div'); eh.className = 'pl-subhead';
+            eh.textContent = daText('Expenses', 'Udgifter');
+            stmt.appendChild(eh);
+            cats.forEach(function (c) {
+                stmt.appendChild(line('   ' + (c.category || 'Other') + ' (' + (c.count || 0) + ')', -c.ex, 'pl-cat'));
+            });
+        }
+        stmt.appendChild(line(daText('Total expenses', 'Udgifter i alt'), -card.expenses, 'pl-expenses'));
+
+        // Profit.
+        stmt.appendChild(line(daText('Profit', 'Resultat'), card.profit, 'pl-profit ' + ((card.profit || 0) < 0 ? 'is-loss' : 'is-profit')));
+        wrap.appendChild(stmt);
+
+        // Tax reserve note.
+        var tr = card.tax_reserve || {};
+        var note = document.createElement('div');
+        note.className = 'pl-note';
+        note.textContent = '🔒 ' + daText('Set aside for tax (est. ', 'Hensæt til skat (ca. ') + (tr.pct || 0) + '%): '
+            + fmtMoney(tr.amount, cur);
+        wrap.appendChild(note);
+
+        var foot = document.createElement('div');
+        foot.className = 'moms-foot';
+        foot.textContent = daText(
+            'Accrual, ex-VAT — booked income and confirmed expenses by their own date. An estimate, not a filed annual account.',
+            'Periodiseret, ekskl. moms — bogført indtægt og bekræftede udgifter efter egen dato. Et estimat, ikke et indberettet årsregnskab.');
         wrap.appendChild(foot);
     }
 
