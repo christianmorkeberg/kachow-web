@@ -3177,7 +3177,67 @@
             inputs.total.value = round2(ex + v);
         }
 
-        // "Paid" toggle — records/clears the payment date. Outstanding until ticked.
+        // ---- Booked entry: the payment date is directly editable (set / change / clear,
+        // freely backdatable), plus the invoice document/mark-paid controls. ----
+        if (booked) {
+            var payRow = document.createElement('div');
+            payRow.className = 'receipt-field income-paid';
+            var pLabel = document.createElement('span');
+            pLabel.className = 'receipt-label';
+            pLabel.textContent = daText('Payment date', 'Betalingsdato');
+            var pWrap = document.createElement('span');
+            pWrap.className = 'income-paid-controls';
+            var pDate = document.createElement('input');
+            pDate.type = 'date';
+            pDate.value = card.paid_at || '';
+            var pBtn = document.createElement('button');
+            pBtn.type = 'button'; pBtn.className = 'receipt-confirm income-pay-btn';
+            pBtn.textContent = card.paid ? daText('Update', 'Opdatér') : daText('Mark paid', 'Markér betalt');
+            pWrap.appendChild(pDate);
+            pWrap.appendChild(pBtn);
+            if (card.paid) {
+                var unpaidBtn = document.createElement('button');
+                unpaidBtn.type = 'button'; unpaidBtn.className = 'mileage-link';
+                unpaidBtn.textContent = daText('mark unpaid', 'markér ubetalt');
+                pWrap.appendChild(unpaidBtn);
+                unpaidBtn.addEventListener('click', function () {
+                    incomeAction({ action: 'update', id: card.id, paid_at: '' }).then(function (res) {
+                        if (res && res.card) { if (onChange) onChange(); else buildIncome(wrap, res.card); }
+                    });
+                });
+            }
+            payRow.appendChild(pLabel);
+            payRow.appendChild(pWrap);
+            wrap.appendChild(payRow);
+            pBtn.addEventListener('click', function () {
+                pBtn.disabled = true;
+                var d = pDate.value || new Date().toISOString().slice(0, 10);
+                incomeAction({ action: 'mark_paid', id: card.id, date: d }).then(function (res) {
+                    if (res && res.card) { if (onChange) onChange(); else buildIncome(wrap, res.card); }
+                    else pBtn.disabled = false;
+                }).catch(function () { pBtn.disabled = false; });
+            });
+
+            // Delete a booked entry (soft-delete: trailed in the audit log, like expenses).
+            var delRow = document.createElement('div');
+            delRow.className = 'receipt-actions';
+            var delBtn = document.createElement('button');
+            delBtn.type = 'button'; delBtn.className = 'receipt-discard';
+            delBtn.textContent = daText('Delete', 'Slet');
+            delRow.appendChild(delBtn);
+            wrap.appendChild(delRow);
+            delBtn.addEventListener('click', function () {
+                if (!window.confirm(daText('Delete this income entry?', 'Slet denne indtægt?'))) return;
+                delBtn.disabled = true;
+                incomeAction({ action: 'discard', id: card.id }).then(function (res) {
+                    if (res && res.deleted) { if (onChange) onChange(); else wrap.remove(); }
+                    else delBtn.disabled = false;
+                }).catch(function () { delBtn.disabled = false; });
+            });
+            return;
+        }
+
+        // ---- Draft entry: "Paid" toggle (records/clears the date on confirm). ----
         var paidRow = document.createElement('label');
         paidRow.className = 'receipt-field income-paid';
         var paidLabel = document.createElement('span');
@@ -3188,7 +3248,6 @@
         var paidChk = document.createElement('input');
         paidChk.type = 'checkbox';
         paidChk.checked = !!card.paid;
-        paidChk.disabled = booked && !!card.paid;   // once booked, still allow marking paid later
         var paidDate = document.createElement('input');
         paidDate.type = 'date';
         paidDate.value = card.paid_at || card.date || '';
@@ -3200,35 +3259,10 @@
         wrap.appendChild(paidRow);
         paidChk.addEventListener('change', function () { paidDate.hidden = !paidChk.checked; });
 
-        if (!booked) {
-            inputs.total.addEventListener('input', fromTotal);
-            inputs.amount_ex_vat.addEventListener('input', fromEx);
-            inputs.vat.addEventListener('input', fromVat);
-            inputs.currency.addEventListener('change', function () { vatable = (inputs.currency.value === 'DKK'); });
-        }
-
-        // When already booked, still allow a later "mark paid" without re-editing.
-        if (booked) {
-            if (!card.paid) {
-                var actionsB = document.createElement('div');
-                actionsB.className = 'receipt-actions';
-                var payBtn = document.createElement('button');
-                payBtn.type = 'button'; payBtn.className = 'receipt-confirm';
-                payBtn.textContent = daText('Mark paid', 'Markér betalt');
-                actionsB.appendChild(payBtn);
-                wrap.appendChild(actionsB);
-                payBtn.addEventListener('click', function () {
-                    payBtn.disabled = true;
-                    incomeAction({ action: 'mark_paid', id: card.id, date: paidDate.value })
-                        .then(function (res) {
-                            if (res && res.card) { if (onChange) onChange(); else buildIncome(wrap, res.card); }
-                            else payBtn.disabled = false;
-                        })
-                        .catch(function () { payBtn.disabled = false; });
-                });
-            }
-            return;
-        }
+        inputs.total.addEventListener('input', fromTotal);
+        inputs.amount_ex_vat.addEventListener('input', fromEx);
+        inputs.vat.addEventListener('input', fromVat);
+        inputs.currency.addEventListener('change', function () { vatable = (inputs.currency.value === 'DKK'); });
 
         var actions = document.createElement('div');
         actions.className = 'receipt-actions';

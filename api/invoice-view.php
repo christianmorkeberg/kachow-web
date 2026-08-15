@@ -63,8 +63,18 @@ function lines(string $s): string
 }
 
 $number   = (string) ($card['doc_number'] ?? '');
-$isDoc    = (bool) ($card['is_invoice_doc'] ?? false);
 $items    = $card['line_items'] ?? [];
+// A recorded invoice has no line items — synthesise one summary line from its total so
+// the document still renders as a proper invoice.
+if ($items === []) {
+    $exAmt = round((float) ($card['ex'] ?? 0), 2);
+    $items = [[
+        'description' => ((string) ($card['note'] ?? '')) !== '' ? (string) $card['note'] : 'Ydelse',
+        'qty'         => 1.0,
+        'unit_price'  => $exAmt,
+        'amount'      => $exAmt,
+    ]];
+}
 $title    = 'Faktura ' . ($number !== '' ? $number : '#' . $id);
 header('Content-Type: text/html; charset=utf-8');
 ?>
@@ -113,9 +123,6 @@ header('Content-Type: text/html; charset=utf-8');
 <body>
 <div class="actions"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>
 <div class="sheet">
-<?php if (!$isDoc): ?>
-  <div class="warn">This income entry has no invoice lines — it may be a recorded (not generated) invoice.</div>
-<?php endif; ?>
 <?php if ($profile['name'] === '' || $profile['cvr'] === ''): ?>
   <div class="warn">Your company name/CVR isn't set — the invoice is incomplete. Set it in Kachow (set your company details) and reopen.</div>
 <?php endif; ?>
