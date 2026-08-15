@@ -17,6 +17,7 @@ use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Books;
 use App\Data\Income;
+use App\Data\Mileage;
 use App\Data\OwnerDraws;
 use App\Data\Receipts;
 use App\Data\RememberTokens;
@@ -46,7 +47,8 @@ if (!$session->isLoggedIn()) {
 }
 $userId = (int) $session->userId();
 
-$books = new Books(new Income(), new Receipts(), new OwnerDraws(), new UserSettings());
+$settings = new UserSettings();
+$books = new Books(new Income(), new Receipts(), new OwnerDraws(), $settings, new Mileage($settings));
 $action = (string) ($_GET['action'] ?? 'overview');
 
 try {

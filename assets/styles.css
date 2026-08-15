@@ -739,6 +739,24 @@ button.ghost {
 .income-lines li:first-child { border-top: none; }
 .income-line-desc { min-width: 0; }
 
+/* Mileage (kørsel) card */
+.mileage-card { display: flex; flex-direction: column; gap: 12px; }
+.mileage-counter { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; }
+.mileage-counter.is-over { border-color: var(--warn); }
+.mileage-counter-text { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+.mileage-counter.is-over .mileage-counter-text { color: var(--warn); }
+.mileage-bar { height: 7px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.mileage-bar-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s; }
+.mileage-counter.is-over .mileage-bar-fill { background: var(--warn); }
+.mileage-dist { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.mileage-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12.5px; padding: 0; text-decoration: underline; }
+.mileage-dist-edit { display: inline-flex; gap: 6px; }
+.mileage-dist-edit .books-addinput { flex: 0 0 90px; }
+.mileage-add { align-self: flex-start; }
+.mileage-badge { display: inline-block; font-size: 10.5px; padding: 1px 7px; border-radius: 999px; vertical-align: middle; }
+.mileage-badge-business { background: var(--accent-soft); color: var(--accent); }
+.mileage-badge-commuter { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+
 .books-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 .books-chip {
     font-size: 11.5px; padding: 2px 8px; border-radius: 999px;

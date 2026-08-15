@@ -14,6 +14,7 @@ require __DIR__ . '/../bootstrap.php';
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Income;
+use App\Data\Mileage;
 use App\Data\ProfitLoss;
 use App\Data\Receipts;
 use App\Data\RememberTokens;
@@ -50,7 +51,8 @@ if (!in_array($gran, ['month', 'quarter', 'year', 'all'], true)) {
 $offset = max(-600, min(0, (int) ($_GET['offset'] ?? 0)));
 
 try {
-    $pl = new ProfitLoss(new Income(), new Receipts(), new UserSettings());
+    $settings = new UserSettings();
+    $pl = new ProfitLoss(new Income(), new Receipts(), $settings, new Mileage($settings));
     out(200, ['ok' => true, 'card' => $pl->statement($userId, $gran, $offset)]);
 } catch (\Throwable $e) {
     error_log('pl.php: ' . $e->getMessage());

@@ -21,6 +21,7 @@ use App\Auth\Session;
 use App\Data\Cash;
 use App\Data\CashEntries;
 use App\Data\Income;
+use App\Data\Mileage;
 use App\Data\OwnerDraws;
 use App\Data\Receipts;
 use App\Data\RememberTokens;
@@ -50,8 +51,9 @@ if (!$session->isLoggedIn()) {
 }
 $userId = (int) $session->userId();
 
-$entries = new CashEntries();
-$cash    = new Cash(new Income(), new Receipts(), new OwnerDraws(), $entries, new UserSettings());
+$entries  = new CashEntries();
+$settings = new UserSettings();
+$cash     = new Cash(new Income(), new Receipts(), new OwnerDraws(), $entries, $settings, new Mileage($settings));
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
