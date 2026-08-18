@@ -6,7 +6,7 @@ declare(strict_types=1);
  * CSV export of the user's work log (authenticated session).
  *
  *   GET ?from=YYYY-MM-DD&to=YYYY-MM-DD&job=…  (all optional)
- *     → downloads a CSV: date, job, hours, description.
+ *     → downloads a CSV: date, job, description (hours live in work_events, not here).
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -46,12 +46,11 @@ header('Content-Disposition: attachment; filename="' . $fname . '"');
 
 $out = fopen('php://output', 'w');
 fprintf($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads æøå correctly
-fputcsv($out, ['Date', 'Job', 'Hours', 'What I did']);
+fputcsv($out, ['Date', 'Job', 'What I did']);
 foreach (array_reverse($items) as $i) { // oldest first for a report
     fputcsv($out, [
         $i['date'],
         $i['job'],
-        $i['hours'] !== null ? number_format((float) $i['hours'], 2, '.', '') : '',
         $i['description'],
     ]);
 }

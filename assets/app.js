@@ -1568,8 +1568,7 @@
             byJob.forEach(function (j) {
                 var chip = document.createElement('span');
                 chip.className = 'worklog-job';
-                var h = (j.hours != null && j.hours > 0) ? (' · ' + (+j.hours) + 'h') : '';
-                chip.textContent = j.job + h + ' (' + j.entries + ')';
+                chip.textContent = j.job + ' (' + j.entries + ')';
                 chips.appendChild(chip);
             });
             wrap.appendChild(chips);
@@ -1590,7 +1589,7 @@
             var when = new Date(it.date);
             var dateLabel = isNaN(when.getTime()) ? it.date
                 : when.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-            meta.textContent = dateLabel + ' · ' + it.job + (it.hours != null && it.hours > 0 ? ' · ' + (+it.hours) + 'h' : '');
+            meta.textContent = dateLabel + ' · ' + it.job;
             var desc = document.createElement('div');
             desc.className = 'worklog-entry-desc';
             desc.textContent = it.description || '';
