@@ -155,6 +155,247 @@
         applyDevMode();
     })();
 
+    // ---- Insights: in-app usage/perf dashboard (admin-gated by the API) ------------
+    // Fetches the diagnostics rollup (api/usage-stats.php) and renders it as cards +
+    // bars + a daily trend, with a live auto-refresh and per-tool drill-down. All
+    // charts are plain CSS (CSP-safe, no external lib).
+    var insights = { days: 7, live: true, timer: null, expanded: null, loading: false };
+
+    function openInsights() {
+        if (document.getElementById('insightsOverlay')) return;
+        var ov = document.createElement('div');
+        ov.id = 'insightsOverlay';
+        ov.className = 'insights-overlay';
+        ov.innerHTML =
+            '<div class="insights-box" role="dialog" aria-label="Usage insights">' +
+            '  <div class="insights-head">' +
+            '    <div class="insights-title">📊 Insights</div>' +
+            '    <div class="insights-ranges" id="insRanges"></div>' +
+            '    <label class="insights-live"><input type="checkbox" id="insLive"> live</label>' +
+            '    <button type="button" class="insights-refresh" id="insRefresh" title="Refresh">↻</button>' +
+            '    <button type="button" class="insights-close" id="insClose" aria-label="Close">✕</button>' +
+            '  </div>' +
+            '  <div class="insights-body" id="insBody"><div class="insights-loading">Loading…</div></div>' +
+            '</div>';
+        document.body.appendChild(ov);
+
+        var ranges = [['1', '24h'], ['7', '7d'], ['30', '30d'], ['', 'all']];
+        var rc = ov.querySelector('#insRanges');
+        ranges.forEach(function (r) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'ins-range';
+            b.dataset.days = r[0];
+            b.textContent = r[1];
+            if ((r[0] === '' ? null : parseInt(r[0], 10)) === insights.days) b.classList.add('on');
+            b.addEventListener('click', function () {
+                insights.days = r[0] === '' ? null : parseInt(r[0], 10);
+                insights.expanded = null;
+                ov.querySelectorAll('.ins-range').forEach(function (x) { x.classList.remove('on'); });
+                b.classList.add('on');
+                loadInsights();
+            });
+            rc.appendChild(b);
+        });
+
+        var live = ov.querySelector('#insLive');
+        live.checked = insights.live;
+        live.addEventListener('change', function () { insights.live = live.checked; scheduleInsights(); });
+        ov.querySelector('#insRefresh').addEventListener('click', loadInsights);
+        ov.querySelector('#insClose').addEventListener('click', closeInsights);
+        ov.addEventListener('click', function (e) { if (e.target === ov) closeInsights(); });
+
+        loadInsights();
+        scheduleInsights();
+    }
+
+    function closeInsights() {
+        if (insights.timer) { clearInterval(insights.timer); insights.timer = null; }
+        var ov = document.getElementById('insightsOverlay');
+        if (ov) ov.remove();
+    }
+
+    function scheduleInsights() {
+        if (insights.timer) { clearInterval(insights.timer); insights.timer = null; }
+        if (insights.live && document.getElementById('insightsOverlay')) {
+            insights.timer = setInterval(loadInsights, 10000);
+        }
+    }
+
+    function loadInsights() {
+        if (insights.loading) return;
+        insights.loading = true;
+        var qs = insights.days ? ('?days=' + insights.days) : '';
+        fetch('/api/usage-stats.php' + qs, { credentials: 'same-origin' })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                insights.loading = false;
+                var body = document.getElementById('insBody');
+                if (!body) return;
+                if (!res.ok || !res.j || !res.j.ok) {
+                    body.innerHTML = '<div class="insights-error">' +
+                        progEsc((res.j && res.j.error) || 'Could not load insights.') + '</div>';
+                    return;
+                }
+                renderInsights(res.j.stats);
+            })
+            .catch(function () {
+                insights.loading = false;
+                var body = document.getElementById('insBody');
+                if (body) body.innerHTML = '<div class="insights-error">Network error.</div>';
+            });
+    }
+
+    function insBar(label, value, max, unit, cls) {
+        var pctW = max > 0 ? Math.max(2, Math.round(100 * value / max)) : 0;
+        return '<div class="ins-bar-row"><span class="ins-bar-label">' + progEsc(label) + '</span>' +
+            '<span class="ins-bar-track"><span class="ins-bar-fill ' + (cls || '') + '" style="width:' + pctW + '%"></span></span>' +
+            '<span class="ins-bar-val">' + value + (unit || '') + '</span></div>';
+    }
+
+    function renderInsights(s) {
+        var body = document.getElementById('insBody');
+        if (!body) return;
+        var m = s.meta || {};
+        var lat = s.latency || {};
+        var html = '';
+
+        // Meta line
+        html += '<div class="ins-meta">' + (m.turns || 0) + ' turns · ' +
+            progEsc(m.first_at || '—') + ' → ' + progEsc(m.last_at || '—') +
+            (m.days ? ' · last ' + m.days + 'd' : ' · all history') + '</div>';
+
+        if (!m.turns) {
+            body.innerHTML = html + '<div class="insights-loading">No turns in this range yet.</div>';
+            return;
+        }
+
+        // Summary cards
+        var errTotal = (s.errors || []).reduce(function (a, e) { return a + e.count; }, 0);
+        html += '<div class="ins-cards">' +
+            insCard(m.turns, 'turns') +
+            insCard(s.gemini_calls_avg, 'avg round-trips') +
+            insCard((lat.total && lat.total.p50 || 0) + 'ms', 'total p50') +
+            insCard((lat.gemini && lat.gemini.p95 || 0) + 'ms', 'gemini p95') +
+            insCard(errTotal, 'tool errors') +
+            '</div>';
+
+        // Latency bars (p50, with p95 in the value)
+        var latMax = Math.max(1, (lat.total && lat.total.p95) || 1);
+        html += '<div class="ins-section"><h4>Latency (p50 bar · p95 label)</h4>';
+        [['total', 'total turn', ''], ['gemini', 'gemini http', 'ins-fill-g'], ['tool', 'tool exec', 'ins-fill-t'], ['app', 'app/db', 'ins-fill-a']].forEach(function (row) {
+            var b = lat[row[0]] || { p50: 0, p95: 0 };
+            html += '<div class="ins-bar-row"><span class="ins-bar-label">' + row[1] + '</span>' +
+                '<span class="ins-bar-track"><span class="ins-bar-fill ' + row[2] + '" style="width:' +
+                Math.max(2, Math.round(100 * b.p50 / latMax)) + '%"></span></span>' +
+                '<span class="ins-bar-val">' + b.p50 + ' / ' + b.p95 + 'ms</span></div>';
+        });
+        html += '</div>';
+
+        // Daily trend (turns as column height; title carries detail)
+        if ((s.daily || []).length) {
+            var dMaxTurns = Math.max.apply(null, s.daily.map(function (d) { return d.turns; }).concat([1]));
+            html += '<div class="ins-section"><h4>Daily</h4><div class="ins-spark">';
+            s.daily.forEach(function (d) {
+                var h = Math.max(4, Math.round(100 * d.turns / dMaxTurns));
+                var t = d.date + ': ' + d.turns + ' turns, total p50 ' + d.total_p50 + 'ms, gemini p50 ' +
+                    d.gemini_p50 + 'ms, ' + d.errors + ' err';
+                html += '<span class="ins-spark-col" title="' + progEsc(t) + '">' +
+                    '<span class="ins-spark-bar' + (d.errors ? ' has-err' : '') + '" style="height:' + h + '%"></span>' +
+                    '<span class="ins-spark-x">' + progEsc(d.date.slice(5)) + '</span></span>';
+            });
+            html += '</div></div>';
+        }
+
+        // Routing + chaining side by side
+        html += '<div class="ins-two">';
+        var rMax = Math.max.apply(null, (s.routing || []).map(function (r) { return r.count; }).concat([1]));
+        html += '<div class="ins-section"><h4>Routing</h4>';
+        (s.routing || []).forEach(function (r) { html += insBar(r.group, r.count, rMax, '', 'ins-fill-r'); });
+        html += '</div>';
+        var cMax = Math.max.apply(null, (s.calls_per_turn || []).map(function (c) { return c.count; }).concat([1]));
+        html += '<div class="ins-section"><h4>Tool calls / turn</h4>';
+        (s.calls_per_turn || []).forEach(function (c) {
+            var lbl = c.n === 0 ? '0 (direct)' : (c.n === 1 ? '1 tool' : c.n + ' chained');
+            html += insBar(lbl, c.count, cMax, '', 'ins-fill-c');
+        });
+        html += '</div></div>';
+
+        // Most-used tools with drill-down
+        html += '<div class="ins-section"><h4>Tools (' + (s.tools || []).length + ')</h4>';
+        html += '<div class="ins-tools">';
+        (s.tools || []).forEach(function (t) {
+            var open = insights.expanded === t.name;
+            html += '<div class="ins-tool' + (open ? ' open' : '') + '" data-tool="' + progEsc(t.name) + '">' +
+                '<div class="ins-tool-hd">' +
+                '<span class="ins-tool-name">' + progEsc(t.name) + '</span>' +
+                '<span class="ins-tool-stat">' + t.count + '×</span>' +
+                '<span class="ins-tool-stat' + (t.err_pct > 0 ? ' bad' : '') + '">' + t.err_pct + '% err</span>' +
+                '<span class="ins-tool-stat">' + t.ms_p50 + '/' + t.ms_p95 + 'ms</span>' +
+                '<span class="ins-tool-stat">r' + t.avg_round + '</span>' +
+                '</div>';
+            if (open) html += insToolDetail(t);
+            html += '</div>';
+        });
+        html += '</div></div>';
+
+        // Top errors
+        if ((s.errors || []).length) {
+            html += '<div class="ins-section"><h4>Top errors</h4><ul class="ins-errs">';
+            s.errors.forEach(function (e) {
+                html += '<li><span class="ins-err-n">' + e.count + '×</span> <code>' + progEsc(e.tool) +
+                    '</code> ' + progEsc(e.msg) + '</li>';
+            });
+            html += '</ul></div>';
+        }
+
+        body.innerHTML = html;
+
+        // Wire tool drill-down toggles.
+        body.querySelectorAll('.ins-tool-hd').forEach(function (hd) {
+            hd.addEventListener('click', function () {
+                var name = hd.parentNode.dataset.tool;
+                insights.expanded = (insights.expanded === name) ? null : name;
+                renderInsights(s); // re-render from the same snapshot (no refetch)
+            });
+        });
+    }
+
+    function insCard(value, label) {
+        return '<div class="ins-card"><span class="ins-card-v">' + progEsc(String(value)) +
+            '</span><span class="ins-card-l">' + progEsc(label) + '</span></div>';
+    }
+
+    function insToolDetail(t) {
+        var html = '<div class="ins-tool-detail">';
+        var days = Object.keys(t.daily || {}).sort();
+        if (days.length) {
+            var mx = Math.max.apply(null, days.map(function (d) { return t.daily[d]; }).concat([1]));
+            html += '<div class="ins-spark small">';
+            days.forEach(function (d) {
+                html += '<span class="ins-spark-col" title="' + progEsc(d + ': ' + t.daily[d]) + '">' +
+                    '<span class="ins-spark-bar" style="height:' + Math.max(6, Math.round(100 * t.daily[d] / mx)) + '%"></span>' +
+                    '<span class="ins-spark-x">' + progEsc(d.slice(5)) + '</span></span>';
+            });
+            html += '</div>';
+        }
+        if ((t.errors || []).length) {
+            html += '<ul class="ins-errs">';
+            t.errors.forEach(function (e) {
+                html += '<li><span class="ins-err-n">' + e.count + '×</span> ' + progEsc(e.msg || '(no message)') + '</li>';
+            });
+            html += '</ul>';
+        } else {
+            html += '<div class="ins-tool-clean">no errors</div>';
+        }
+        return html + '</div>';
+    }
+
+    (function initInsights() {
+        var b = document.getElementById('insightsBtn');
+        if (b) b.addEventListener('click', openInsights);
+    })();
+
     function toast(msg) {
         var t = document.createElement('div');
         t.className = 'toast';
