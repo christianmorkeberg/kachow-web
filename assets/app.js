@@ -4653,10 +4653,22 @@
             .catch(function () {});
     }
 
+    // Address → distance lookup (does NOT save; fills a field the user confirms).
+    function mileageLookup(home, dest, cb) {
+        fetch('/api/mileage.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'lookup_distance', home: home, dest: dest })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { cb(j || { ok: false, error: 'No response.' }); })
+            .catch(function () { cb({ ok: false, error: daText('Network error.', 'Netværksfejl.') }); });
+    }
+
     function drawMileage(wrap, card) {
         wrap.innerHTML = '';
         var cur = card.currency || 'DKK';
-        var biz = card.business || {}, com = card.commuter || {}, ctr = card.counter || {};
+        var biz = card.business || {}, com = card.commuter || {};
 
         // Header + year nav.
         var head = document.createElement('div');
@@ -4679,23 +4691,6 @@
         head.appendChild(nav);
         wrap.appendChild(head);
 
-        // 60-day counter with a progress bar.
-        var used = ctr.business_used || 0, limit = ctr.limit || 60, rem = ctr.remaining || 0;
-        var counter = document.createElement('div');
-        counter.className = 'mileage-counter' + (ctr.commuting_now ? ' is-over' : '');
-        var ctxt = document.createElement('div'); ctxt.className = 'mileage-counter-text';
-        ctxt.textContent = ctr.commuting_now
-            ? daText('60-day limit reached — driving now counts as commuting (befordringsfradrag).',
-                     '60-dages-grænsen er nået — kørsel tæller nu som pendling (befordringsfradrag).')
-            : daText(used + ' of ' + limit + ' business days used · ' + rem + ' left before it becomes commuting',
-                     used + ' af ' + limit + ' erhvervsdage brugt · ' + rem + ' tilbage før det bliver pendling');
-        var bar = document.createElement('div'); bar.className = 'mileage-bar';
-        var fill = document.createElement('div'); fill.className = 'mileage-bar-fill';
-        fill.style.width = Math.min(100, Math.round((used / limit) * 100)) + '%';
-        bar.appendChild(fill);
-        counter.appendChild(ctxt); counter.appendChild(bar);
-        wrap.appendChild(counter);
-
         // Two deduction figures.
         var heroes = document.createElement('div');
         heroes.className = 'cash-heroes';
@@ -4713,34 +4708,49 @@
             (com.days || 0) + ' ' + daText('days · personal tax return', 'dage · personlig selvangivelse')));
         wrap.appendChild(heroes);
 
-        // Round-trip distance + inline editor.
-        var distRow = document.createElement('div');
-        distRow.className = 'mileage-dist';
-        var distTxt = document.createElement('span');
-        distTxt.textContent = (card.round_trip > 0)
-            ? daText('Round trip: ', 'Tur/retur: ') + card.round_trip + ' km'
-            : daText('No round-trip distance set yet.', 'Ingen tur/retur-afstand sat endnu.');
-        var distEdit = document.createElement('button');
-        distEdit.type = 'button'; distEdit.className = 'mileage-link';
-        distEdit.textContent = daText('edit', 'ret');
-        var distInput = document.createElement('span'); distInput.className = 'mileage-dist-edit'; distInput.style.display = 'none';
-        var di = document.createElement('input'); di.type = 'number'; di.step = '0.1'; di.min = '0';
-        di.className = 'books-addinput'; di.placeholder = daText('km', 'km'); di.value = card.round_trip || '';
-        var dsave = document.createElement('button'); dsave.type = 'button'; dsave.className = 'books-addsave'; dsave.textContent = daText('Save', 'Gem');
-        dsave.addEventListener('click', function () { mileagePost(wrap, { action: 'set_distance', km: parseFloat(di.value) || 0 }); });
-        distInput.appendChild(di); distInput.appendChild(dsave);
-        distEdit.addEventListener('click', function () {
-            var show = distInput.style.display === 'none';
-            distInput.style.display = show ? 'inline-flex' : 'none';
-            if (show) di.focus();
-        });
-        distRow.appendChild(distTxt); distRow.appendChild(distEdit); distRow.appendChild(distInput);
-        wrap.appendChild(distRow);
+        // Destinations — each with its own distance, tax type, and (for business) 60-day counter.
+        var dests = card.destinations || [];
+        var destSec = document.createElement('div');
+        destSec.className = 'mileage-dests';
 
-        // Log a driving day (date + optional km override).
+        var destHead = document.createElement('div');
+        destHead.className = 'mileage-dests-head';
+        var dhTitle = document.createElement('span');
+        dhTitle.className = 'mileage-dests-title';
+        dhTitle.textContent = daText('Destinations', 'Destinationer');
+        var addDestBtn = document.createElement('button');
+        addDestBtn.type = 'button'; addDestBtn.className = 'mileage-link';
+        addDestBtn.textContent = '+ ' + daText('Add', 'Tilføj');
+        destHead.appendChild(dhTitle); destHead.appendChild(addDestBtn);
+        destSec.appendChild(destHead);
+
+        dests.forEach(function (d) { destSec.appendChild(buildDestRow(wrap, d, cur)); });
+        if (!dests.length) {
+            var noDest = document.createElement('div');
+            noDest.className = 'mileage-dist';
+            noDest.textContent = daText('No destinations yet — add one (e.g. a customer, or DTU) to start logging.',
+                                        'Ingen destinationer endnu — tilføj en (fx en kunde eller DTU) for at logge.');
+            destSec.appendChild(noDest);
+        }
+
+        var addEditor = buildDestEditor(wrap, null);
+        addEditor.style.display = 'none';
+        destSec.appendChild(addEditor);
+        addDestBtn.addEventListener('click', function () {
+            addEditor.style.display = addEditor.style.display === 'none' ? 'block' : 'none';
+        });
+        wrap.appendChild(destSec);
+
+        // Log a driving day (destination + date + optional km override).
         var form = document.createElement('div');
-        form.className = 'books-addform';
+        form.className = 'books-addform mileage-logform';
         form.style.display = 'none';
+        var dSel = document.createElement('select'); dSel.className = 'books-addinput mileage-destsel';
+        dests.forEach(function (d) {
+            var opt = document.createElement('option'); opt.value = d.id;
+            opt.textContent = d.name + (d.type === 'commute' ? ' · ' + daText('commute', 'pendling') : '');
+            dSel.appendChild(opt);
+        });
         var dDate = document.createElement('input'); dDate.type = 'date'; dDate.className = 'books-addinput';
         dDate.value = new Date().toISOString().slice(0, 10);
         var dKm = document.createElement('input'); dKm.type = 'number'; dKm.step = '0.1'; dKm.min = '0';
@@ -4749,18 +4759,18 @@
         dSave.textContent = daText('Log', 'Registrér');
         dSave.addEventListener('click', function () {
             var body = { action: 'log', date: dDate.value };
+            if (dSel.value) body.destination_id = parseInt(dSel.value, 10);
             if (dKm.value) body.km = parseFloat(dKm.value);
             mileagePost(wrap, body);
         });
-        form.appendChild(dDate); form.appendChild(dKm); form.appendChild(dSave);
+        form.appendChild(dSel); form.appendChild(dDate); form.appendChild(dKm); form.appendChild(dSave);
 
         var addBtn = document.createElement('button');
         addBtn.type = 'button'; addBtn.className = 'books-add mileage-add';
         addBtn.textContent = '🚗 ' + daText('Log a driving day', 'Registrér en køredag');
         addBtn.addEventListener('click', function () {
-            if (!(card.round_trip > 0) && form.style.display === 'none') { di.focus(); distInput.style.display = 'inline-flex'; return; }
-            var show = form.style.display === 'none';
-            form.style.display = show ? 'flex' : 'none';
+            if (!dests.length) { addEditor.style.display = 'block'; return; }
+            form.style.display = form.style.display === 'none' ? 'flex' : 'none';
         });
         wrap.appendChild(addBtn);
         wrap.appendChild(form);
@@ -4775,7 +4785,7 @@
                 var badge = document.createElement('span');
                 badge.className = 'mileage-badge mileage-badge-' + t.bucket;
                 badge.textContent = t.bucket === 'business' ? daText('business', 'erhverv') : daText('commute', 'pendling');
-                left.textContent = (t.date || '') + '  ' + (t.km || 0) + ' km' + (t.note ? ' · ' + t.note : '') + '  ';
+                left.textContent = (t.date || '') + '  ' + (t.destination ? t.destination + ' · ' : '') + (t.km || 0) + ' km' + (t.note ? ' · ' + t.note : '') + '  ';
                 left.appendChild(badge);
                 var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(t.amount, cur);
                 var del = deleteButton(daText('Delete day', 'Slet dag'));
@@ -4794,9 +4804,150 @@
         var foot = document.createElement('div');
         foot.className = 'moms-foot';
         foot.textContent = daText(
-            'First 60 days at one workplace = business driving (statens takst, lowers your profit & tax). Day 61+ = commuting (befordringsfradrag, on your personal return). An estimate — check the year’s rates.',
-            'Første 60 dage på samme arbejdsplads = erhvervskørsel (statens takst, sænker overskud & skat). Dag 61+ = pendling (befordringsfradrag, på din personlige selvangivelse). Et estimat — tjek årets satser.');
+            'Business destinations: first 60 days each = business driving (statens takst, in your P&L); day 61+ = commuting. Commute destinations (e.g. DTU) are befordringsfradrag from day 1 — on your personal return, never in the P&L. An estimate — check the year’s rates.',
+            'Erhvervsdestinationer: første 60 dage hver = erhvervskørsel (statens takst, i dit resultat); dag 61+ = pendling. Pendlerdestinationer (fx DTU) er befordringsfradrag fra dag 1 — på din personlige selvangivelse, aldrig i resultatet. Et estimat — tjek årets satser.');
         wrap.appendChild(foot);
+    }
+
+    // One destination row on the mileage card: name + type, distance + this-year figures,
+    // a 60-day counter for business destinations, and a toggleable editor.
+    function buildDestRow(wrap, d, cur) {
+        var row = document.createElement('div');
+        row.className = 'mileage-dest';
+
+        var top = document.createElement('div'); top.className = 'mileage-dest-top';
+        var nameEl = document.createElement('span'); nameEl.className = 'mileage-dest-name';
+        nameEl.textContent = d.name;
+        var typeBadge = document.createElement('span');
+        typeBadge.className = 'mileage-badge mileage-badge-' + (d.type === 'commute' ? 'commuter' : 'business');
+        typeBadge.textContent = d.type === 'commute' ? daText('commute', 'pendling') : daText('business', 'erhverv');
+        var editLink = document.createElement('button');
+        editLink.type = 'button'; editLink.className = 'mileage-link mileage-dest-edit';
+        editLink.textContent = daText('edit', 'ret');
+        top.appendChild(nameEl); top.appendChild(typeBadge); top.appendChild(editLink);
+        row.appendChild(top);
+
+        var meta = document.createElement('div'); meta.className = 'mileage-dest-meta';
+        meta.textContent = (d.round_trip > 0)
+            ? daText('Round trip: ', 'Tur/retur: ') + d.round_trip + ' km'
+            : daText('No distance set', 'Ingen afstand sat');
+        var figs = [];
+        if (d.business && d.business.days) figs.push(d.business.days + ' ' + daText('business', 'erhverv') + ' · ' + fmtMoney(d.business.amount, cur));
+        if (d.commuter && d.commuter.days) figs.push(d.commuter.days + ' ' + daText('commute', 'pendling') + ' · ' + fmtMoney(d.commuter.amount, cur));
+        if (figs.length) meta.textContent += '  ·  ' + figs.join('  ·  ');
+        row.appendChild(meta);
+
+        if (d.type !== 'commute' && d.counter) {
+            var used = d.counter.business_used || 0, limit = d.counter.limit || 60, rem = d.counter.remaining || 0;
+            var counter = document.createElement('div');
+            counter.className = 'mileage-counter' + (d.counter.commuting_now ? ' is-over' : '');
+            var ctxt = document.createElement('div'); ctxt.className = 'mileage-counter-text';
+            ctxt.textContent = d.counter.commuting_now
+                ? daText('60-day limit reached — now counts as commuting.', '60-dages-grænsen nået — tæller nu som pendling.')
+                : daText(used + ' of ' + limit + ' business days · ' + rem + ' left', used + ' af ' + limit + ' erhvervsdage · ' + rem + ' tilbage');
+            var bar = document.createElement('div'); bar.className = 'mileage-bar';
+            var fill = document.createElement('div'); fill.className = 'mileage-bar-fill';
+            fill.style.width = Math.min(100, Math.round((used / limit) * 100)) + '%';
+            bar.appendChild(fill);
+            counter.appendChild(ctxt); counter.appendChild(bar);
+            row.appendChild(counter);
+        }
+
+        var editor = buildDestEditor(wrap, d);
+        editor.style.display = 'none';
+        row.appendChild(editor);
+        editLink.addEventListener('click', function () {
+            editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
+        });
+
+        return row;
+    }
+
+    // The add/edit destination editor (d = null → add-new). Includes an address→distance
+    // lookup that only fills the km field; the user still confirms with Save.
+    function buildDestEditor(wrap, d) {
+        var isNew = !d;
+        var box = document.createElement('div'); box.className = 'mileage-dest-editor';
+
+        var nameIn = document.createElement('input'); nameIn.type = 'text'; nameIn.className = 'books-addinput';
+        nameIn.placeholder = daText('Name (e.g. Customer, DTU)', 'Navn (fx Kunde, DTU)');
+        nameIn.value = isNew ? '' : (d.name || '');
+
+        var typeSel = document.createElement('select'); typeSel.className = 'books-addinput';
+        [['business', daText('Business (P&L)', 'Erhverv (resultat)')], ['commute', daText('Commute (personal)', 'Pendling (personlig)')]].forEach(function (o) {
+            var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1];
+            if (!isNew && d.type === o[0]) opt.selected = true;
+            typeSel.appendChild(opt);
+        });
+
+        var kmIn = document.createElement('input'); kmIn.type = 'number'; kmIn.step = '0.1'; kmIn.min = '0';
+        kmIn.className = 'books-addinput'; kmIn.placeholder = daText('Round-trip km', 'Tur/retur km');
+        kmIn.value = isNew ? '' : (d.round_trip || '');
+
+        var homeIn = document.createElement('input'); homeIn.type = 'text'; homeIn.className = 'books-addinput';
+        homeIn.placeholder = daText('Home address (for lookup)', 'Hjemmeadresse (til opslag)');
+        homeIn.value = isNew ? '' : (d.home_address || '');
+        var destIn = document.createElement('input'); destIn.type = 'text'; destIn.className = 'books-addinput';
+        destIn.placeholder = daText('Destination address (for lookup)', 'Destinationsadresse (til opslag)');
+        destIn.value = isNew ? '' : (d.dest_address || '');
+
+        var lookupBtn = document.createElement('button'); lookupBtn.type = 'button'; lookupBtn.className = 'mileage-link';
+        lookupBtn.textContent = '📍 ' + daText('Look up distance', 'Slå afstand op');
+        var lookupMsg = document.createElement('div'); lookupMsg.className = 'mileage-lookup-msg';
+        lookupBtn.addEventListener('click', function () {
+            if (!homeIn.value.trim() || !destIn.value.trim()) {
+                lookupMsg.textContent = daText('Enter both addresses first.', 'Indtast begge adresser først.');
+                return;
+            }
+            lookupBtn.disabled = true;
+            lookupMsg.textContent = daText('Looking up…', 'Slår op…');
+            mileageLookup(homeIn.value.trim(), destIn.value.trim(), function (res) {
+                lookupBtn.disabled = false;
+                if (res && res.ok && res.lookup) {
+                    kmIn.value = res.lookup.round_trip_km;
+                    lookupMsg.textContent = daText('Round trip ≈ ', 'Tur/retur ≈ ') + res.lookup.round_trip_km + ' km ('
+                        + res.lookup.one_way_km + daText(' km each way)', ' km hver vej)');
+                } else {
+                    lookupMsg.textContent = (res && res.error) || daText('Lookup failed.', 'Opslag mislykkedes.');
+                }
+            });
+        });
+
+        var save = document.createElement('button'); save.type = 'button'; save.className = 'books-addsave';
+        save.textContent = daText('Save', 'Gem');
+        save.addEventListener('click', function () {
+            if (!nameIn.value.trim()) { nameIn.focus(); return; }
+            var body = {
+                action: isNew ? 'add_destination' : 'update_destination',
+                name: nameIn.value.trim(),
+                type: typeSel.value,
+                km: parseFloat(kmIn.value) || 0,
+                home_address: homeIn.value.trim(),
+                dest_address: destIn.value.trim()
+            };
+            if (!isNew) body.id = d.id;
+            mileagePost(wrap, body);
+        });
+
+        var row1 = document.createElement('div'); row1.className = 'mileage-editrow';
+        row1.appendChild(nameIn); row1.appendChild(typeSel); row1.appendChild(kmIn);
+        var row2 = document.createElement('div'); row2.className = 'mileage-editrow';
+        row2.appendChild(homeIn); row2.appendChild(destIn);
+        var row3 = document.createElement('div'); row3.className = 'mileage-editrow';
+        row3.appendChild(lookupBtn);
+        if (!isNew) {
+            var arch = document.createElement('button'); arch.type = 'button'; arch.className = 'mileage-link mileage-archive';
+            arch.textContent = daText('archive', 'arkivér');
+            arch.addEventListener('click', function () {
+                if (!window.confirm(daText('Archive this destination? Its logged days stay.', 'Arkivér denne destination? Loggede dage bevares.'))) return;
+                mileagePost(wrap, { action: 'archive_destination', id: d.id });
+            });
+            row3.appendChild(arch);
+        }
+        row3.appendChild(save);
+
+        box.appendChild(row1); box.appendChild(row2); box.appendChild(lookupMsg); box.appendChild(row3);
+        return box;
     }
 
     function uploadReceipt(file) {
