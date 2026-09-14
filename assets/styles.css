@@ -757,20 +757,46 @@ button.ghost {
 .mileage-badge-business { background: var(--accent-soft); color: var(--accent); }
 .mileage-badge-commuter { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
 
-/* Mileage destinations */
-.mileage-dests { display: flex; flex-direction: column; gap: 10px; }
-.mileage-dests-head { display: flex; align-items: center; justify-content: space-between; }
+/* Mileage destinations — compact, grouped by tax type */
+.mileage-dests { display: flex; flex-direction: column; gap: 6px; }
+.mileage-dests-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
 .mileage-dests-title { font-size: 12.5px; font-weight: 600; color: var(--text-strong); }
-.mileage-dest {
-    background: var(--panel-2); border: 1px solid var(--border);
-    border-radius: var(--radius-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+
+.mileage-group-label {
+    display: flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
 }
+.mileage-group-label:first-of-type { margin-top: 2px; }
+.mileage-group-label::before { content: ''; width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+.mileage-group-business::before { background: var(--accent); }
+.mileage-group-commute::before { background: var(--muted); }
+
+.mileage-dest {
+    background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--border);
+    border-radius: 9px; padding: 7px 10px; display: flex; flex-direction: column; gap: 5px;
+}
+.mileage-dest-business { border-left-color: var(--accent); }
+.mileage-dest-commute { border-left-color: var(--muted); }
 .mileage-dest-top { display: flex; align-items: center; gap: 8px; }
-.mileage-dest-name { font-weight: 600; color: var(--text-strong); font-size: 13.5px; }
-.mileage-dest-edit { margin-left: auto; }
-.mileage-dest-meta { font-size: 12px; color: var(--muted); }
-.mileage-dest .mileage-counter { background: var(--panel); }
-.mileage-dest-editor { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; border-top: 1px dashed var(--border); }
+.mileage-dest-name {
+    font-weight: 600; color: var(--text-strong); font-size: 13px; flex: 1 1 auto;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mileage-dest-dist {
+    font-size: 11px; color: var(--muted); background: var(--panel); border: 1px solid var(--border);
+    border-radius: 999px; padding: 1px 8px; white-space: nowrap; flex: 0 0 auto;
+}
+.mileage-dest-edit { flex: 0 0 auto; font-size: 13px; line-height: 1; padding: 2px 4px; text-decoration: none; }
+.mileage-dest-figs { font-size: 11px; color: var(--muted); }
+
+.mileage-mini { display: flex; align-items: center; gap: 8px; }
+.mileage-mini-bar { flex: 1 1 auto; height: 5px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.mileage-mini-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s; }
+.mileage-mini.is-over .mileage-mini-fill { background: var(--warn); }
+.mileage-mini-label { flex: 0 0 auto; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.mileage-mini.is-over .mileage-mini-label { color: var(--warn); }
+
+.mileage-dest-editor { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; margin-top: 2px; border-top: 1px dashed var(--border); }
 .mileage-editrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .mileage-editrow .books-addinput { flex: 1 1 120px; min-width: 0; }
 .mileage-editrow select.books-addinput { flex: 0 0 auto; }

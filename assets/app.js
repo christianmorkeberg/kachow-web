@@ -4708,7 +4708,7 @@
             (com.days || 0) + ' ' + daText('days · personal tax return', 'dage · personlig selvangivelse')));
         wrap.appendChild(heroes);
 
-        // Destinations — each with its own distance, tax type, and (for business) 60-day counter.
+        // Destinations — grouped by tax type (business vs commute), compact cards.
         var dests = card.destinations || [];
         var destSec = document.createElement('div');
         destSec.className = 'mileage-dests';
@@ -4724,7 +4724,19 @@
         destHead.appendChild(dhTitle); destHead.appendChild(addDestBtn);
         destSec.appendChild(destHead);
 
-        dests.forEach(function (d) { destSec.appendChild(buildDestRow(wrap, d, cur)); });
+        [
+            { type: 'business', label: daText('Business · in your P&L', 'Erhverv · i dit resultat'),
+              items: dests.filter(function (d) { return d.type !== 'commute'; }) },
+            { type: 'commute',  label: daText('Commute · personal return', 'Pendling · personlig selvangivelse'),
+              items: dests.filter(function (d) { return d.type === 'commute'; }) }
+        ].forEach(function (g) {
+            if (!g.items.length) return;
+            var gl = document.createElement('div');
+            gl.className = 'mileage-group-label mileage-group-' + g.type;
+            gl.textContent = g.label;
+            destSec.appendChild(gl);
+            g.items.forEach(function (d) { destSec.appendChild(buildDestRow(wrap, d, cur)); });
+        });
         if (!dests.length) {
             var noDest = document.createElement('div');
             noDest.className = 'mileage-dist';
@@ -4746,10 +4758,17 @@
         form.className = 'books-addform mileage-logform';
         form.style.display = 'none';
         var dSel = document.createElement('select'); dSel.className = 'books-addinput mileage-destsel';
-        dests.forEach(function (d) {
-            var opt = document.createElement('option'); opt.value = d.id;
-            opt.textContent = d.name + (d.type === 'commute' ? ' · ' + daText('commute', 'pendling') : '');
-            dSel.appendChild(opt);
+        [
+            { label: daText('Business', 'Erhverv'), items: dests.filter(function (d) { return d.type !== 'commute'; }) },
+            { label: daText('Commute', 'Pendling'), items: dests.filter(function (d) { return d.type === 'commute'; }) }
+        ].forEach(function (g) {
+            if (!g.items.length) return;
+            var og = document.createElement('optgroup'); og.label = g.label;
+            g.items.forEach(function (d) {
+                var opt = document.createElement('option'); opt.value = d.id; opt.textContent = d.name;
+                og.appendChild(opt);
+            });
+            dSel.appendChild(og);
         });
         var dDate = document.createElement('input'); dDate.type = 'date'; dDate.className = 'books-addinput';
         dDate.value = new Date().toISOString().slice(0, 10);
@@ -4809,48 +4828,50 @@
         wrap.appendChild(foot);
     }
 
-    // One destination row on the mileage card: name + type, distance + this-year figures,
-    // a 60-day counter for business destinations, and a toggleable editor.
+    // One COMPACT destination card: name + distance chip + edit; a slim 60-day bar for
+    // business destinations; tiny this-year figures; a toggleable editor. A coloured left
+    // border marks business vs commute.
     function buildDestRow(wrap, d, cur) {
+        var isCommute = d.type === 'commute';
         var row = document.createElement('div');
-        row.className = 'mileage-dest';
+        row.className = 'mileage-dest mileage-dest-' + (isCommute ? 'commute' : 'business');
 
         var top = document.createElement('div'); top.className = 'mileage-dest-top';
         var nameEl = document.createElement('span'); nameEl.className = 'mileage-dest-name';
         nameEl.textContent = d.name;
-        var typeBadge = document.createElement('span');
-        typeBadge.className = 'mileage-badge mileage-badge-' + (d.type === 'commute' ? 'commuter' : 'business');
-        typeBadge.textContent = d.type === 'commute' ? daText('commute', 'pendling') : daText('business', 'erhverv');
+        var dist = document.createElement('span'); dist.className = 'mileage-dest-dist';
+        dist.textContent = (d.round_trip > 0) ? d.round_trip + ' km' : daText('set km', 'sæt km');
         var editLink = document.createElement('button');
         editLink.type = 'button'; editLink.className = 'mileage-link mileage-dest-edit';
-        editLink.textContent = daText('edit', 'ret');
-        top.appendChild(nameEl); top.appendChild(typeBadge); top.appendChild(editLink);
+        editLink.textContent = '✎';
+        editLink.title = daText('Edit destination', 'Ret destination');
+        editLink.setAttribute('aria-label', editLink.title);
+        top.appendChild(nameEl); top.appendChild(dist); top.appendChild(editLink);
         row.appendChild(top);
 
-        var meta = document.createElement('div'); meta.className = 'mileage-dest-meta';
-        meta.textContent = (d.round_trip > 0)
-            ? daText('Round trip: ', 'Tur/retur: ') + d.round_trip + ' km'
-            : daText('No distance set', 'Ingen afstand sat');
-        var figs = [];
-        if (d.business && d.business.days) figs.push(d.business.days + ' ' + daText('business', 'erhverv') + ' · ' + fmtMoney(d.business.amount, cur));
-        if (d.commuter && d.commuter.days) figs.push(d.commuter.days + ' ' + daText('commute', 'pendling') + ' · ' + fmtMoney(d.commuter.amount, cur));
-        if (figs.length) meta.textContent += '  ·  ' + figs.join('  ·  ');
-        row.appendChild(meta);
-
-        if (d.type !== 'commute' && d.counter) {
+        if (!isCommute && d.counter) {
             var used = d.counter.business_used || 0, limit = d.counter.limit || 60, rem = d.counter.remaining || 0;
-            var counter = document.createElement('div');
-            counter.className = 'mileage-counter' + (d.counter.commuting_now ? ' is-over' : '');
-            var ctxt = document.createElement('div'); ctxt.className = 'mileage-counter-text';
-            ctxt.textContent = d.counter.commuting_now
-                ? daText('60-day limit reached — now counts as commuting.', '60-dages-grænsen nået — tæller nu som pendling.')
-                : daText(used + ' of ' + limit + ' business days · ' + rem + ' left', used + ' af ' + limit + ' erhvervsdage · ' + rem + ' tilbage');
-            var bar = document.createElement('div'); bar.className = 'mileage-bar';
-            var fill = document.createElement('div'); fill.className = 'mileage-bar-fill';
+            var mini = document.createElement('div');
+            mini.className = 'mileage-mini' + (d.counter.commuting_now ? ' is-over' : '');
+            var track = document.createElement('div'); track.className = 'mileage-mini-bar';
+            var fill = document.createElement('div'); fill.className = 'mileage-mini-fill';
             fill.style.width = Math.min(100, Math.round((used / limit) * 100)) + '%';
-            bar.appendChild(fill);
-            counter.appendChild(ctxt); counter.appendChild(bar);
-            row.appendChild(counter);
+            track.appendChild(fill);
+            var mlabel = document.createElement('span'); mlabel.className = 'mileage-mini-label';
+            mlabel.textContent = d.counter.commuting_now
+                ? daText('60/60 · commuting', '60/60 · pendling')
+                : used + '/' + limit + ' · ' + rem + ' ' + daText('left', 'tilbage');
+            mini.appendChild(track); mini.appendChild(mlabel);
+            row.appendChild(mini);
+        }
+
+        var figs = [];
+        if (d.business && d.business.days) figs.push(d.business.days + daText('d business · ', 'd erhverv · ') + fmtMoney(d.business.amount, cur));
+        if (d.commuter && d.commuter.days) figs.push(d.commuter.days + daText('d commute · ', 'd pendling · ') + fmtMoney(d.commuter.amount, cur));
+        if (figs.length) {
+            var figEl = document.createElement('div'); figEl.className = 'mileage-dest-figs';
+            figEl.textContent = figs.join('   ');
+            row.appendChild(figEl);
         }
 
         var editor = buildDestEditor(wrap, d);
