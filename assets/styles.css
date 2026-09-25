@@ -1278,9 +1278,10 @@ button.ghost {
         border: 1px solid transparent; border-radius: var(--radius-sm);
         background: transparent; cursor: pointer; font-size: 18px; line-height: 1;
         display: inline-flex; align-items: center; justify-content: center;
+        color: var(--muted);   /* icons are currentColor line icons (emoji brought their own colour) */
     }
-    .rail-btn:hover { background: var(--accent-soft); }
-    .rail-btn.is-active { background: var(--accent-soft); border-color: var(--accent-line); }
+    .rail-btn:hover { background: var(--accent-soft); color: var(--text); }
+    .rail-btn.is-active { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
     .rail-sep { width: 22px; height: 1px; background: var(--border); margin: 3px 0; flex: 0 0 auto; }
 
     /* Drag handle between the two panes. */
@@ -2084,3 +2085,77 @@ body:not(.devmode) #insightsBtn { display: none; }
 .wch-ylab.halo { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
 .cycle-season-note { margin: 4px auto 8px; max-width: 34ch; text-align: center; font-size: 13px; color: var(--muted); }
 .cycle-source { display: block; margin-top: 12px; font-size: 11px; color: var(--muted); text-align: center; text-decoration: underline; }
+
+/* ---------- Icons (Lucide subset, assets/icons.js) ---------- */
+/* One flat line-icon set app-wide; icons take the text colour (currentColor) and scale
+   with the font, so they theme automatically. .ic-lead = an icon in front of a label. */
+.ic { width: 1.15em; height: 1.15em; vertical-align: -0.2em; flex-shrink: 0; display: inline-block; }
+.ic-lead { margin-right: .45em; }
+.rail-btn .ic { width: 20px; height: 20px; vertical-align: middle; }
+.cp-btn .ic, .iconbtn .ic, .tm-summary .ic, .modal-close .ic { width: 18px; height: 18px; vertical-align: middle; }
+.card-panel-head .cp-title .ic { color: var(--accent); }
+.tm-item .ic-lead, .composer-menu-item .ic-lead, .books-addmenu-item .ic-lead { color: var(--muted); }
+.brand .ic { color: var(--accent); }
+/* weather: flat icons, toned instead of emoji colours */
+.wx-sym .ic, .wx-now-sym .ic, .wx-wait-glyph .ic { width: 1em; height: 1em; vertical-align: -0.12em; margin: 0; }
+.wx-tone-sun   { color: #f59e0b; }
+.wx-tone-rain  { color: #38bdf8; }
+.wx-tone-cloud { color: var(--muted); }
+.wx-tone-night { color: #a5b4fc; }
+.wx-stat { display: inline-flex; align-items: center; margin-right: 12px; white-space: nowrap; }
+/* cycle ring centre icon inherits the season colour via .cyc-<season> (stroke) */
+svg.cyc-emoji { overflow: visible; }
+/* shopping list aisle groups */
+.shop-group { margin: 10px 0 2px; font-size: 12px; font-weight: 600; letter-spacing: .3px;
+    text-transform: uppercase; color: var(--muted); display: flex; align-items: center; }
+.shop-group .ic { color: var(--accent); }
+.shop-group + .plan-items { margin-top: 2px; }
+
+/* ---------- Live tool progress + tools-used strip ---------- */
+.tool-live { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 13px; }
+.tool-live:empty { display: none; }
+.row.has-tools .msg { min-width: 200px; }
+.tool-live { font-style: normal; }
+.tl-step { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.tl-step.tl-new { animation: tl-in .25s ease; }
+.tl-step.tl-running { color: var(--text); }
+.tl-ic { color: var(--accent); }
+.tl-text { flex: 1; }
+.tl-ok { color: #34d399; }
+.tl-err { color: #f87171; }
+.tl-spin { animation: tl-spin 1s linear infinite; color: var(--muted); }
+@keyframes tl-spin { to { transform: rotate(360deg); } }
+@keyframes tl-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tl-spin, .tl-step.tl-new { animation: none; } }
+.tool-strip {
+    display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+    margin: -4px 0 8px 44px; padding: 2px 4px; background: none; border: 0;
+    color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; text-align: left;
+    opacity: .75;
+}
+.tool-strip:hover, .tool-strip.open { opacity: 1; }
+.ts-item { display: inline-flex; align-items: center; gap: 4px; }
+.ts-item .ic { width: 14px; height: 14px; }
+.ts-item.ts-err { color: #f87171; }
+.ts-text { display: none; }
+.tool-strip.open { flex-direction: column; align-items: flex-start; }
+.tool-strip.open .ts-text { display: inline; }
+
+/* ---------- Card size (compact cards on the phone) ---------- */
+/* Scales the whole card — fonts, spacing, charts — via zoom, so no per-card font rules.
+   Default: compact on phones/tablets, normal on desktop; the Appearance card overrides
+   it per device (data-card-size on <html>, from localStorage). */
+:root { --card-scale: 1; }
+@media (max-width: 1023px) { :root { --card-scale: .88; } }
+:root[data-card-size="normal"]  { --card-scale: 1; }
+:root[data-card-size="compact"] { --card-scale: .88; }
+:root[data-card-size="small"]   { --card-scale: .78; }
+.card-panel-body > * { zoom: var(--card-scale); }   /* the card, not the panel: keep its height */
+@media (max-width: 700px) {
+    .card-panel-body { padding: 8px 10px; }
+    /* keep typed text at a real 16px after the zoom, so iOS never zooms on focus */
+    .card-panel-body input, .card-panel-body select, .card-panel-body textarea {
+        font-size: calc(16px / var(--card-scale));
+    }
+}
+.appearance-sub { margin-top: 14px; }

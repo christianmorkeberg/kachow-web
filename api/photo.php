@@ -51,6 +51,7 @@ use App\Mail\NativeMailer;
 use App\Music\Discogs;
 use App\Receipts\ReceiptStorage;
 use App\Support\Markdown;
+use App\Support\TurnProgress;
 use App\Tools\ToolRegistry;
 use App\Weather\Dmi;
 
@@ -83,6 +84,7 @@ if (!$session->isLoggedIn()) {
     respond(401, ['error' => 'Not authenticated.']);
 }
 $userId = (int) $session->userId();
+session_write_close(); // don't hold the session lock through a long photo turn (see chat.php)
 
 if (!isset($_FILES['photo'])) {
     respond(400, ['error' => 'No photo uploaded.']);
@@ -158,6 +160,13 @@ try {
     // photo itself is attached to the turn via $image and read multimodally.
     $userMessage = $caption !== '' ? $caption : '🖼️ Photo';
 
+    $turnId = isset($_POST['turn_id']) ? (string) $_POST['turn_id'] : '';
+    if (TurnProgress::validId($turnId)) {
+        $progress = new TurnProgress($userId, $turnId);
+        $loop->onProgress(static fn (array $state) => $progress->write($state));
+        register_shutdown_function(static fn () => $progress->delete());
+    }
+
     $reply = $loop->handle($userId, $conversationId, $userMessage, null, $image);
 
     respond(200, [
@@ -165,6 +174,7 @@ try {
         'reply_html'           => Markdown::toHtml($reply),
         'conversation_id'      => $conversationId,
         'card'                 => $loop->lastRender(),
+        'card_mode'            => $loop->lastCardMode(), // 'open' | 'min' (phones)
         'suggestions'          => $loop->lastSuggestions(),
         'diagnostics'          => $loop->lastDiagnostics(),
         'assistant_message_id' => $loop->lastAssistantMessageId(),

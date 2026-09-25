@@ -16,7 +16,7 @@ header('Service-Worker-Allowed: /');
 header('Cache-Control: no-cache, no-store, must-revalidate');
 
 $version = 0;
-foreach (['assets/styles.css', 'assets/app.js', 'sw.js'] as $file) {
+foreach (['assets/styles.css', 'assets/app.js', 'assets/icons.js', 'sw.js'] as $file) {
     $mtime = @filemtime(__DIR__ . '/' . $file);
     if ($mtime !== false && $mtime > $version) {
         $version = $mtime;

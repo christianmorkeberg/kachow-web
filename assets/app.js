@@ -13,6 +13,39 @@
     const AVATAR_STILL = '/assets/hummingbird_still.png';
     const AVATAR_FLYING = '/assets/hummingbird_no_background.gif';
 
+    // ---- Icons: one flat, consistent set (Lucide subset in assets/icons.js) -----------
+    // icon(name) → SVG markup string; iconEl(name) → a node; setIconText(el, name, text)
+    // → icon + label (replaces the old "🚗 Label" emoji strings). hydrateIcons() fills the
+    // server-rendered <span data-icon="…"> placeholders in index.php.
+    var ICONS = window.KACHOW_ICONS || {};
+    function icon(name, cls) {
+        var inner = ICONS[name];
+        if (!inner) return '';
+        return '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+            + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+            + inner + '</svg>';
+    }
+    function iconEl(name, cls) {
+        var t = document.createElement('span');
+        t.innerHTML = icon(name, cls);
+        return t.firstChild || document.createTextNode('');
+    }
+    function setIconText(el, name, text) {
+        el.textContent = '';
+        if (name && ICONS[name]) el.appendChild(iconEl(name, 'ic-lead'));
+        el.appendChild(document.createTextNode(text == null ? '' : String(text)));
+        return el;
+    }
+    function hydrateIcons(root) {
+        Array.prototype.forEach.call((root || document).querySelectorAll('[data-icon]'), function (el) {
+            if (el.getAttribute('data-icon-done')) return;
+            el.setAttribute('data-icon-done', '1');
+            var ic = iconEl(el.getAttribute('data-icon'), el.hasAttribute('data-icon-only') ? '' : 'ic-lead');
+            el.insertBefore(ic, el.firstChild);
+        });
+    }
+    hydrateIcons(document);
+
     const CONV_KEY = 'kachow.conversation_id';
     let conversationId = Number(localStorage.getItem(CONV_KEY)) || null;
     let busy = false;
@@ -50,7 +83,7 @@
             const rb = document.createElement('button');
             rb.type = 'button';
             rb.className = 'chip chip-resume';
-            rb.textContent = da ? '↩ Fortsæt hvor du slap' : '↩ Pick up where you left off';
+            setIconText(rb, 'undo-2', da ? 'Fortsæt hvor du slap' : 'Pick up where you left off');
             rb.addEventListener('click', function () {
                 const id = resumeConversation.id;
                 resumeConversation = null;
@@ -142,7 +175,7 @@
         if (b) {
             b.classList.toggle('tm-on', devMode);
             b.setAttribute('aria-pressed', devMode ? 'true' : 'false');
-            b.textContent = devMode ? '🛠️ Developer mode — on' : '🛠️ Developer mode';
+            setIconText(b, 'wrench', devMode ? 'Developer mode — on' : 'Developer mode');
         }
     }
     (function initDevMode() {
@@ -169,11 +202,11 @@
         ov.innerHTML =
             '<div class="insights-box" role="dialog" aria-label="Usage insights">' +
             '  <div class="insights-head">' +
-            '    <div class="insights-title">📊 Insights</div>' +
+            '    <div class="insights-title">' + icon('chart-column', 'ic-lead') + 'Insights</div>' +
             '    <div class="insights-ranges" id="insRanges"></div>' +
             '    <label class="insights-live"><input type="checkbox" id="insLive"> live</label>' +
-            '    <button type="button" class="insights-refresh" id="insRefresh" title="Refresh">↻</button>' +
-            '    <button type="button" class="insights-close" id="insClose" aria-label="Close">✕</button>' +
+            '    <button type="button" class="insights-refresh" id="insRefresh" title="Refresh" aria-label="Refresh">' + icon('refresh-cw') + '</button>' +
+            '    <button type="button" class="insights-close" id="insClose" aria-label="Close">' + icon('x') + '</button>' +
             '  </div>' +
             '  <div class="insights-body" id="insBody"><div class="insights-loading">Loading…</div></div>' +
             '</div>';
@@ -408,6 +441,143 @@
     // Tags a rendered message with its DB id (enabling "report to developer") and,
     // for assistant turns, appends a collapsible diagnostics panel (shown only in
     // developer mode via CSS).
+    // ---- What the assistant is doing (dev idea: show tools used live) ----------------
+    // Tool name → icon + a short sentence, derived rather than hand-listed for all ~115
+    // tools: the DOMAIN (a word in the name) picks the icon + object, the VERB prefix picks
+    // the action; a few tools get their own phrasing. EN/DA via daText.
+    var TOOL_DOMAINS = [
+        [/weather|forecast/,                    'cloud-sun',     'the weather',        'vejret'],
+        [/calendar/,                            'calendar',      'your calendar',      'din kalender'],
+        [/shopping|_item$|checked_items/,       'shopping-cart', 'the shopping list',  'indkøbslisten'],
+        [/workout|exercise|week_plan/,          'dumbbell',      'your training',      'din træning'],
+        [/work_log|work_time/,                  'notebook-pen',  'your work log',      'din arbejdslog'],
+        [/work_|clock/,                         'clock',         'your work hours',    'dine arbejdstimer'],
+        [/email/,                               'mail',          'your email',         'din mail'],
+        [/cycle|period/,                        'moon',          'your cycle',         'din cyklus'],
+        [/vinyl/,                               'disc-3',        'your records',       'dine plader'],
+        [/wishlist/,                            'gift',          'the wishlist',       'ønskelisten'],
+        [/receipt|expense/,                     'receipt',       'your expenses',      'dine udgifter'],
+        [/invoice|income/,                      'file-text',     'your income',        'dine indtægter'],
+        [/owner_draw/,                          'wallet',        'owner draws',        'hævninger'],
+        [/books/,                               'book-open',     'your books',         'dit regnskab'],
+        [/cash/,                                'landmark',      'your cash position', 'din likviditet'],
+        [/moms/,                                'percent',       'your VAT',           'din moms'],
+        [/profit_loss/,                         'trending-up',   'profit & loss',      'resultatet'],
+        [/mileage|trip|driving/,                'car',           'your driving log',   'din kørsel'],
+        [/dev_idea/,                            'lightbulb',     'the dev backlog',    'udviklingslisten'],
+        [/feedback|diagnostics/,                'wrench',        'feedback',           'feedback'],
+        [/reminder/,                            'alarm-clock',   'reminders',          'påmindelser'],
+        [/about_me/,                            'brain',         'what I know about you', 'hvad jeg ved om dig'],
+        [/instruction/,                         'list-checks',   'your preferences',   'dine præferencer'],
+        [/connection|invite/,                   'users',         'your connections',   'dine forbindelser'],
+        [/setting|appearance|my_name|company/,  'settings',      'your settings',      'dine indstillinger'],
+        [/chart/,                               'chart-column',  'a chart',            'en graf']
+    ];
+    var TOOL_SPECIAL = {
+        get_current_weather:  ['Checking the weather', 'Tjekker vejret'],
+        get_weather_forecast: ['Checking the forecast', 'Tjekker vejrudsigten'],
+        get_emails:           ['Checking your inbox', 'Tjekker din indbakke'],
+        read_email:           ['Reading the email', 'Læser mailen'],
+        draft_email:          ['Drafting an email', 'Skriver et mailudkast'],
+        send_email:           ['Sending the email', 'Sender mailen'],
+        get_driving_distance: ['Working out the route', 'Beregner ruten'],
+        show_chart:           ['Drawing a chart', 'Tegner en graf'],
+        get_work_summary:     ['Adding up your hours', 'Lægger dine timer sammen'],
+        create_invoice:       ['Creating the invoice', 'Opretter fakturaen'],
+        recommend_vinyl:      ['Finding a record for you', 'Finder en plade til dig'],
+        assess_vinyl:         ['Looking at the record', 'Kigger på pladen'],
+        remember_about_me:    ['Remembering that', 'Husker det']
+    };
+    function toolInfo(name) {
+        name = String(name || '');
+        var dom = null;
+        for (var i = 0; i < TOOL_DOMAINS.length; i++) {
+            if (TOOL_DOMAINS[i][0].test(name)) { dom = TOOL_DOMAINS[i]; break; }
+        }
+        var iconName = dom ? dom[1] : 'sparkles';
+        if (TOOL_SPECIAL[name]) return { icon: iconName, text: daText(TOOL_SPECIAL[name][0], TOOL_SPECIAL[name][1]) };
+        var obj = dom ? daText(dom[2], dom[3]) : daText('something', 'noget');
+        var verb = /^(get|list|read|search|export)_/.test(name) ? ['Looking up', 'Slår op i']
+            : /^(delete|remove|forget|cancel|clear)_/.test(name) ? ['Removing from', 'Fjerner fra']
+            : /^(update|merge|mark|rate|check_off|uncheck|resolve|set_diagnostics)/.test(name) ? ['Updating', 'Opdaterer']
+            : /^(send|accept)_/.test(name) ? ['Sending via', 'Sender via']
+            : ['Saving to', 'Gemmer i'];
+        return { icon: iconName, text: daText(verb[0], verb[1]) + ' ' + obj };
+    }
+
+    function newTurnId() {
+        var a = new Uint8Array(12);
+        (window.crypto || window.msCrypto).getRandomValues(a);
+        return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+    }
+
+    // Polls api/progress.php while a turn runs and draws the steps inside the typing
+    // bubble. Returns stop(). Never overlaps requests; silently gives up on errors.
+    function startToolProgress(row, turnId) {
+        var bubble = row.querySelector('.msg');
+        if (!bubble) return function () {};
+        var box = document.createElement('div');
+        box.className = 'tool-live';
+        bubble.appendChild(box);
+        var stopped = false, timer = null, failures = 0, lastKey = '', shown = 0;
+        function render(st) {
+            var steps = (st && st.steps) || [];
+            if (!steps.length) return;
+            // Redraw only on change, and fade in only NEW steps (a full redraw per poll
+            // would restart the animation and leave every line half-transparent).
+            var key = JSON.stringify([st.phase, steps]);
+            if (key === lastKey) return;
+            lastKey = key;
+            row.classList.add('has-tools');
+            var first = Math.max(0, steps.length - 5), prevShown = shown;
+            shown = steps.length;
+            box.innerHTML = steps.slice(first).map(function (x, i) {
+                var info = toolInfo(x.tool);
+                var mark = x.status === 'running' ? icon('loader-circle', 'tl-spin')
+                    : x.status === 'error' ? icon('circle-x', 'tl-err') : icon('check', 'tl-ok');
+                var fresh = (first + i) >= prevShown ? ' tl-new' : '';
+                return '<div class="tl-step tl-' + progEsc(x.status) + fresh + '">' + icon(info.icon, 'tl-ic')
+                    + '<span class="tl-text">' + progEsc(info.text) + '</span>' + mark + '</div>';
+            }).join('') + (st.phase === 'answering'
+                ? '<div class="tl-step tl-running">' + icon('sparkles', 'tl-ic') + '<span class="tl-text">'
+                    + progEsc(daText('Putting the answer together', 'Samler svaret')) + '</span>' + icon('loader-circle', 'tl-spin') + '</div>'
+                : '');
+        }
+        function tick() {
+            if (stopped) return;
+            fetch('/api/progress.php?turn=' + turnId, { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (st) { if (!stopped && st) render(st); })
+                .catch(function () { failures++; })
+                .then(function () { if (!stopped && failures < 5) timer = setTimeout(tick, 650); });
+        }
+        timer = setTimeout(tick, 350);
+        return function stop() { stopped = true; if (timer) clearTimeout(timer); };
+    }
+
+    // After the reply: a compact strip of the tools this turn used (icons; tap for the
+    // sentences). Built from the stored diagnostics, so reopened chats show it too.
+    function buildToolStrip(calls) {
+        var seen = {}, list = [];
+        (calls || []).forEach(function (c) {
+            if (!c || !c.name || seen[c.name]) return;
+            seen[c.name] = true;
+            list.push({ name: c.name, ok: c.ok !== false });
+        });
+        if (!list.length) return null;
+        var strip = document.createElement('button');
+        strip.type = 'button';
+        strip.className = 'tool-strip';
+        strip.setAttribute('aria-label', daText('Tools used', 'Brugte værktøjer'));
+        strip.innerHTML = list.map(function (t) {
+            var info = toolInfo(t.name);
+            return '<span class="ts-item' + (t.ok ? '' : ' ts-err') + '" title="' + progEsc(info.text) + '">'
+                + icon(info.icon) + '<span class="ts-text">' + progEsc(info.text) + '</span></span>';
+        }).join('');
+        strip.addEventListener('click', function () { strip.classList.toggle('open'); });
+        return strip;
+    }
+
     function attachMessageMeta(el, meta) {
         if (!el || !meta) return;
         var bubble = (el.classList && el.classList.contains('msg')) ? el : el.querySelector('.msg');
@@ -422,6 +592,9 @@
             // Insert after the whole message unit (the row/bubble that sits in `messages`),
             // so the panel is full-width below the bubble, not inside the flex row.
             el.insertAdjacentElement('afterend', buildDiagPanel(meta.diagnostics));
+            // Tools-used strip (everyone, not just dev mode) — directly under the bubble.
+            var strip = bubble.classList.contains('assistant') ? buildToolStrip(meta.diagnostics.calls) : null;
+            if (strip) el.insertAdjacentElement('afterend', strip);
         }
     }
 
@@ -435,7 +608,7 @@
         btn.className = 'msg-report-btn';
         btn.title = 'Report to developer';
         btn.setAttribute('aria-label', 'Report to developer');
-        btn.textContent = '⚑';
+        btn.innerHTML = icon('flag');
         btn.addEventListener('click', function (e) { e.stopPropagation(); openReportDialog(msgId); });
         bubble.appendChild(btn);
 
@@ -545,34 +718,35 @@
     var cardPanelSub   = document.getElementById('cardPanelSub');
     var panelKind      = null;
 
+    // kind → [icon, title]. Icon names come from assets/icons.js (Lucide).
     var CARD_TITLES = {
-        shopping_list: '🛒 Shopping list',
-        workout_plan:  '🏋️ Workout plan',
-        agenda:        '📅 Agenda',
-        weather:       '🌤️ Weather',
-        work_hours:    '🕒 Work hours',
-        work_chart:    '📊 Work hours',
-        chart:         '📊 Chart',
-        work_log:      '📝 Work log',
-        progression:   '📈 Progression',
-        cycle:         '🌙 Cycle',
-        receipt:       '🧾 Receipt',
-        expenses:      '💳 Expenses',
-        income:        '📩 Income',
-        income_summary:'📈 Income',
-        owner_draws:   '💰 Owner draws',
-        bookkeeping:   '📊 Books',
-        moms:          '🧾 Moms',
-        cash:          '🏦 Cash',
-        pl:            '📈 P&L',
-        mileage:       '🚗 Mileage',
-        email_list:    '📥 Inbox',
-        email:         '✉️ Email',
-        email_draft:   '✍️ Draft',
-        feedback:      '🛠️ Feedback',
-        personality:   '🎭 Personality',
-        appearance:    '🎨 Appearance',
-        notice:        'ℹ️ Note'
+        shopping_list: ['shopping-cart', 'Shopping list'],
+        workout_plan:  ['dumbbell', 'Workout plan'],
+        agenda:        ['calendar', 'Agenda'],
+        weather:       ['cloud-sun', 'Weather'],
+        work_hours:    ['clock', 'Work hours'],
+        work_chart:    ['chart-column', 'Work hours'],
+        chart:         ['chart-column', 'Chart'],
+        work_log:      ['notebook-pen', 'Work log'],
+        progression:   ['trending-up', 'Progression'],
+        cycle:         ['moon', 'Cycle'],
+        receipt:       ['receipt', 'Receipt'],
+        expenses:      ['credit-card', 'Expenses'],
+        income:        ['file-text', 'Income'],
+        income_summary:['trending-up', 'Income'],
+        owner_draws:   ['wallet', 'Owner draws'],
+        bookkeeping:   ['book-open', 'Books'],
+        moms:          ['percent', 'Moms'],
+        cash:          ['landmark', 'Cash'],
+        pl:            ['trending-up', 'P&L'],
+        mileage:       ['car', 'Mileage'],
+        email_list:    ['inbox', 'Inbox'],
+        email:         ['mail', 'Email'],
+        email_draft:   ['pencil-line', 'Draft'],
+        feedback:      ['wrench', 'Feedback'],
+        personality:   ['drama', 'Personality'],
+        appearance:    ['palette', 'Appearance'],
+        notice:        ['circle-alert', 'Note']
     };
 
     // Personality dial: 1–5 (1 = off, 5 = max). Number label + blurb + a sample reply per
@@ -646,9 +820,13 @@
         presentCard({ kind: 'appearance', theme: currentTheme() });
     }
 
+    function cardIconFor(card) {
+        return (CARD_TITLES[card.kind] || [])[0] || 'folder';
+    }
+
     function cardTitleFor(card) {
-        var base = CARD_TITLES[card.kind] || (card.title || 'Card');
-        // Attribute a connected person's card (e.g. "📈 Progression · Alex").
+        var base = (CARD_TITLES[card.kind] || [])[1] || (card.title || 'Card');
+        // Attribute a connected person's card (e.g. "Progression · Alex").
         if (card.person && card.person.name) return base + ' · ' + card.person.name;
         return base;
     }
@@ -661,6 +839,17 @@
             var th = THEMES.filter(function (t) { return t.id === (card.theme || currentTheme()); })[0];
             return th ? th.label : '';
         }
+        // Minimised header = the card's one-line answer, so it's useful without opening.
+        if ((card.kind === 'work_hours' || card.kind === 'work_chart') && card.total) {
+            return card.total + (card.range ? ' · ' + card.range : '');
+        }
+        if (card.kind === 'cycle' && card.has_data) {
+            return (card.season_label || '') + ' · ' + daText('day ', 'dag ') + card.cycle_day;
+        }
+        if (card.kind === 'weather' && card.current && card.current.temp_c != null) {
+            return Math.round(card.current.temp_c) + '°';
+        }
+        if (card.kind === 'chart' && card.title) return card.title;
         if (card.kind === 'shopping_list' && Array.isArray(card.items)) {
             var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
             return openN + (openN === 1 ? ' item' : ' items');
@@ -702,7 +891,10 @@
     // appends its node via messages.appendChild(); we briefly redirect that to the
     // panel body, so none of the ~16 renderers need to change. Interactive updates
     // (period toggles, checkboxes) mutate the card in place, so they keep working.
-    function presentCard(card) {
+    // mode (from the server's card_mode): 'open' = show it; 'min' = the reply already answers,
+    // so on a phone the card waits minimised (header summary, one tap away); undefined =
+    // rail/notification opens, which keep the default behaviour below.
+    function presentCard(card, mode) {
         if (!card || !card.kind) return;
         if (!cardPanel) { renderCard(card); return; }   // graceful fallback
 
@@ -721,12 +913,16 @@
         panelKind = card.kind;
         recordRailCard(card);
         renderRail();
-        cardPanelTitle.textContent = cardTitleFor(card);
+        setIconText(cardPanelTitle, cardIconFor(card), cardTitleFor(card));
         cardPanelSub.textContent   = cardSubFor(card);
         cardPanel.hidden = false;
-        // Respect a deliberate minimise only when the SAME card refreshes; a new
-        // kind (or a reopened panel) pops open so you see what changed.
-        if (sameKind && wasMin) {
+        // Desktop keeps the card column open. On a phone: an explicit 'open' wins; 'min'
+        // prepares it minimised; otherwise respect a deliberate minimise only when the SAME
+        // card refreshes — a new kind (or a reopened panel) pops open so you see what changed.
+        var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
+        if (mode === 'open' || desktop) {
+            setPanelState('open');
+        } else if (mode === 'min' || (sameKind && wasMin)) {
             setPanelState('min');
         } else {
             setPanelState('open');
@@ -752,7 +948,7 @@
             if (!workspace) return;
             var full = workspace.classList.toggle('ws-focus-card');
             if (expand) {
-                expand.textContent = full ? '⤡' : '⤢';
+                expand.innerHTML = icon(full ? 'minimize-2' : 'maximize-2');
                 expand.setAttribute('aria-label', full ? 'Collapse to split view' : 'Expand to full width');
             }
         }
@@ -801,21 +997,18 @@
     // Staples are always present and open FRESH (live). Recents accumulate the other
     // cards you open (deduped by kind, newest first, max 6) and restore their snapshot.
     var RAIL_STAPLES = [
-        { kind: 'bookkeeping', emoji: '📊', label: 'Books',      open: function () { openBooksFresh(); } },
-        { kind: 'moms',        emoji: '🧾', label: 'Moms',       open: function () { openMomsFresh(); } },
-        { kind: 'cash',        emoji: '🏦', label: 'Cash',       open: function () { openCashFresh(); } },
-        { kind: 'pl',          emoji: '📈', label: 'P&L',        open: function () { openPlFresh(); } },
-        { kind: 'mileage',     emoji: '🚗', label: 'Mileage',    open: function () { openMileageFresh(); } },
-        { kind: 'appearance',  emoji: '🎨', label: 'Appearance', open: function () { openAppearanceCard(); } }
+        { kind: 'bookkeeping', icon: 'book-open', label: 'Books',      open: function () { openBooksFresh(); } },
+        { kind: 'moms',        icon: 'percent', label: 'Moms',       open: function () { openMomsFresh(); } },
+        { kind: 'cash',        icon: 'landmark', label: 'Cash',       open: function () { openCashFresh(); } },
+        { kind: 'pl',          icon: 'trending-up', label: 'P&L',        open: function () { openPlFresh(); } },
+        { kind: 'mileage',     icon: 'car', label: 'Mileage',    open: function () { openMileageFresh(); } },
+        { kind: 'appearance',  icon: 'palette', label: 'Appearance', open: function () { openAppearanceCard(); } }
     ];
     var RAIL_STAPLE_KINDS = RAIL_STAPLES.map(function (s) { return s.kind; });
     var railRecents = [];
 
     function railInfo(card) {
-        var t = CARD_TITLES[card.kind] || '';
-        var emoji = t ? t.split(' ')[0] : '🗂️';
-        var label = t ? t.slice(emoji.length).trim() : (card.title || card.kind);
-        return { emoji: emoji, label: label };
+        return { icon: cardIconFor(card), label: (CARD_TITLES[card.kind] || [])[1] || card.title || card.kind };
     }
 
     function openBooksFresh() {
@@ -858,7 +1051,7 @@
         if (RAIL_STAPLE_KINDS.indexOf(card.kind) !== -1) return;   // staples are pinned, not recents
         railRecents = railRecents.filter(function (r) { return r.kind !== card.kind; });  // dedupe by kind
         var info = railInfo(card);
-        railRecents.unshift({ kind: card.kind, emoji: info.emoji, label: info.label, card: card });
+        railRecents.unshift({ kind: card.kind, icon: info.icon, label: info.label, card: card });
         if (railRecents.length > 6) railRecents = railRecents.slice(0, 6);
     }
 
@@ -866,23 +1059,23 @@
         var rail = document.getElementById('cardRail');
         if (!rail) return;
         rail.innerHTML = '';
-        function railBtn(emoji, title, active, onClick) {
+        function railBtn(iconName, title, active, onClick) {
             var b = document.createElement('button');
             b.type = 'button';
             b.className = 'rail-btn' + (active ? ' is-active' : '');
-            b.textContent = emoji;
+            b.innerHTML = icon(iconName);
             b.title = title;
             b.setAttribute('aria-label', title);
             b.addEventListener('click', onClick);
             return b;
         }
         RAIL_STAPLES.forEach(function (s) {
-            rail.appendChild(railBtn(s.emoji, s.label, panelKind === s.kind, s.open));
+            rail.appendChild(railBtn(s.icon, s.label, panelKind === s.kind, s.open));
         });
         if (railRecents.length) {
             var sep = document.createElement('div'); sep.className = 'rail-sep'; rail.appendChild(sep);
             railRecents.forEach(function (r) {
-                rail.appendChild(railBtn(r.emoji, r.label, panelKind === r.kind, function () { presentCard(r.card); }));
+                rail.appendChild(railBtn(r.icon, r.label, panelKind === r.kind, function () { presentCard(r.card); }));
             });
         }
     }
@@ -1030,10 +1223,29 @@
             empty.textContent = daText('Nothing on the list.', 'Intet på listen.');
             wrap.appendChild(empty);
         } else {
-            var ul = document.createElement('ul');
-            ul.className = 'plan-items';
-            open.forEach(function (it) { ul.appendChild(shoppingLi(it, wrap, card)); });
-            wrap.appendChild(ul);
+            // Grouped by supermarket aisle (server-side categories, store-walk order). A list
+            // that lands in a single group — or an old card without groups — stays flat.
+            var groups = (card.groups || []).filter(function (g) {
+                return open.some(function (it) { return it.category === g.key; });
+            });
+            if (groups.length > 1) {
+                groups.forEach(function (g) {
+                    var gh = document.createElement('div');
+                    gh.className = 'shop-group';
+                    setIconText(gh, g.icon, daText(g.en, g.da));
+                    wrap.appendChild(gh);
+                    var gul = document.createElement('ul');
+                    gul.className = 'plan-items';
+                    open.filter(function (it) { return it.category === g.key; })
+                        .forEach(function (it) { gul.appendChild(shoppingLi(it, wrap, card)); });
+                    wrap.appendChild(gul);
+                });
+            } else {
+                var ul = document.createElement('ul');
+                ul.className = 'plan-items';
+                open.forEach(function (it) { ul.appendChild(shoppingLi(it, wrap, card)); });
+                wrap.appendChild(ul);
+            }
         }
 
         // Add-item row — type + Enter/＋, no chat round-trip.
@@ -1258,10 +1470,10 @@
         if (!bubble) return;
         bubble.classList.add('wx-wait');
         bubble.textContent = '';
-        ['☀️', '⛅', '🌧️', '🌙', '⭐'].forEach(function (g, i) {
+        [['sun', 'sun'], ['cloud-sun', 'sun'], ['cloud-rain', 'rain'], ['moon', 'night'], ['star', 'sun']].forEach(function (g, i) {
             var s = document.createElement('span');
-            s.className = 'wx-wait-glyph';
-            s.textContent = g;
+            s.className = 'wx-wait-glyph wx-tone-' + g[1];
+            s.innerHTML = icon(g[0]);
             s.style.animationDelay = (i * 0.16) + 's';
             bubble.appendChild(s);
         });
@@ -1445,8 +1657,49 @@
         });
         wrap.appendChild(grid);
 
+        // Card text size — per device (a phone wants it smaller than a desktop), so it's
+        // kept in localStorage, not the server. Default: Compact on phones, Normal on desktop.
+        var sizeHead = document.createElement('div');
+        sizeHead.className = 'persona-intro appearance-sub';
+        sizeHead.textContent = daText('Card size on this device', 'Kortstørrelse på denne enhed');
+        wrap.appendChild(sizeHead);
+        var seg = document.createElement('div');
+        seg.className = 'prog-seg';
+        var curSize = currentCardSize();
+        CARD_SIZES.forEach(function (z) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'prog-seg-btn' + (z.id === curSize ? ' on' : '');
+            b.textContent = daText(z.en, z.da);
+            b.addEventListener('click', function () {
+                applyCardSize(z.id);
+                Array.prototype.forEach.call(seg.children, function (c) { c.classList.remove('on'); });
+                b.classList.add('on');
+            });
+            seg.appendChild(b);
+        });
+        wrap.appendChild(seg);
+
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
+    }
+
+    var CARD_SIZES = [
+        { id: 'normal',  en: 'Normal',  da: 'Normal' },
+        { id: 'compact', en: 'Compact', da: 'Kompakt' },
+        { id: 'small',   en: 'Small',   da: 'Lille' }
+    ];
+    var CARD_SIZE_KEY = 'kachow-card-size';
+
+    function currentCardSize() {
+        var z = document.documentElement.getAttribute('data-card-size');
+        if (z) return z;
+        return (window.matchMedia && window.matchMedia('(min-width: 1024px)').matches) ? 'normal' : 'compact';
+    }
+
+    function applyCardSize(id) {
+        document.documentElement.setAttribute('data-card-size', id);
+        try { localStorage.setItem(CARD_SIZE_KEY, id); } catch (e) { /* private mode */ }
     }
 
     function renderNotice(card) {
@@ -1656,7 +1909,7 @@
         var reply = document.createElement('button');
         reply.type = 'button';
         reply.className = 'email-reply-btn';
-        reply.textContent = '↩ Reply';
+        setIconText(reply, 'undo-2', 'Reply');
         reply.addEventListener('click', function () { prefillReply(card); });
         actions.appendChild(reply);
         wrap.appendChild(actions);
@@ -1975,7 +2228,7 @@
         close.type = 'button';
         close.className = 'lightbox-close';
         close.setAttribute('aria-label', 'Close');
-        close.textContent = '✕';
+        close.innerHTML = icon('x');
         box.appendChild(img);
         box.appendChild(close);
 
@@ -1994,10 +2247,10 @@
     // are consistent by construction. `clinical` is the medical phase name shown as a
     // subtitle. `cls` matches the CSS arc/swatch colour.
     var CYCLE_SEASONS = {
-        winter: { emoji: '❄️', label: 'Winter', cls: 'cyc-winter', clinical: 'menstrual' },
-        spring: { emoji: '🌱', label: 'Spring', cls: 'cyc-spring', clinical: 'follicular' },
-        summer: { emoji: '☀️', label: 'Summer', cls: 'cyc-summer', clinical: 'ovulation' },
-        autumn: { emoji: '🍂', label: 'Autumn', cls: 'cyc-autumn', clinical: 'luteal' }
+        winter: { icon: 'snowflake', label: 'Winter', cls: 'cyc-winter', clinical: 'menstrual' },
+        spring: { icon: 'sprout',    label: 'Spring', cls: 'cyc-spring', clinical: 'follicular' },
+        summer: { icon: 'sun',       label: 'Summer', cls: 'cyc-summer', clinical: 'ovulation' },
+        autumn: { icon: 'leaf',      label: 'Autumn', cls: 'cyc-autumn', clinical: 'luteal' }
     };
     var CYCLE_SEASON_ORDER = ['winter', 'spring', 'summer', 'autumn'];
     var CYCLE_MOODS = ['😢', '😕', '😐', '🙂', '😄'];
@@ -2050,7 +2303,10 @@
         var marker = '<g transform="rotate(' + markAngle.toFixed(2) + ' ' + cx + ' ' + cx + ')">'
             + '<circle class="cyc-marker" cx="' + cx + '" cy="' + (cx - r) + '" r="9"/></g>';
 
-        var center = '<text class="cyc-emoji" x="90" y="82" text-anchor="middle">' + (card.season_emoji || '🌸') + '</text>'
+        var sMeta = CYCLE_SEASONS[card.season] || null;
+        var center = '<svg class="cyc-emoji ' + (sMeta ? sMeta.cls : '') + '" x="75" y="56" width="30" height="30" viewBox="0 0 24 24"'
+            + ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+            + (ICONS[sMeta ? sMeta.icon : 'flower-2'] || '') + '</svg>'
             + '<text class="cyc-dayn" x="90" y="108" text-anchor="middle">Day ' + day + '</text>';
 
         return '<svg class="cyc-ring" viewBox="0 0 180 180" width="180" height="180" aria-hidden="true">'
@@ -2100,7 +2356,7 @@
         phaseLbl.className = 'cycle-phase';
         var seasonName = document.createElement('span');
         seasonName.className = 'cycle-season';
-        seasonName.textContent = (card.season_emoji ? card.season_emoji + ' ' : '') + (card.season_label || '');
+        setIconText(seasonName, (CYCLE_SEASONS[card.season] || {}).icon, card.season_label || '');
         phaseLbl.appendChild(seasonName);
         // Clinical subtitle — hidden for the summer/fertile phase when fertility is off.
         if (!(isSummer && !showFertile)) {
@@ -2134,7 +2390,7 @@
             var txt = document.createElement('span');
             // Hide the "ovulation/fertile" clinical word on summer when fertility is off.
             var clin = (s === 'summer' && !showFertile) ? '' : ' · ' + meta.clinical;
-            txt.textContent = meta.emoji + ' ' + meta.label + clin;
+            setIconText(txt, meta.icon, meta.label + clin);
             item.appendChild(sw);
             item.appendChild(txt);
             legend.appendChild(item);
@@ -2154,7 +2410,7 @@
         if (showFertile) {
             var fert = document.createElement('div');
             fert.className = 'cycle-fertile' + (card.in_fertile ? ' active' : '');
-            fert.innerHTML = '☀️ Fertile window (est.): ' + cycShortDate(card.fertile_from) + ' – ' + cycShortDate(card.fertile_to)
+            fert.innerHTML = icon('sun', 'ic-lead') + 'Fertile window (est.): ' + cycShortDate(card.fertile_from) + ' – ' + cycShortDate(card.fertile_to)
                 + '<span class="cycle-caveat">estimate for planning, not contraception</span>';
             wrap.appendChild(fert);
         }
@@ -2232,7 +2488,7 @@
             var still = document.createElement('button');
             still.type = 'button';
             still.className = 'cycle-fertile-toggle';
-            still.textContent = card.period_ongoing ? '✓ Still going today' : '🩸 Still going today';
+            setIconText(still, card.period_ongoing ? 'check' : 'droplet', 'Still going today');
             still.disabled = !!card.period_ongoing;
             still.addEventListener('click', function () { still.disabled = true; cyclePost({ action: 'ongoing' }, wrap); });
             cur.appendChild(still);
@@ -3102,7 +3358,7 @@
                     var d = document.createElement('details');
                     d.className = 'fb-tool';
                     var s = document.createElement('summary');
-                    s.textContent = '🔧 ' + (m.tool || 'tool') + ' — result';
+                    setIconText(s, 'wrench', (m.tool || 'tool') + ' — result');
                     var pre = document.createElement('pre');
                     pre.className = 'fb-tool-json';
                     pre.textContent = fbPretty(m.text || '');
@@ -3430,9 +3686,10 @@
         if (card.duplicate) {
             var dup = document.createElement('div');
             dup.className = 'receipt-dup-hint';
-            dup.textContent = '⚠ Possible duplicate — you already logged '
+            dup.textContent = 'Possible duplicate — you already logged '
                 + (card.duplicate.vendor || 'this') + ' on ' + (card.duplicate.date || '')
                 + (card.duplicate.confirmed ? '' : ' (a draft)') + '.';
+            dup.insertBefore(iconEl('triangle-alert', 'ic-lead'), dup.firstChild);
             wrap.appendChild(dup);
         }
 
@@ -3452,8 +3709,9 @@
             var expected = total * 0.20;
             if (Math.abs(vat - expected) > 1) {
                 vatHint.hidden = false;
-                vatHint.textContent = '⚠ VAT isn\'t 25% — 25% of this total would be '
+                vatHint.textContent = 'VAT isn\'t 25% — 25% of this total would be '
                     + fmtMoney(expected, cur) + '.';
+                vatHint.insertBefore(iconEl('triangle-alert', 'ic-lead'), vatHint.firstChild);
             } else {
                 vatHint.hidden = true;
             }
@@ -3563,7 +3821,7 @@
                 pdfLink.href = card.image_url;
                 pdfLink.target = '_blank';
                 pdfLink.rel = 'noopener';
-                pdfLink.textContent = daText('📄 View invoice (PDF)', '📄 Åbn faktura (PDF)');
+                setIconText(pdfLink, 'file-text', daText('View invoice (PDF)', 'Åbn faktura (PDF)'));
                 wrap.appendChild(pdfLink);
             } else {
                 var img = document.createElement('img');
@@ -3582,8 +3840,8 @@
             docLink.href = card.invoice_url;
             docLink.target = '_blank';
             docLink.rel = 'noopener';
-            docLink.textContent = daText('📄 Open / print invoice', '📄 Åbn / print faktura')
-                + (card.doc_number ? ' · ' + card.doc_number : '');
+            setIconText(docLink, 'file-text', daText('Open / print invoice', 'Åbn / print faktura')
+                + (card.doc_number ? ' · ' + card.doc_number : ''));
             wrap.appendChild(docLink);
 
             var lines = card.line_items || [];
@@ -4130,15 +4388,15 @@
         if (open) { open.remove(); return; }   // toggle off
         var menu = document.createElement('div');
         menu.className = 'books-addmenu';
-        function item(label, fn) {
+        function item(label, fn, iconName) {
             var b = document.createElement('button');
             b.type = 'button'; b.className = 'books-addmenu-item';
-            b.textContent = label;
+            setIconText(b, iconName, label);
             b.addEventListener('click', function () { menu.remove(); fn(); });
             return b;
         }
-        menu.appendChild(item('✍️ ' + daText('Enter manually', 'Indtast manuelt'), onManual));
-        menu.appendChild(item('📷 ' + daText('Photo / PDF', 'Foto / PDF'), onPhoto));
+        menu.appendChild(item(daText('Enter manually', 'Indtast manuelt'), onManual, 'pencil-line'));
+        menu.appendChild(item(daText('Photo / PDF', 'Foto / PDF'), onPhoto, 'camera'));
         head.appendChild(menu);
         // Dismiss on the next outside click.
         setTimeout(function () {
@@ -4166,7 +4424,7 @@
         wrap.innerHTML = '';
         var body = document.createElement('div');
         body.className = 'books-detail-body books-reading';
-        body.textContent = '⏳ ' + label;
+        setIconText(body, 'hourglass', label);
         wrap.appendChild(body);
     }
 
@@ -4514,7 +4772,7 @@
         } else {
             when = daText('in ', 'om ') + days + daText(' days', ' dage');
         }
-        dl.textContent = '📅 ' + daText('File & pay by ', 'Angiv & betal senest ') + card.deadline + ' (' + when + ')';
+        setIconText(dl, 'calendar', daText('File & pay by ', 'Angiv & betal senest ') + card.deadline + ' (' + when + ')');
         wrap.appendChild(dl);
 
         // Record the moms payment (or refund) as a bank movement, so the cash balance
@@ -4564,7 +4822,7 @@
         notes.forEach(function (n) {
             var el = document.createElement('div');
             el.className = 'moms-note';
-            el.textContent = '⚠️ ' + n;
+            setIconText(el, 'triangle-alert', n);
             wrap.appendChild(el);
         });
 
@@ -4644,9 +4902,9 @@
         // Reserve note (why free < expected).
         var res = document.createElement('div');
         res.className = 'cash-reserve';
-        res.textContent = '🔒 ' + daText('Set aside: ', 'Hensat: ') + fmtMoney(reserve.total, cur)
+        setIconText(res, 'lock', daText('Set aside: ', 'Hensat: ') + fmtMoney(reserve.total, cur)
             + ' (' + daText('moms ', 'moms ') + fmtMoney(reserve.moms, cur)
-            + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ', ' + (reserve.pct || 0) + '%)';
+            + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ', ' + (reserve.pct || 0) + '%)');
         wrap.appendChild(res);
 
         // Expected moms refund SKAT owes you (not yet in the balance) — shown so it's not
@@ -4655,9 +4913,9 @@
         if (refund > 0) {
             var rf = document.createElement('div');
             rf.className = 'cash-refund';
-            rf.textContent = '🔁 ' + daText('SKAT owes you ', 'SKAT skylder dig ') + fmtMoney(refund, cur)
+            setIconText(rf, 'repeat', daText('SKAT owes you ', 'SKAT skylder dig ') + fmtMoney(refund, cur)
                 + daText(' (moms refund, not yet received) → ', ' (momsrefusion, ikke modtaget endnu) → ')
-                + fmtMoney(card.free_incl_refund, cur) + daText(' free once paid', ' frit når det er betalt');
+                + fmtMoney(card.free_incl_refund, cur) + daText(' free once paid', ' frit når det er betalt'));
             wrap.appendChild(rf);
         }
 
@@ -4870,8 +5128,8 @@
         var tr = card.tax_reserve || {};
         var note = document.createElement('div');
         note.className = 'pl-note';
-        note.textContent = '🔒 ' + daText('Set aside for tax (est. ', 'Hensæt til skat (ca. ') + (tr.pct || 0) + '%): '
-            + fmtMoney(tr.amount, cur);
+        setIconText(note, 'lock', daText('Set aside for tax (est. ', 'Hensæt til skat (ca. ') + (tr.pct || 0) + '%): '
+            + fmtMoney(tr.amount, cur));
         wrap.appendChild(note);
 
         var foot = document.createElement('div');
@@ -5043,7 +5301,7 @@
 
         var addBtn = document.createElement('button');
         addBtn.type = 'button'; addBtn.className = 'books-add mileage-add';
-        addBtn.textContent = '🚗 ' + daText('Log a driving day', 'Registrér en køredag');
+        setIconText(addBtn, 'car', daText('Log a driving day', 'Registrér en køredag'));
         addBtn.addEventListener('click', function () {
             if (!dests.length) { addEditor.style.display = 'block'; return; }
             form.style.display = form.style.display === 'none' ? 'flex' : 'none';
@@ -5100,7 +5358,7 @@
         dist.textContent = (d.round_trip > 0) ? d.round_trip + ' km' : daText('set km', 'sæt km');
         var editLink = document.createElement('button');
         editLink.type = 'button'; editLink.className = 'mileage-link mileage-dest-edit';
-        editLink.textContent = '✎';
+        editLink.innerHTML = icon('pencil');
         editLink.title = daText('Edit destination', 'Ret destination');
         editLink.setAttribute('aria-label', editLink.title);
         top.appendChild(nameEl); top.appendChild(dist); top.appendChild(editLink);
@@ -5170,7 +5428,7 @@
         destIn.value = isNew ? '' : (d.dest_address || '');
 
         var lookupBtn = document.createElement('button'); lookupBtn.type = 'button'; lookupBtn.className = 'mileage-link';
-        lookupBtn.textContent = '📍 ' + daText('Look up distance', 'Slå afstand op');
+        setIconText(lookupBtn, 'map-pin', daText('Look up distance', 'Slå afstand op'));
         var lookupMsg = document.createElement('div'); lookupMsg.className = 'mileage-lookup-msg';
         lookupBtn.addEventListener('click', function () {
             if (!homeIn.value.trim() || !destIn.value.trim()) {
@@ -5269,7 +5527,7 @@
         img.addEventListener('error', function () {
             var ph = document.createElement('span');
             ph.className = 'receipt-thumb-ph';
-            ph.textContent = '🧾';
+            ph.innerHTML = icon('receipt');
             media.innerHTML = '';
             media.appendChild(ph);
         });
@@ -5306,6 +5564,9 @@
         fd.append('photo', file);
         if (caption) fd.append('caption', caption);
         if (conversationId) fd.append('conversation_id', String(conversationId));
+        var turnId = newTurnId();
+        fd.append('turn_id', turnId);
+        var stopProgress = startToolProgress(typing, turnId);
 
         fetch('/api/photo.php', { method: 'POST', credentials: 'same-origin', body: fd })
             .then(function (r) {
@@ -5314,6 +5575,7 @@
                 });
             })
             .then(function (res) {
+                stopProgress();
                 typing.remove();
                 if (res.status === 401) { window.location.href = '/index.php'; return; }
                 if (!res.ok || !res.j || res.j.error) {
@@ -5330,7 +5592,7 @@
                 attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
                 attachMessageMeta(bubble, { id: data.user_message_id });
                 speak(data.reply || '');
-                if (data.card) presentCard(data.card);
+                if (data.card) presentCard(data.card, data.card_mode);
                 if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
                 if (wasNew && conversationId) {
                     fetch('/api/conversations.php', {
@@ -5342,10 +5604,10 @@
                 }
             })
             .catch(function () { typing.remove(); addMessage('Network error uploading the photo.', 'error'); })
-            .finally(function () { busy = false; });
+            .finally(function () { stopProgress(); busy = false; });
     }
 
-    // Like showReceiptPreview but with a generic 🖼️ fallback tile for a photo.
+    // Like showReceiptPreview but with a generic image fallback tile for a photo.
     function showPhotoPreview(media, url) {
         var img = document.createElement('img');
         img.className = 'receipt-thumb-msg';
@@ -5354,7 +5616,7 @@
         img.addEventListener('error', function () {
             var ph = document.createElement('span');
             ph.className = 'receipt-thumb-ph';
-            ph.textContent = '🖼️';
+            ph.innerHTML = icon('image');
             media.innerHTML = '';
             media.appendChild(ph);
         });
@@ -5433,8 +5695,9 @@
             var warn = document.createElement('div');
             warn.className = 'work-warn';
             var f = card.needs_fix[0];
-            warn.textContent = '⚠ No clock-out for ' + f.day + (f.place ? ' @ ' + f.place : '')
+            warn.textContent = 'No clock-out for ' + f.day + (f.place ? ' @ ' + f.place : '')
                 + ' (in at ' + f.in + '). Tell me when you left.';
+            warn.insertBefore(iconEl('triangle-alert', 'ic-lead'), warn.firstChild);
             wrap.appendChild(warn);
         }
 
@@ -5446,19 +5709,20 @@
     // Returns { glyph, anim } where anim drives a small CSS animation.
     function wxSymbol(cloudPct, precipMm, isNight) {
         var p = (precipMm == null) ? 0 : precipMm;
-        if (p >= 2)   return { glyph: '🌧️', anim: 'rain' };
-        if (p >= 0.2) return { glyph: isNight ? '🌧️' : '🌦️', anim: 'rain' };
-        if (cloudPct == null) return isNight ? { glyph: '🌙', anim: 'glow' } : { glyph: '☀️', anim: 'spin' };
-        if (cloudPct >= 85) return { glyph: '☁️', anim: 'drift' };
-        if (cloudPct >= 45) return isNight ? { glyph: '☁️', anim: 'drift' } : { glyph: '⛅', anim: 'drift' };
-        return isNight ? { glyph: '🌙', anim: 'glow' } : { glyph: '☀️', anim: 'spin' };
+        // icon = Lucide name; tone colours it (flat icons instead of emoji).
+        if (p >= 2)   return { icon: 'cloud-rain', tone: 'rain', anim: 'rain' };
+        if (p >= 0.2) return { icon: isNight ? 'cloud-drizzle' : 'cloud-sun-rain', tone: 'rain', anim: 'rain' };
+        if (cloudPct == null) return isNight ? { icon: 'moon', tone: 'night', anim: 'glow' } : { icon: 'sun', tone: 'sun', anim: 'spin' };
+        if (cloudPct >= 85) return { icon: 'cloud', tone: 'cloud', anim: 'drift' };
+        if (cloudPct >= 45) return isNight ? { icon: 'cloud-moon', tone: 'night', anim: 'drift' } : { icon: 'cloud-sun', tone: 'sun', anim: 'drift' };
+        return isNight ? { icon: 'moon', tone: 'night', anim: 'glow' } : { icon: 'sun', tone: 'sun', anim: 'spin' };
     }
 
     function wxSymbolEl(cloudPct, precipMm, isNight, cls) {
         var s = wxSymbol(cloudPct, precipMm, isNight);
         var el = document.createElement('span');
-        el.className = (cls || 'wx-sym') + ' wx-' + s.anim;
-        el.textContent = s.glyph;
+        el.className = (cls || 'wx-sym') + ' wx-' + s.anim + ' wx-tone-' + s.tone;
+        el.innerHTML = icon(s.icon);
         el.setAttribute('aria-hidden', 'true');
         return el;
     }
@@ -5500,13 +5764,13 @@
             main.appendChild(temp);
 
             var bits = [];
-            if (c.wind_ms != null) bits.push('💨 ' + Math.round(c.wind_ms) + ' m/s' + (c.wind_from ? ' ' + c.wind_from : ''));
-            if (c.humidity_pct != null) bits.push('💧 ' + Math.round(c.humidity_pct) + '%');
-            if (c.precip_mm != null && c.precip_mm > 0) bits.push('🌧️ ' + c.precip_mm + ' mm');
+            if (c.wind_ms != null) bits.push(icon('wind', 'ic-lead') + Math.round(c.wind_ms) + ' m/s' + (c.wind_from ? ' ' + progEsc(c.wind_from) : ''));
+            if (c.humidity_pct != null) bits.push(icon('droplets', 'ic-lead') + Math.round(c.humidity_pct) + '%');
+            if (c.precip_mm != null && c.precip_mm > 0) bits.push(icon('cloud-rain', 'ic-lead') + progEsc(c.precip_mm) + ' mm');
             if (bits.length) {
                 var stats = document.createElement('div');
                 stats.className = 'wx-now-stats';
-                stats.textContent = bits.join('   ');
+                stats.innerHTML = bits.map(function (b) { return '<span class="wx-stat">' + b + '</span>'; }).join('');
                 main.appendChild(stats);
             }
             hero.appendChild(main);
@@ -5566,9 +5830,9 @@
                 var extra = document.createElement('span');
                 extra.className = 'wx-day-extra';
                 var ex = [];
-                if (d.precip_mm != null && d.precip_mm > 0) ex.push('🌧️ ' + d.precip_mm + ' mm');
-                if (d.wind_max_ms != null) ex.push('💨 ' + Math.round(d.wind_max_ms));
-                extra.textContent = ex.join('  ');
+                if (d.precip_mm != null && d.precip_mm > 0) ex.push(icon('cloud-rain', 'ic-lead') + progEsc(d.precip_mm) + ' mm');
+                if (d.wind_max_ms != null) ex.push(icon('wind', 'ic-lead') + Math.round(d.wind_max_ms));
+                extra.innerHTML = ex.map(function (b) { return '<span class="wx-stat">' + b + '</span>'; }).join('');
                 row.appendChild(extra);
 
                 list.appendChild(row);
@@ -5697,6 +5961,10 @@
         // Only fetch/attach location when the message actually calls for it.
         const location = needsLocation(text) ? await getLocation() : null;
 
+        // Live "what I'm doing" steps in the typing bubble while the turn runs.
+        const turnId = newTurnId();
+        const stopProgress = startToolProgress(typing, turnId);
+
         try {
             const res = await fetch('/api/chat.php', {
                 method: 'POST',
@@ -5706,9 +5974,11 @@
                     message: text,
                     conversation_id: conversationId || undefined,
                     location: location || undefined,
+                    turn_id: turnId,
                 }),
                 signal: sendController ? sendController.signal : undefined,
             });
+            stopProgress();
 
             if (res.status === 401) {
                 window.location.href = '/index.php';
@@ -5733,7 +6003,7 @@
             attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
             attachMessageMeta(userRow, { id: data.user_message_id });
             speak(data.reply || '');
-            if (data.card) presentCard(data.card);
+            if (data.card) presentCard(data.card, data.card_mode);
             if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
 
             // For a brand-new conversation, generate its history title in the
@@ -5747,6 +6017,7 @@
                 }).catch(function () { /* non-fatal */ });
             }
         } catch (err) {
+            stopProgress();
             typing.remove();
             if (err && err.name === 'AbortError') {
                 // User hit Stop — acknowledge quietly, no error styling.
@@ -5840,8 +6111,8 @@
 
     function renderTts() {
         if (!ttsBtn) return;
-        // Menu item: glyph + label (iOS ignores CSS color on emoji, so swap the glyph).
-        ttsBtn.textContent = ttsOn ? '🔊 Voice on — tap to mute' : '🔇 Read replies aloud';
+        // Menu item: icon + label, swapped with the state.
+        setIconText(ttsBtn, ttsOn ? 'volume-2' : 'volume-x', ttsOn ? 'Voice on — tap to mute' : 'Read replies aloud');
         ttsBtn.classList.toggle('tm-on', ttsOn);
         ttsBtn.setAttribute('aria-pressed', ttsOn ? 'true' : 'false');
     }
@@ -6405,7 +6676,7 @@
     // ---------- Invoice upload → income draft (image or PDF) ----------
     function uploadInvoice(file) {
         clearEmptyHint();
-        addMessage(daText('📩 Invoice', '📩 Faktura'), 'user');
+        addMessage(daText('Invoice', 'Faktura') + ' (PDF/photo)', 'user');
         var typing = addMessage(daText('Reading the invoice…', 'Læser fakturaen…'), 'assistant');
         typing.classList.add('typing');
         var av = typing.querySelector('.avatar');

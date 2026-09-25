@@ -171,8 +171,8 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a">
-    <!-- Apply the saved look before the stylesheet paints, so there's no flash of the default theme. -->
-    <script>try{var t=localStorage.getItem('kachow-theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}</script>
+    <!-- Apply the saved look (theme + card size) before the stylesheet paints, so there's no flash of the defaults. -->
+    <script>try{var t=localStorage.getItem('kachow-theme');if(t){document.documentElement.setAttribute('data-theme',t);}var z=localStorage.getItem('kachow-card-size');if(z){document.documentElement.setAttribute('data-card-size',z);}}catch(e){}</script>
     <title>Kachow Assistant</title>
     <link rel="manifest" href="/assets/manifest.json">
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
@@ -183,7 +183,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
 <?php if (!$loggedIn): ?>
     <main class="auth">
         <form class="card" method="post" action="index.php" autocomplete="on">
-            <h1 class="brand">⚡ Kachow :)</h1>
+            <h1 class="brand" data-icon="zap">Kachow :)</h1>
             <p class="muted">Sign in to your assistant</p>
             <?php if ($loginError !== null): ?>
                 <p class="error"><?= $e($loginError) ?></p>
@@ -205,20 +205,20 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
 <?php else: ?>
     <div class="app">
         <header class="topbar">
-            <span class="brand">⚡ Kachow</span>
+            <span class="brand" data-icon="zap">Kachow</span>
             <div class="topbar-actions">
-                <button type="button" id="historyBtn" class="badge iconbtn" title="Chat history" aria-label="Chat history">🕘</button>
+                <button type="button" id="historyBtn" class="badge iconbtn" title="Chat history" aria-label="Chat history"><span data-icon="history" data-icon-only></span></button>
                 <details class="topbar-menu" id="topbarMenu">
-                    <summary class="badge tm-summary" title="Menu" aria-label="Menu">☰</summary>
+                    <summary class="badge tm-summary" title="Menu" aria-label="Menu"><span data-icon="menu" data-icon-only></span></summary>
                     <div class="topbar-menu-pop">
                         <div class="tm-identity"><?= $e($displayName) ?></div>
                         <div class="tm-sep"></div>
 
                         <div class="tm-head">Calendar</div>
                         <?php if ($calendarConnected): ?>
-                            <a class="tm-item" href="index.php?action=connect_google">📅 Connected — tap to reconnect</a>
+                            <a class="tm-item" data-icon="calendar" href="index.php?action=connect_google">Connected — tap to reconnect</a>
                         <?php else: ?>
-                            <a class="tm-item" href="index.php?action=connect_google">📅 Connect Calendar</a>
+                            <a class="tm-item" data-icon="calendar" href="index.php?action=connect_google">Connect Calendar</a>
                         <?php endif; ?>
 
                         <div class="tm-head">Email</div>
@@ -227,17 +227,17 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                                 <span class="email-menu-dot email-menu-<?= $e($acc['provider']) ?>"></span><?= $e($acc['email']) ?>
                             </div>
                         <?php endforeach; ?>
-                        <a class="tm-item" href="index.php?action=connect_gmail">＋ Gmail</a>
-                        <a class="tm-item" href="index.php?action=connect_outlook">＋ Hotmail / Outlook</a>
-                        <button type="button" class="tm-item" data-imap-preset="custom">＋ Other mailbox (IMAP)</button>
+                        <a class="tm-item" data-icon="plus" href="index.php?action=connect_gmail">Gmail</a>
+                        <a class="tm-item" data-icon="plus" href="index.php?action=connect_outlook">Hotmail / Outlook</a>
+                        <button type="button" class="tm-item" data-imap-preset="custom" data-icon="plus">Other mailbox (IMAP)</button>
 
                         <div class="tm-sep"></div>
-                        <button type="button" id="notifBtn" class="tm-item" hidden>🔔 Notifications</button>
-                        <button type="button" id="ttsToggle" class="tm-item" aria-pressed="false" hidden>🔇 Read replies aloud</button>
-                        <button type="button" id="appearanceBtn" class="tm-item">🎨 Appearance</button>
-                        <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false">🛠️ Developer mode</button>
-                        <button type="button" id="insightsBtn" class="tm-item">📊 Insights</button>
-                        <a class="tm-item" href="index.php?action=logout">🚪 Log out</a>
+                        <button type="button" id="notifBtn" class="tm-item" data-icon="bell" hidden>Notifications</button>
+                        <button type="button" id="ttsToggle" class="tm-item" aria-pressed="false" data-icon="volume-x" hidden>Read replies aloud</button>
+                        <button type="button" id="appearanceBtn" class="tm-item" data-icon="palette">Appearance</button>
+                        <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false" data-icon="wrench">Developer mode</button>
+                        <button type="button" id="insightsBtn" class="tm-item" data-icon="chart-column">Insights</button>
+                        <a class="tm-item" data-icon="log-out" href="index.php?action=logout">Log out</a>
                     </div>
                 </details>
             </div>
@@ -283,7 +283,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <div class="modal-card" role="dialog" aria-modal="true" aria-label="Chat history">
                 <div class="modal-head">
                     <strong>Chat history</strong>
-                    <button type="button" class="modal-close" id="historyClose" aria-label="Close">✕</button>
+                    <button type="button" class="modal-close" id="historyClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
                 </div>
                 <input type="search" id="historySearch" class="history-search" placeholder="Search your chats…" autocomplete="off">
                 <div id="historyList" class="history-list"></div>
@@ -294,7 +294,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <div class="modal-card" role="dialog" aria-modal="true" aria-label="Notification settings">
                 <div class="modal-head">
                     <strong>Notifications</strong>
-                    <button type="button" class="modal-close" id="notifClose" aria-label="Close">✕</button>
+                    <button type="button" class="modal-close" id="notifClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
                 </div>
                 <div id="notifBody" class="modal-body"></div>
             </div>
@@ -304,7 +304,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <div class="modal-card" role="dialog" aria-modal="true" aria-label="Connect a mailbox">
                 <div class="modal-head">
                     <strong id="imapTitle">Connect a mailbox</strong>
-                    <button type="button" class="modal-close" id="imapClose" aria-label="Close">✕</button>
+                    <button type="button" class="modal-close" id="imapClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
                 </div>
                 <div class="modal-body">
                     <p id="imapHint" class="imap-hint"></p>
@@ -343,15 +343,15 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <span class="cp-title" id="cardPanelTitle">Workspace</span>
                 <span class="cp-sub" id="cardPanelSub"></span>
                 <span class="cp-actions">
-                    <button type="button" class="cp-btn cp-expand" id="cardPanelExpand" aria-label="Expand to full width" title="Expand / collapse">⤢</button>
-                    <button type="button" class="cp-btn cp-min" id="cardPanelToggle" aria-label="Minimise">▾</button>
-                    <button type="button" class="cp-btn cp-close" id="cardPanelClose" aria-label="Close">✕</button>
+                    <button type="button" class="cp-btn cp-expand" id="cardPanelExpand" aria-label="Expand to full width" title="Expand / collapse"><span data-icon="maximize-2" data-icon-only></span></button>
+                    <button type="button" class="cp-btn cp-min" id="cardPanelToggle" aria-label="Minimise"><span data-icon="chevron-down" data-icon-only></span></button>
+                    <button type="button" class="cp-btn cp-close" id="cardPanelClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
                 </span>
             </div>
             <div class="card-panel-body" id="cardPanelBody"></div>
         </section>
 
-        <!-- Desktop-only card rail: staple quick-cards (📊 Books, 🎨 Appearance) plus the
+        <!-- Desktop-only card rail: staple quick-cards (Books, Appearance, …) plus the
              cards you've opened this session, so you can switch and come back. -->
         <nav class="card-rail" id="cardRail" aria-label="Card switcher"></nav>
 
@@ -360,20 +360,21 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <summary class="ghost" title="More" aria-label="More actions">＋</summary>
                 <div class="composer-menu-pop">
                     <button type="button" id="newChat" class="composer-menu-item">＋ New chat</button>
-                    <button type="button" id="photoBtn" class="composer-menu-item">📷 Add photo</button>
-                    <button type="button" id="receiptBtn" class="composer-menu-item">🧾 Add receipt</button>
-                    <button type="button" id="invoiceBtn" class="composer-menu-item">📩 Add invoice</button>
+                    <button type="button" id="photoBtn" class="composer-menu-item" data-icon="camera">Add photo</button>
+                    <button type="button" id="receiptBtn" class="composer-menu-item" data-icon="receipt">Add receipt</button>
+                    <button type="button" id="invoiceBtn" class="composer-menu-item" data-icon="file-plus">Add invoice</button>
                 </div>
             </details>
             <input type="file" id="receiptInput" accept="image/*" hidden>
             <input type="file" id="photoInput" accept="image/*" hidden>
             <input type="file" id="invoiceInput" accept="image/*,application/pdf" hidden>
             <textarea id="input" rows="1" placeholder="Message Kachow…" autocomplete="off"></textarea>
-            <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden>🎤</button>
+            <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden><span data-icon="mic" data-icon-only></span></button>
             <button type="submit" id="send" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </form>
         </div><!-- /.workspace -->
     </div>
+    <script src="<?= asset('icons.js') ?>" defer></script>
     <script src="<?= asset('app.js') ?>" defer></script>
 <?php endif; ?>
 </body>
