@@ -2032,10 +2032,18 @@
                 + ' transform="rotate(' + rot.toFixed(2) + ' ' + cx + ' ' + cx + ')"/>';
         }
 
-        var arcs = arc(1, pLen, 'cyc-winter')
-            + arc(pLen + 1, fStart - 1, 'cyc-spring')
-            + arc(fStart, fEnd, 'cyc-summer')
-            + arc(fEnd + 1, L, 'cyc-autumn');
+        var arcs;
+        if ((card.seasons || []).length) {
+            // Server-computed season ranges (Momkind boundaries) — one source of truth.
+            arcs = card.seasons.map(function (x) {
+                return arc(x.from_day, Math.min(x.to_day, L), 'cyc-' + x.season);
+            }).join('');
+        } else {
+            arcs = arc(1, pLen, 'cyc-winter')
+                + arc(pLen + 1, fStart - 1, 'cyc-spring')
+                + arc(fStart, fEnd, 'cyc-summer')
+                + arc(fEnd + 1, L, 'cyc-autumn');
+        }
 
         var day = Math.min(Math.max(card.cycle_day || 1, 1), L);
         var markAngle = ((day - 0.5) / L) * 360;
@@ -2103,6 +2111,16 @@
         }
         ring.appendChild(phaseLbl);
         wrap.appendChild(ring);
+
+        // What this season tends to feel like + how long it lasts this cycle.
+        if (card.season_note) {
+            var note = document.createElement('div');
+            note.className = 'cycle-season-note';
+            var cur = (card.seasons || []).filter(function (x) { return x.season === card.season; })[0];
+            note.textContent = card.season_note
+                + (cur ? ' (' + cycShortDate(cur.from) + ' – ' + cycShortDate(cur.to) + ', ' + cur.days + ' day' + (cur.days === 1 ? '' : 's') + ')' : '');
+            wrap.appendChild(note);
+        }
 
         // Legend (fixes colour↔phase clarity): a swatch per season.
         var legend = document.createElement('div');
@@ -2182,6 +2200,16 @@
         }
 
         if (!readOnly) wrap.appendChild(cycleLogControls(wrap, card));
+
+        if (card.season_source && card.season_source.url) {
+            var src = document.createElement('a');
+            src.className = 'cycle-source';
+            src.href = card.season_source.url;
+            src.target = '_blank';
+            src.rel = 'noopener noreferrer';
+            src.textContent = 'Seasons based on: ' + (card.season_source.title || 'source');
+            wrap.appendChild(src);
+        }
     }
 
     function cycTodayIso() {
