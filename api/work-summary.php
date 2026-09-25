@@ -7,7 +7,7 @@ declare(strict_types=1);
  * the work_chart card (week / 4w / 12w / year). Own data only. Rebuilds the exact
  * card shape the tool returns.
  *
- *   POST { period? } → returns { card }
+ *   POST { period?, place? } → returns { card }  (place: prefix-matched workplace filter)
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -45,7 +45,10 @@ $in     = json_decode((string) file_get_contents('php://input'), true);
 $period = is_array($in) && isset($in['period']) && $in['period'] !== '' ? (string) $in['period'] : 'week';
 
 try {
-    $card = (new WorkEvents())->breakdown($userId, $period);
+    $place = is_array($in) && isset($in['place']) && is_string($in['place']) && trim($in['place']) !== ''
+        ? mb_substr(trim($in['place']), 0, 64) : null;
+    $card  = (new WorkEvents())->breakdown($userId, $period, null, null, null, $place);
+    unset($card['places_all']);
     out(200, ['ok' => true, 'card' => $card]);
 } catch (\Throwable $e) {
     error_log('work-summary.php: ' . $e->getMessage());

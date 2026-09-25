@@ -552,6 +552,7 @@
         weather:       '🌤️ Weather',
         work_hours:    '🕒 Work hours',
         work_chart:    '📊 Work hours',
+        chart:         '📊 Chart',
         work_log:      '📝 Work log',
         progression:   '📈 Progression',
         cycle:         '🌙 Cycle',
@@ -922,6 +923,7 @@
         if (card.kind === 'cycle') { renderCycle(card); return; }
         if (card.kind === 'progression') { renderProgression(card); return; }
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
+        if (card.kind === 'chart') { renderChart(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
         if (card.kind === 'personality') { renderPersonality(card); return; }
         if (card.kind === 'appearance') { renderAppearance(card); return; }
@@ -2030,10 +2032,18 @@
                 + ' transform="rotate(' + rot.toFixed(2) + ' ' + cx + ' ' + cx + ')"/>';
         }
 
-        var arcs = arc(1, pLen, 'cyc-winter')
-            + arc(pLen + 1, fStart - 1, 'cyc-spring')
-            + arc(fStart, fEnd, 'cyc-summer')
-            + arc(fEnd + 1, L, 'cyc-autumn');
+        var arcs;
+        if ((card.seasons || []).length) {
+            // Server-computed season ranges (Momkind boundaries) — one source of truth.
+            arcs = card.seasons.map(function (x) {
+                return arc(x.from_day, Math.min(x.to_day, L), 'cyc-' + x.season);
+            }).join('');
+        } else {
+            arcs = arc(1, pLen, 'cyc-winter')
+                + arc(pLen + 1, fStart - 1, 'cyc-spring')
+                + arc(fStart, fEnd, 'cyc-summer')
+                + arc(fEnd + 1, L, 'cyc-autumn');
+        }
 
         var day = Math.min(Math.max(card.cycle_day || 1, 1), L);
         var markAngle = ((day - 0.5) / L) * 360;
@@ -2101,6 +2111,16 @@
         }
         ring.appendChild(phaseLbl);
         wrap.appendChild(ring);
+
+        // What this season tends to feel like + how long it lasts this cycle.
+        if (card.season_note) {
+            var note = document.createElement('div');
+            note.className = 'cycle-season-note';
+            var cur = (card.seasons || []).filter(function (x) { return x.season === card.season; })[0];
+            note.textContent = card.season_note
+                + (cur ? ' (' + cycShortDate(cur.from) + ' – ' + cycShortDate(cur.to) + ', ' + cur.days + ' day' + (cur.days === 1 ? '' : 's') + ')' : '');
+            wrap.appendChild(note);
+        }
 
         // Legend (fixes colour↔phase clarity): a swatch per season.
         var legend = document.createElement('div');
@@ -2180,6 +2200,16 @@
         }
 
         if (!readOnly) wrap.appendChild(cycleLogControls(wrap, card));
+
+        if (card.season_source && card.season_source.url) {
+            var src = document.createElement('a');
+            src.className = 'cycle-source';
+            src.href = card.season_source.url;
+            src.target = '_blank';
+            src.rel = 'noopener noreferrer';
+            src.textContent = 'Seasons based on: ' + (card.season_source.title || 'source');
+            wrap.appendChild(src);
+        }
     }
 
     function cycTodayIso() {
@@ -2193,6 +2223,29 @@
         var box = document.createElement('div');
         box.className = 'cycle-log';
         var today = cycTodayIso();
+
+        // Current period still going / ended (report #24): the Winter phase follows the
+        // logged end of THIS period, so these move the ring instead of a fixed day count.
+        if (card.has_data && card.cycle_day && card.cycle_day <= 14) {
+            var cur = document.createElement('div');
+            cur.className = 'cycle-current';
+            var still = document.createElement('button');
+            still.type = 'button';
+            still.className = 'cycle-fertile-toggle';
+            still.textContent = card.period_ongoing ? '✓ Still going today' : '🩸 Still going today';
+            still.disabled = !!card.period_ongoing;
+            still.addEventListener('click', function () { still.disabled = true; cyclePost({ action: 'ongoing' }, wrap); });
+            cur.appendChild(still);
+            if (card.season === 'winter') {
+                var ended = document.createElement('button');
+                ended.type = 'button';
+                ended.className = 'cycle-fertile-toggle';
+                ended.textContent = 'Ended today';
+                ended.addEventListener('click', function () { ended.disabled = true; cyclePost({ action: 'ended' }, wrap); });
+                cur.appendChild(ended);
+            }
+            box.appendChild(cur);
+        }
 
         var dateRow = document.createElement('label');
         dateRow.className = 'cycle-date-row';
@@ -2614,9 +2667,25 @@
     // ---- Work-hours bar chart card -----------------------------------------------
     // Human label for a bucket, e.g. "Mon 6 Jul", "Week of 6 Jul", "Jul 2026".
     function wchWhen(card, b) {
+        if (card.mode === 'custom') {
+            if (card.bucket_word === 'day') return b.sub;
+            if (card.bucket_word === 'month') return b.label + ' ' + b.sub;
+            return 'Week of ' + b.sub;
+        }
         if (card.mode === 'week') return b.label + ' ' + b.sub;
         if (card.mode === 'year') return b.label + ' ' + b.sub;
         return 'Week of ' + b.sub;
+    }
+
+    // Shared categorical palette for multi-series charts (work stacks, generic charts).
+    // CSS vars so themes can override; the first series follows the theme accent.
+    function seriesColor(i) {
+        return 'var(--series-' + ((i % 6) + 1) + ')';
+    }
+
+    function wchFmtMin(m) {
+        var h = Math.floor(m / 60), r = m % 60;
+        return h === 0 ? r + 'm' : (r === 0 ? h + 'h' : h + 'h ' + r + 'm');
     }
 
     function wchBarsSvg(card) {
@@ -2639,7 +2708,19 @@
         bars.forEach(function (b, i) {
             var h = maxMin > 0 ? (b.minutes / maxMin) * innerH : 0;
             var x = bx(i);
-            if (b.minutes > 0) {
+            if (b.minutes > 0 && card.stacked && b.split) {
+                // Stacked per workplace (order = card.places), bottom-up.
+                var yTop = y0;
+                b.split.forEach(function (m, si) {
+                    if (!m) return;
+                    var sh = maxMin > 0 ? (m / maxMin) * innerH : 0;
+                    yTop -= sh;
+                    var pl = (card.places[si] && card.places[si].place) || '—';
+                    rects += '<rect class="wch-bar wch-seg" data-idx="' + i + '" style="fill:' + seriesColor(si) + '" x="' + x.toFixed(1)
+                        + '" y="' + yTop.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(sh, 1).toFixed(1) + '">'
+                        + '<title>' + progEsc(wchWhen(card, b) + ' · ' + pl + ' ' + wchFmtMin(m)) + '</title></rect>';
+                });
+            } else if (b.minutes > 0) {
                 var bh = Math.max(h, 2);
                 var cls = 'wch-bar' + (b.ongoing ? ' ongoing' : '');
                 rects += '<rect class="' + cls + '" data-idx="' + i + '" x="' + x.toFixed(1) + '" y="' + (y0 - bh).toFixed(1)
@@ -2655,6 +2736,170 @@
         });
 
         return '<svg class="wch-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img">' + grid + rects + labels + hits + '</svg>';
+    }
+
+    // ---- Generic chart card (kind 'chart', from the show_chart tool) --------------
+    // Bar (grouped or stacked) or line, 1–6 series, values the model took from tool
+    // results. Tap a column for its values. Plain inline SVG like the work chart.
+    function chartFmt(v, unit) {
+        var n = Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('da-DK')
+            : (Math.round(v * 100) / 100).toLocaleString('da-DK');
+        return unit ? n + ' ' + unit : n;
+    }
+
+    function chartSvg(card) {
+        var labels = card.labels || [], series = card.series || [];
+        var n = labels.length || 1, S = series.length || 1;
+        var W = 320, H = 170, padL = 8, padR = 8, padT = 14, padB = 22;
+        var innerW = W - padL - padR, innerH = H - padT - padB;
+        var stacked = !!card.stacked, isLine = card.type === 'line';
+
+        // Value range (include 0; supports negatives, e.g. a loss month).
+        var maxV = 0, minV = 0;
+        for (var i = 0; i < n; i++) {
+            var pos = 0, neg = 0;
+            series.forEach(function (sr) {
+                var v = +sr.values[i] || 0;
+                if (stacked) { if (v >= 0) pos += v; else neg += v; }
+                else { maxV = Math.max(maxV, v); minV = Math.min(minV, v); }
+            });
+            if (stacked) { maxV = Math.max(maxV, pos); minV = Math.min(minV, neg); }
+        }
+        if (isLine) {
+            // A trend reads better on its own scale (110 vs 100 kg shouldn't look flat).
+            var all = [];
+            series.forEach(function (sr) { sr.values.forEach(function (v) { all.push(+v || 0); }); });
+            var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+            var pad = (hi - lo) * 0.12 || Math.abs(hi) * 0.1 || 1;
+            minV = lo >= 0 ? Math.max(0, lo - pad) : lo - pad;
+            maxV = hi + pad;
+        }
+        if (maxV === minV) maxV = minV + 1;
+        function y(v) { return padT + (maxV - v) / (maxV - minV) * innerH; }
+        var y0 = Math.min(Math.max(y(0), padT), padT + innerH), step = innerW / n;
+
+        var out = '<line class="wch-grid" x1="' + padL + '" y1="' + padT + '" x2="' + (W - padR) + '" y2="' + padT + '"/>'
+            + '<text class="wch-ylab" x="' + padL + '" y="' + (padT - 3) + '">' + progEsc(chartFmt(maxV, card.unit)) + '</text>'
+            + '<line class="wch-grid base" x1="' + padL + '" y1="' + y0.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y0.toFixed(1) + '"/>';
+        // Bottom-of-scale label, right-aligned just above the plot floor (clear of x labels);
+        // appended after the marks (below) so it stays on top, with a halo.
+        var minLab = minV !== 0
+            ? '<text class="wch-ylab halo" x="' + (W - padR) + '" y="' + (padT + innerH - 3) + '" text-anchor="end">'
+                + progEsc(chartFmt(minV, card.unit)) + '</text>'
+            : '';
+
+        if (isLine) {
+            series.forEach(function (sr, si) {
+                var pts = sr.values.map(function (v, i) {
+                    return (padL + step * i + step / 2).toFixed(1) + ',' + y(+v || 0).toFixed(1);
+                });
+                out += '<polyline fill="none" stroke-width="2" stroke-linejoin="round" style="stroke:' + seriesColor(si) + '" points="' + pts.join(' ') + '"/>';
+                if (n <= 24) {
+                    sr.values.forEach(function (v, i) {
+                        out += '<circle r="2.6" style="fill:' + seriesColor(si) + '" cx="' + (padL + step * i + step / 2).toFixed(1) + '" cy="' + y(+v || 0).toFixed(1) + '"/>';
+                    });
+                }
+            });
+        } else {
+            var groupW = Math.min(step * 0.72, stacked ? 34 : 14 * S + 6);
+            var barW = stacked ? groupW : groupW / S;
+            labels.forEach(function (_, i) {
+                var gx = padL + step * i + (step - groupW) / 2, up = y0, down = y0;
+                series.forEach(function (sr, si) {
+                    var v = +sr.values[i] || 0;
+                    if (!v) return;
+                    var h = Math.abs(y(v) - y0), x, top;
+                    if (stacked) {
+                        x = gx;
+                        if (v >= 0) { up -= h; top = up; } else { top = down; down += h; }
+                    } else {
+                        x = gx + barW * si;
+                        top = v >= 0 ? y0 - h : y0;
+                    }
+                    out += '<rect class="chart-bar" data-idx="' + i + '" style="fill:' + seriesColor(si) + '" x="' + x.toFixed(1)
+                        + '" y="' + top.toFixed(1) + '" width="' + Math.max(barW - (stacked ? 0 : 1), 1).toFixed(1)
+                        + '" height="' + Math.max(h, 1).toFixed(1) + '" rx="' + (stacked ? 0 : 2) + '"/>';
+                });
+            });
+        }
+
+        out += minLab;
+        var many = n > 8, every = Math.ceil(n / 8);
+        labels.forEach(function (l, i) {
+            if (!many || i % every === 0 || i === n - 1) {
+                out += '<text class="wch-xlab" x="' + (padL + step * i + step / 2).toFixed(1) + '" y="' + (H - 8)
+                    + '" text-anchor="middle">' + progEsc(l) + '</text>';
+            }
+            out += '<rect class="wch-hit" data-idx="' + i + '" x="' + (padL + step * i).toFixed(1) + '" y="' + padT
+                + '" width="' + step.toFixed(1) + '" height="' + innerH.toFixed(1) + '"/>';
+        });
+
+        return '<svg class="wch-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + progEsc(card.title || 'Chart') + '">' + out + '</svg>';
+    }
+
+    function buildChart(wrap, card) {
+        wrap.innerHTML = '';
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || 'Chart';
+        wrap.appendChild(head);
+
+        var chart = document.createElement('div');
+        chart.className = 'wch-chart';
+        chart.innerHTML = chartSvg(card);
+        wrap.appendChild(chart);
+
+        var readout = document.createElement('div');
+        readout.className = 'prog-readout';
+        wrap.appendChild(readout);
+
+        var series = card.series || [];
+        function select(i) {
+            var svg = chart.querySelector('svg');
+            Array.prototype.forEach.call(svg.querySelectorAll('.chart-bar.sel'), function (el) { el.classList.remove('sel'); });
+            Array.prototype.forEach.call(svg.querySelectorAll('.chart-bar[data-idx="' + i + '"]'), function (el) { el.classList.add('sel'); });
+            var parts = series.map(function (sr) {
+                return (series.length > 1 ? progEsc(sr.name) + ' ' : '') + progEsc(chartFmt(+sr.values[i] || 0, card.unit));
+            });
+            readout.innerHTML = '<span class="prog-ro-date">' + progEsc((card.labels || [])[i] || '') + '</span>'
+                + '<span class="prog-ro-val">' + parts.join(' · ') + '</span>';
+        }
+        Array.prototype.forEach.call(chart.querySelectorAll('.wch-hit'), function (h) {
+            h.addEventListener('click', function () { select(parseInt(h.getAttribute('data-idx'), 10)); });
+        });
+        select((card.labels || []).length - 1);
+
+        if (series.length > 1) {
+            var legend = document.createElement('div');
+            legend.className = 'work-breakdown';
+            series.forEach(function (sr, si) {
+                var chip = document.createElement('span');
+                chip.className = 'work-place-total';
+                var sw = document.createElement('span');
+                sw.className = 'chart-swatch';
+                sw.style.background = seriesColor(si);
+                chip.appendChild(sw);
+                chip.appendChild(document.createTextNode(sr.name));
+                legend.appendChild(chip);
+            });
+            wrap.appendChild(legend);
+        }
+
+        if (card.source) {
+            var src = document.createElement('div');
+            src.className = 'chart-source';
+            src.textContent = 'Data: ' + card.source;
+            wrap.appendChild(src);
+        }
+    }
+
+    function renderChart(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card wch-card';
+        buildChart(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
     }
 
     function renderWorkChart(card) {
@@ -2700,14 +2945,21 @@
         wrap.appendChild(readout);
         wireWchTaps(chart, readout, card);
 
-        // Per-workplace breakdown chips (only when >1 labelled place).
+        // Per-workplace breakdown chips (only when >1 labelled place) — doubles as the
+        // legend for the stacked bars.
         if ((card.places || []).length) {
             var bd = document.createElement('div');
             bd.className = 'work-breakdown';
-            card.places.forEach(function (p) {
+            card.places.forEach(function (p, pi) {
                 var chip = document.createElement('span');
                 chip.className = 'work-place-total';
-                chip.textContent = (p.place || '—') + ' ' + p.total;
+                if (card.stacked) {
+                    var sw = document.createElement('span');
+                    sw.className = 'chart-swatch';
+                    sw.style.background = seriesColor(pi);
+                    chip.appendChild(sw);
+                }
+                chip.appendChild(document.createTextNode((p.place || '—') + ' ' + p.total));
                 bd.appendChild(chip);
             });
             wrap.appendChild(bd);
@@ -2728,7 +2980,9 @@
             b.textContent = m.label;
             b.addEventListener('click', function () {
                 if (m.key === card.mode) return;
-                wchPost({ period: m.key }, wrap);
+                // Keep a workplace filter when switching presets (a custom range resets).
+                var place = card.filter && card.filter.place;
+                wchPost(place ? { period: m.key, place: place } : { period: m.key }, wrap);
             });
             seg.appendChild(b);
         });
@@ -2757,15 +3011,18 @@
         function select(idx) {
             var b = bars[idx];
             if (!b) return;
-            var prev = svg.querySelector('.wch-bar.sel');
-            if (prev) prev.classList.remove('sel');
-            var bar = svg.querySelector('.wch-bar[data-idx="' + idx + '"]');
-            if (bar) bar.classList.add('sel');
+            Array.prototype.forEach.call(svg.querySelectorAll('.wch-bar.sel'), function (el) { el.classList.remove('sel'); });
+            Array.prototype.forEach.call(svg.querySelectorAll('.wch-bar[data-idx="' + idx + '"]'), function (el) { el.classList.add('sel'); });
 
             var tag = b.ongoing ? '<span class="prog-ro-tag est">on the clock</span>' : '';
             readout.innerHTML = '<span class="prog-ro-date">' + progEsc(wchWhen(card, b)) + '</span>'
                 + '<span class="prog-ro-val">' + progEsc(b.minutes > 0 ? b.total : '0m') + '</span>'
                 + (b.minutes > 0 ? '' : '<span class="prog-ro-detail">no hours</span>')
+                + (card.stacked && b.split && b.minutes > 0
+                    ? '<span class="prog-ro-detail">' + b.split.map(function (m, si) {
+                        return m ? progEsc(((card.places[si] && card.places[si].place) || '—') + ' ' + wchFmtMin(m)) : '';
+                    }).filter(Boolean).join(' · ') + '</span>'
+                    : '')
                 + tag;
         }
 
