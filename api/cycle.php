@@ -10,6 +10,8 @@ declare(strict_types=1);
  *   POST { action:'remove',         id }                  → remove a logged period, returns card
  *   POST { action:'log_day',        mood?, energy?, date? } → log mood/energy, returns card
  *   POST { action:'toggle_fertile' }                      → flip the fertile-window setting, returns card
+ *   POST { action:'ongoing' }                             → current period still going today, returns card
+ *   POST { action:'ended', date? }                        → current period ended (today), returns card
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -77,6 +79,16 @@ try {
             $mood,
             $energy,
         );
+        out(200, ['ok' => true, 'card' => $cycle->card($userId)]);
+    }
+
+    if ($action === 'ongoing' || $action === 'ended') {
+        $span = $action === 'ongoing'
+            ? $cycle->setCurrentPeriodEnd($userId, null, true)
+            : $cycle->setCurrentPeriodEnd($userId, isset($in['date']) ? (string) $in['date'] : null, false);
+        if ($span === null) {
+            out(400, ['error' => 'No period started in the last two weeks — log its start first.']);
+        }
         out(200, ['ok' => true, 'card' => $cycle->card($userId)]);
     }
 
