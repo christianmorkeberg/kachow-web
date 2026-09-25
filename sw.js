@@ -9,6 +9,7 @@ const CACHE = 'kachow-static-v2';
 const ASSETS = [
     '/assets/styles.css',
     '/assets/app.js',
+    '/assets/icons.js',
     '/assets/icon.svg',
     '/assets/icon-192.png',
     '/assets/icon-512.png',

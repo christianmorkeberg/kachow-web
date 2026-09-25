@@ -54,6 +54,7 @@ use App\Mail\NativeMailer;
 use App\Music\Discogs;
 use App\Receipts\ReceiptStorage;
 use App\Support\Markdown;
+use App\Support\TurnProgress;
 use App\Tools\ToolRegistry;
 use App\Weather\Dmi;
 
@@ -89,6 +90,10 @@ if (!$session->isLoggedIn()) {
     respond(401, ['error' => 'Not authenticated.']);
 }
 $userId = (int) $session->userId();
+// Release the session lock now: a turn can take many seconds, and holding the lock would
+// block every other request from this browser meanwhile — including api/progress.php,
+// which the page polls to show live tool progress. Nothing below writes to $_SESSION.
+session_write_close();
 
 $input = json_decode((string) file_get_contents('php://input'), true);
 if (!is_array($input)) {
@@ -154,6 +159,19 @@ try {
     $gemini = GeminiClient::fromEnv();
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories, new UserSettings());
 
+    // Live progress for the typing bubble (tool names/status only), if the client sent a turn id.
+    $turnId = isset($input['turn_id']) && is_string($input['turn_id']) ? $input['turn_id'] : '';
+    if (TurnProgress::validId($turnId)) {
+        $progress = new TurnProgress($userId, $turnId);
+        $loop->onProgress(static fn (array $state) => $progress->write($state));
+        register_shutdown_function(static function () use ($progress): void {
+            $progress->delete();
+            if (random_int(1, 50) === 1) {
+                TurnProgress::gc();
+            }
+        });
+    }
+
     $reply = $loop->handle($userId, $conversationId, $message, $location);
 
     if (isset($_SERVER['REQUEST_TIME_FLOAT'])) {
@@ -166,6 +184,7 @@ try {
         'reply_html'           => Markdown::toHtml($reply),
         'conversation_id'      => $conversationId,
         'card'                 => $loop->lastRender(),
+        'card_mode'            => $loop->lastCardMode(), // 'open' | 'min' (phones)
         'suggestions'          => $loop->lastSuggestions(),
         'diagnostics'          => $loop->lastDiagnostics(),
         'assistant_message_id' => $loop->lastAssistantMessageId(),
