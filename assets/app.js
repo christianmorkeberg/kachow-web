@@ -6711,6 +6711,9 @@
                     conversation_id: conversationId || undefined,
                     location: location || undefined,
                     turn_id: turnId,
+                    // First reply in a chat opened from a notification: the server stores the
+                    // notification as the opening assistant turn, so the model has the context.
+                    notice: !conversationId && pendingNotice ? pendingNotice.text : undefined,
                 }),
                 signal: sendController ? sendController.signal : undefined,
             });
@@ -6732,6 +6735,7 @@
             }
 
             if (data.conversation_id) {
+                pendingNotice = null;
                 conversationId = data.conversation_id;
                 localStorage.setItem(CONV_KEY, String(conversationId));
             }
@@ -6811,10 +6815,13 @@
 
     // Load a past conversation's messages into the view and make it the active one.
     // Note: old interactive cards aren't restored — only the text of each turn.
-    function loadConversation(id) {
+    function loadConversation(id, gen) {
         return fetch('/api/conversations.php?id=' + encodeURIComponent(id), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
+                // A notification opened meanwhile (startup restore only): leave its view alone.
+                if (gen !== undefined && gen !== navGen) return data;
+                pendingNotice = null;
                 messages.innerHTML = '';
                 hidePanel();
                 // Cards live in the panel now (the "current view"), not inline in the
@@ -6996,31 +7003,43 @@
     // the last conversation.
     var _params = new URLSearchParams(window.location.search);
     var cardParam = _params.get('card');
-    if (cardParam) {
-        openNotificationCard(cardParam, _params.get('rid'));
-    } else {
-        decideStartupChat();
-    }
+    // A tapped notification wins over restoring the last conversation. The service worker
+    // parks the tap (with the notification's own text) in CacheStorage, because iOS often
+    // drops its postMessage to a suspended or discarded page — so check that first.
+    takePendingOpen().then(function (p) {
+        if (p) handlePendingOpen(p);
+        else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
+        else decideStartupChat();
+    });
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible') return;
+        takePendingOpen().then(function (p) { if (p) handlePendingOpen(p); });
+    });
 
     // Resume the last conversation only if it's still "warm" (server says its last
     // message was <1h ago) — a quick refresh lands you back where you were. After a
     // longer gap, start a fresh chat but offer a "pick up where you left off" pill.
     // The idle age is measured server-side, so it's robust across devices/clock skew.
     function decideStartupChat() {
+        // If a notification opens while this is still loading, it wins: every step below
+        // checks the generation and stands down instead of overwriting the notification view.
+        var gen = navGen;
         fetch('/api/conversations.php?recent=1', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
+                if (gen !== navGen) return;
                 var recent = data && data.recent ? data.recent : null;
                 if (recent && recent.age_seconds <= IDLE_RESUME_SECONDS) {
-                    loadConversation(recent.id).catch(function () { startFreshChat(recent); });
+                    loadConversation(recent.id, gen).catch(function () { if (gen === navGen) startFreshChat(recent); });
                 } else {
                     startFreshChat(recent);   // idle gap (or no history) → fresh screen
                 }
             })
             .catch(function () {
+                if (gen !== navGen) return;
                 // Endpoint/network failure → fall back to the old restore behavior.
                 if (conversationId) {
-                    loadConversation(conversationId).catch(function () { startFreshChat(null); });
+                    loadConversation(conversationId, gen).catch(function () { if (gen === navGen) startFreshChat(null); });
                 } else {
                     startFreshChat(null);
                 }
@@ -7052,29 +7071,107 @@
         return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? m.da : m.en;
     }
 
-    function openNotificationCard(key, rid) {
+    // Quick replies offered under a notification, per type — each is a complete sentence,
+    // so it reads naturally as the user's answer (the notification text is in the chat too).
+    var NOTIF_REPLIES = {
+        checkout_nudge: { en: ['Clock me out now', 'I left earlier — I\'ll tell you when'], da: ['Stempl mig ud nu', 'Jeg gik tidligere — jeg siger hvornår'] },
+        reminder:       { en: ['Done ✓', 'Remind me again in 1 hour'],                    da: ['Klaret ✓', 'Mind mig om det igen om 1 time'] },
+        cycle_upcoming: { en: ['My period started today', 'Not yet'],                        da: ['Min menstruation startede i dag', 'Ikke endnu'] },
+        work_log_nudge: { en: ['Nothing to log today'],                                       da: ['Intet at logge i dag'] },
+        wfh_prompt:     { en: ['Yes, I\'m working from home today', 'Not working today'],    da: ['Ja, jeg arbejder hjemmefra i dag', 'Jeg arbejder ikke i dag'] }
+    };
+    function notifReplies(type) {
+        var m = NOTIF_REPLIES[type];
+        if (!m) return null;
+        return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? m.da : m.en;
+    }
+
+    // Generation counter: bumped when a notification opens, so a slower startup restore
+    // (decideStartupChat → loadConversation) never overwrites the notification view.
+    var navGen = 0;
+    // The notification a fresh chat was opened from — sent with the first message so the
+    // server stores it as the assistant's opening turn (the model then knows the context).
+    var pendingNotice = null;
+    var lastPendingAt = 0;
+
+    // Read + clear the tap the service worker parked in CacheStorage (null if none / stale).
+    function takePendingOpen() {
+        if (!window.caches) return Promise.resolve(null);
+        return caches.open('kachow-pending').then(function (c) {
+            return c.match('/__pending-open').then(function (r) {
+                if (!r) return null;
+                return r.json().then(function (p) {
+                    c.delete('/__pending-open');
+                    return p && p.at && Date.now() - p.at < 10 * 60 * 1000 ? p : null;
+                });
+            });
+        }).catch(function () { return null; });
+    }
+
+    // One tapped notification → the matching view. The SW both posts it and parks it, so
+    // the same tap can arrive twice: handle each tap once.
+    function handlePendingOpen(p) {
+        if (!p || (p.at && p.at === lastPendingAt)) return;
+        lastPendingAt = p.at || 0;
+        if (window.caches) caches.open('kachow-pending').then(function (c) { c.delete('/__pending-open'); }).catch(function () {});
+        var u;
+        try { u = new URL(p.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
+        openNotificationCard(u.searchParams.get('card'), u.searchParams.get('rid'), p);
+    }
+
+    function openNotificationCard(key, rid, note) {
+        navGen++;
         // Start clean: no active conversation, empty transcript.
         conversationId = null;
         localStorage.removeItem(CONV_KEY);
+        resumeConversation = null;
+        clearSuggestions();
         messages.innerHTML = '';
         hidePanel();
         // Drop the query params so a refresh doesn't re-trigger it.
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
 
+        // Lead with what the notification actually said (not a generic line), so the chat
+        // picks up exactly where the push left off; fall back to the card's stock intro.
+        var noticeText = note && (note.title || note.body)
+            ? [note.title, note.body].filter(Boolean).join(' — ') : null;
+        if (noticeText) {
+            addMessage(noticeText, 'assistant', note.title && note.body
+                ? '<p><strong>' + progEsc(note.title) + '</strong><br>' + progEsc(note.body) + '</p>' : null);
+            pendingNotice = { text: noticeText, type: note.type || '' };
+        } else {
+            pendingNotice = null;
+        }
+        var replies = notifReplies(note && note.type);
+        var gen = navGen;
+
+        if (!key) {                                   // a notification without a card
+            if (!noticeText) showEmptyHint();
+            if (replies) renderSuggestions(replies);
+            return;
+        }
         var url = '/api/card.php?for=' + encodeURIComponent(key);
         if (rid) url += '&rid=' + encodeURIComponent(rid);
         fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
+                if (gen !== navGen) return;
                 if (data && data.card) {
-                    var intro = cardIntro(key);
-                    if (intro) addMessage(intro, 'assistant');
-                    presentCard(data.card);
-                } else {
+                    if (!noticeText) {
+                        var intro = cardIntro(key);
+                        if (intro) addMessage(intro, 'assistant');
+                    }
+                    presentCard(data.card, 'open');
+                } else if (!noticeText) {
                     showEmptyHint();
                 }
+                if (replies) renderSuggestions(replies);
             })
-            .catch(function () { showEmptyHint(); });
+            .catch(function () {
+                if (gen !== navGen) return;
+                if (!noticeText) showEmptyHint();
+                if (replies) renderSuggestions(replies);
+            });
     }
 
     // Location is requested lazily (only when a message actually needs it — see
@@ -7099,11 +7196,7 @@
         navigator.serviceWorker.addEventListener('message', function (e) {
             var d = e.data || {};
             if (d.type !== 'kachow-open' || !d.url) return;
-            try {
-                var u = new URL(d.url, location.origin);
-                var card = u.searchParams.get('card');
-                if (card) openNotificationCard(card, u.searchParams.get('rid'));
-            } catch (err) { /* ignore malformed url */ }
+            handlePendingOpen({ url: d.url, type: d.ntype || '', title: d.title, body: d.body, at: d.at });
         });
 
         window.addEventListener('load', function () {

@@ -6,6 +6,10 @@
 // always go straight to the network.
 
 const CACHE = 'kachow-static-v2';
+// A tapped notification is also parked here, so the page can pick it up on load / when it
+// becomes visible — iOS often drops the postMessage to a suspended or discarded page.
+const PENDING_CACHE = 'kachow-pending';
+const PENDING_KEY = '/__pending-open';
 const ASSETS = [
     '/assets/styles.css',
     '/assets/app.js',
@@ -24,7 +28,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
-            Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+            Promise.all(keys.filter((k) => k !== CACHE && k !== PENDING_CACHE).map((k) => caches.delete(k)))
         )
     );
     self.clients.claim();
@@ -39,7 +43,7 @@ self.addEventListener('push', (event) => {
         body: data.body || '',
         icon: '/assets/icon-192.png',
         badge: '/assets/icon-192.png',
-        data: { url: data.url || '/' },
+        data: { url: data.url || '/', type: data.type || '' },
         tag: data.type || 'kachow',   // same type replaces, doesn't stack
     };
     event.waitUntil(self.registration.showNotification(title, options));
@@ -47,21 +51,34 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const target = (event.notification.data && event.notification.data.url) || '/';
-    event.waitUntil(
-        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-            for (const client of clients) {
-                if ('focus' in client) {
-                    // An already-open window (esp. an iOS PWA) often ignores client.navigate(),
-                    // so hand the page the target URL and let it open the card itself, then focus.
-                    client.postMessage({ type: 'kachow-open', url: target });
-                    return client.focus();
-                }
-            }
-            // Nothing open → launch fresh at the deep link (?card=… handled on load).
-            return self.clients.openWindow(target);
-        })
-    );
+    const n = event.notification;
+    const data = n.data || {};
+    // What the page needs to open the right view AND show what the notification said.
+    const pending = {
+        url: data.url || '/',
+        type: data.type || '',
+        title: n.title || '',
+        body: n.body || '',
+        at: Date.now(),
+    };
+    event.waitUntil((async () => {
+        try {
+            const c = await caches.open(PENDING_CACHE);
+            await c.put(PENDING_KEY, new Response(JSON.stringify(pending), { headers: { 'Content-Type': 'application/json' } }));
+        } catch (e) { /* storage unavailable — the message below still tries */ }
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (clients.length) {
+            // An already-open window (esp. an iOS PWA) often ignores client.navigate(), so
+            // hand EVERY window the details (one may be a stale, discarded page), then focus.
+            const msg = { type: 'kachow-open', ntype: pending.type, url: pending.url, title: pending.title, body: pending.body, at: pending.at };
+            clients.forEach((client) => client.postMessage(msg));
+            const target = clients.find((c) => c.focused) || clients[0];
+            if ('focus' in target) return target.focus();
+            return undefined;
+        }
+        // Nothing open → launch fresh at the deep link (the page also reads the parked copy).
+        return self.clients.openWindow(pending.url);
+    })());
 });
 
 self.addEventListener('fetch', (event) => {
