@@ -742,6 +742,7 @@
         pl:            ['trending-up', 'P&L'],
         mileage:       ['car', 'Mileage'],
         location_day:  ['map', 'Location'],
+        places:        ['map-pin', 'Places'],
         email_list:    ['inbox', 'Inbox'],
         email:         ['mail', 'Email'],
         email_draft:   ['pencil-line', 'Draft'],
@@ -852,6 +853,10 @@
             return Math.round(card.current.temp_c) + '°';
         }
         if (card.kind === 'chart' && card.title) return card.title;
+        if (card.kind === 'places') {
+            var pc = card.count != null ? card.count : (card.places || []).length;
+            return pc + ' ' + (pc === 1 ? daText('place', 'sted') : daText('places', 'steder'));
+        }
         if (card.kind === 'location_day') {
             var ls = card.stats || {};
             return (card.title || '') + (ls.points ? ' · ' + ls.distance_km + ' km' : '');
@@ -1197,6 +1202,7 @@
         if (card.kind === 'pl') { renderPl(card); return; }
         if (card.kind === 'mileage') { renderMileage(card); return; }
         if (card.kind === 'location_day') { renderLocationDay(card); return; }
+        if (card.kind === 'places') { renderPlaces(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -5901,6 +5907,26 @@
         }
         wrap.appendChild(stats);
 
+        // Time in the user's places (phase 2: a first, simple estimate from runs of points inside).
+        if ((st.in_places || []).length) {
+            var ip = document.createElement('div');
+            ip.className = 'loc-inplaces';
+            st.in_places.forEach(function (pl) {
+                var row = document.createElement('div');
+                row.className = 'loc-ip';
+                var visits = (pl.visits || []).map(function (v) {
+                    return v.from + '–' + (v.ongoing ? daText('now', 'nu') : v.to);
+                }).join(', ');
+                row.innerHTML = '<span class="loc-ip-dot" style="background:' + placeColor(pl.type) + '"></span>'
+                    + '<span class="loc-ip-name">' + progEsc(pl.place) + '</span>'
+                    + '<span class="loc-ip-time">' + progEsc(pl.minutes ? wchFmtMin(pl.minutes) : '—') + '</span>'
+                    + '<span class="loc-ip-visits">' + progEsc(visits
+                        + (pl.passes ? (visits ? ' · ' : '') + pl.passes + ' ' + daText(pl.passes === 1 ? 'pass-by' : 'pass-bys', 'forbikørsler') : '')) + '</span>';
+                ip.appendChild(row);
+            });
+            wrap.appendChild(ip);
+        }
+
         // A card reopened from chat history carries no coordinates (they're only kept 60 days,
         // server-side) — fetch the day live instead.
         if (card.stripped && !pts.length && card.date) {
@@ -5937,6 +5963,8 @@
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
             }).addTo(map);
 
+            (card.places || []).forEach(function (pl) { drawPlace(L, map, pl, false); });
+
             var goodAcc = card.good_acc_m || 100;
             var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3b82f6';
             var good = pts.filter(function (p) { return p[3] == null || p[3] <= goodAcc; });
@@ -5971,6 +5999,275 @@
         }).catch(function () {
             mapEl.textContent = daText('The map could not load.', 'Kortet kunne ikke indlæses.');
         });
+    }
+
+    // ---- Places (location tracking phase 2): the user's own named places on a map ------------
+    var PLACE_TYPES = {
+        work:     ['Work', 'Arbejde', '#2563eb'],
+        business: ['Business', 'Erhverv', '#ea580c'],
+        commute:  ['Commute', 'Pendling', '#7c3aed'],
+        home:     ['Home', 'Hjem', '#16a34a'],
+        private:  ['Private', 'Privat', '#db2777'],
+        other:    ['Other', 'Andet', '#64748b']
+    };
+    function placeColor(type) { return (PLACE_TYPES[type] || PLACE_TYPES.other)[2]; }
+    function placeTypeLabel(type) { var t = PLACE_TYPES[type] || PLACE_TYPES.other; return daText(t[0], t[1]); }
+
+    // Draws one place (circle or polygon) on a Leaflet map; returns the layer.
+    function drawPlace(L, map, pl, focused) {
+        var style = { color: placeColor(pl.type), weight: focused ? 3 : 2, opacity: 0.9,
+            fillColor: placeColor(pl.type), fillOpacity: focused ? 0.22 : 0.12 };
+        var layer = pl.shape === 'polygon' && (pl.polygon || []).length >= 3
+            ? L.polygon(pl.polygon, style)
+            : L.circle([pl.lat, pl.lon], Object.assign({ radius: pl.radius_m || 100 }, style));
+        layer.bindTooltip(pl.name, { direction: 'center', className: 'place-label', permanent: false });
+        return layer.addTo(map);
+    }
+
+    // Bounds from the place's own data (a Leaflet circle can't measure itself before the map has a view).
+    function placeBounds(L, pl) {
+        if (pl.shape === 'polygon' && (pl.polygon || []).length >= 3) return L.latLngBounds(pl.polygon);
+        return L.latLng(pl.lat, pl.lon).toBounds((pl.radius_m || 100) * 2);
+    }
+
+    function postPlaces(body) {
+        return fetch('/api/places.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'error'); return j; }); });
+    }
+
+    function renderPlaces(card) {
+        clearEmptyHint();
+        var places = card.places || [];
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card places-card';
+
+        // A card reopened from chat history has no coordinates — fetch the live list.
+        if (card.stripped && !places.length && card.count) {
+            var ld = document.createElement('div');
+            ld.className = 'plan-empty';
+            ld.textContent = daText('Loading places…', 'Henter steder…');
+            wrap.appendChild(ld);
+            messages.appendChild(wrap);
+            postPlaces({ action: 'list' }).then(function (j) { if (j.card) refreshPanelCard(j.card); })
+                .catch(function () { ld.textContent = daText('Could not load places.', 'Kunne ikke hente steder.'); });
+            return;
+        }
+
+        var mapEl = document.createElement('div');
+        mapEl.className = 'loc-map places-map';
+        var side = document.createElement('div');
+        side.className = 'places-side';
+        wrap.appendChild(side);
+        wrap.appendChild(mapEl);
+        messages.appendChild(wrap);
+
+        var L, map, placeLayers = {}, draft = null, draftLayer = null, hint = null;
+
+        // --- list view ---
+        function showList() {
+            draft = null;
+            clearDraftLayer();
+            side.innerHTML = '';
+            var add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'places-add';
+            add.innerHTML = icon('plus', 'ic-lead') + progEsc(daText('Add place', 'Tilføj sted'));
+            add.addEventListener('click', function () { edit(null); });
+            side.appendChild(add);
+            if (!places.length) {
+                var e = document.createElement('div');
+                e.className = 'plan-empty';
+                e.textContent = daText('No places yet. Add one here, or tell me "mark where I am as Office".',
+                    'Ingen steder endnu. Tilføj et her, eller skriv "gem stedet her som Kontor".');
+                side.appendChild(e);
+            }
+            var ul = document.createElement('ul');
+            ul.className = 'places-list';
+            places.forEach(function (pl) {
+                var li = document.createElement('li');
+                if (card.focus === pl.id) li.className = 'is-focus';
+                li.innerHTML = '<span class="loc-ip-dot" style="background:' + placeColor(pl.type) + '"></span>'
+                    + '<span class="pl-name">' + progEsc(pl.name) + '</span>'
+                    + '<span class="pl-meta">' + progEsc(placeTypeLabel(pl.type) + ' · '
+                        + (pl.shape === 'polygon' ? daText('polygon', 'polygon') : pl.radius_m + ' m')) + '</span>';
+                li.addEventListener('click', function () { edit(pl); });
+                ul.appendChild(li);
+            });
+            side.appendChild(ul);
+            if (map) fitAll();
+        }
+
+        // --- editor (new place or existing) ---
+        function edit(pl) {
+            var here = card.here || null;
+            var c = map && map._loaded ? map.getCenter() : null;
+            draft = pl ? JSON.parse(JSON.stringify(pl)) : {
+                id: null, name: '', type: 'work', shape: 'circle',
+                lat: here ? here[0] : (c ? c.lat : null), lon: here ? here[1] : (c ? c.lng : null),
+                radius_m: 100, polygon: []
+            };
+            if (draft.shape === 'polygon' && !draft.polygon) draft.polygon = [];
+            side.innerHTML = '';
+
+            var f = document.createElement('div');
+            f.className = 'places-form';
+            f.innerHTML =
+                '<div class="pf-row2"><label>' + progEsc(daText('Name', 'Navn')) + '<input type="text" class="pf-name" maxlength="64"></label>'
+                + '<label>' + progEsc(daText('Type', 'Type')) + '<select class="pf-type"></select></label></div>'
+                + '<div class="pf-shape" role="group"><button type="button" data-shape="circle">' + progEsc(daText('Circle', 'Cirkel'))
+                + '</button><button type="button" data-shape="polygon">' + progEsc(daText('Polygon', 'Polygon')) + '</button></div>'
+                + '<label class="pf-radius-row">' + progEsc(daText('Radius', 'Radius')) + ' <span class="pf-radius-v"></span>'
+                + '<input type="range" class="pf-radius" step="5"></label>'
+                + '<div class="pf-poly-row"><button type="button" class="pf-undo">' + progEsc(daText('Undo corner', 'Fortryd hjørne'))
+                + '</button><button type="button" class="pf-clear">' + progEsc(daText('Clear', 'Ryd')) + '</button></div>'
+                + '<div class="pf-hint"></div>'
+                + '<div class="pf-actions"><button type="button" class="pf-save">' + progEsc(daText('Save', 'Gem'))
+                + '</button><button type="button" class="pf-cancel">' + progEsc(daText('Cancel', 'Annuller')) + '</button>'
+                + (pl ? '<button type="button" class="pf-delete">' + progEsc(daText('Delete', 'Slet')) + '</button>' : '') + '</div>';
+            side.appendChild(f);
+
+            var nameIn = f.querySelector('.pf-name'), typeSel = f.querySelector('.pf-type');
+            var radius = f.querySelector('.pf-radius'), radiusV = f.querySelector('.pf-radius-v');
+            hint = f.querySelector('.pf-hint');
+            nameIn.value = draft.name;
+            Object.keys(PLACE_TYPES).forEach(function (t) {
+                var o = document.createElement('option');
+                o.value = t; o.textContent = placeTypeLabel(t);
+                if (t === draft.type) o.selected = true;
+                typeSel.appendChild(o);
+            });
+            radius.min = card.min_radius_m || 25;
+            radius.max = Math.min(card.max_radius_m || 2000, 1000);
+            radius.value = draft.radius_m || 100;
+            radiusV.textContent = radius.value + ' m';
+
+            function syncShape() {
+                f.querySelectorAll('.pf-shape button').forEach(function (b) {
+                    b.classList.toggle('is-on', b.getAttribute('data-shape') === draft.shape);
+                });
+                f.querySelector('.pf-radius-row').hidden = draft.shape !== 'circle';
+                f.querySelector('.pf-poly-row').hidden = draft.shape !== 'polygon';
+                hint.textContent = draft.shape === 'circle'
+                    ? daText('Tap the map to move the centre.', 'Tryk på kortet for at flytte midten.')
+                    : daText('Tap the map to add corners (at least 3).', 'Tryk på kortet for at sætte hjørner (mindst 3).');
+                drawDraft();
+            }
+            f.querySelectorAll('.pf-shape button').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    draft.shape = b.getAttribute('data-shape');
+                    if (draft.shape === 'polygon' && !draft.polygon) draft.polygon = [];
+                    syncShape();
+                });
+            });
+            nameIn.addEventListener('input', function () { draft.name = nameIn.value; });
+            typeSel.addEventListener('change', function () { draft.type = typeSel.value; drawDraft(); });
+            radius.addEventListener('input', function () {
+                draft.radius_m = Number(radius.value);
+                radiusV.textContent = radius.value + ' m';
+                drawDraft();
+            });
+            f.querySelector('.pf-undo').addEventListener('click', function () { draft.polygon.pop(); drawDraft(); });
+            f.querySelector('.pf-clear').addEventListener('click', function () { draft.polygon = []; drawDraft(); });
+            f.querySelector('.pf-cancel').addEventListener('click', showList);
+            var del = f.querySelector('.pf-delete');
+            if (del) del.addEventListener('click', function () {
+                if (!confirm(daText('Delete "' + pl.name + '"?', 'Slet "' + pl.name + '"?'))) return;
+                postPlaces({ action: 'delete', id: pl.id }).then(function (j) { refreshPanelCard(j.card); })
+                    .catch(function (e) { toast(e.message); });
+            });
+            f.querySelector('.pf-save').addEventListener('click', function () {
+                var body = { action: draft.id ? 'update' : 'create', id: draft.id || undefined,
+                    name: (draft.name || '').trim(), type: draft.type };
+                if (!body.name) { toast(daText('Give the place a name.', 'Giv stedet et navn.')); nameIn.focus(); return; }
+                if (draft.shape === 'polygon') {
+                    if (draft.polygon.length < 3) { toast(daText('A polygon needs at least 3 corners.', 'En polygon skal have mindst 3 hjørner.')); return; }
+                    body.polygon = draft.polygon;
+                } else {
+                    if (draft.lat == null) { toast(daText('Tap the map to place it.', 'Tryk på kortet for at placere det.')); return; }
+                    body.lat = draft.lat; body.lon = draft.lon; body.radius_m = draft.radius_m;
+                }
+                postPlaces(body).then(function (j) { refreshPanelCard(j.card); })
+                    .catch(function (e) { toast(e.message); });
+            });
+
+            syncShape();
+            nameIn.focus();
+            if (map) {
+                // No animation: the map must not drift under the user's first tap.
+                if (draft.shape === 'polygon' && draft.polygon.length) map.fitBounds(L.latLngBounds(draft.polygon), { padding: [30, 30], maxZoom: 17, animate: false });
+                else if (draft.lat != null) map.setView([draft.lat, draft.lon], Math.max(map.getZoom(), 16), { animate: false });
+            }
+        }
+
+        function clearDraftLayer() { if (draftLayer && map) { map.removeLayer(draftLayer); } draftLayer = null; }
+        function drawDraft() {
+            if (!map || !draft) return;
+            clearDraftLayer();
+            Object.keys(placeLayers).forEach(function (id) {
+                placeLayers[id].setStyle({ opacity: String(id) === String(draft.id) ? 0 : 0.35, fillOpacity: String(id) === String(draft.id) ? 0 : 0.06 });
+            });
+            var col = placeColor(draft.type);
+            draftLayer = L.featureGroup().addTo(map);
+            if (draft.shape === 'circle' && draft.lat != null) {
+                L.circle([draft.lat, draft.lon], { radius: draft.radius_m, color: col, weight: 3, fillColor: col, fillOpacity: 0.2, dashArray: '6 4' }).addTo(draftLayer);
+                L.circleMarker([draft.lat, draft.lon], { radius: 5, color: '#fff', weight: 2, fillColor: col, fillOpacity: 1 }).addTo(draftLayer);
+            } else if (draft.shape === 'polygon' && draft.polygon.length) {
+                (draft.polygon.length >= 3 ? L.polygon(draft.polygon, { color: col, weight: 3, fillColor: col, fillOpacity: 0.2, dashArray: '6 4' })
+                    : L.polyline(draft.polygon, { color: col, weight: 3, dashArray: '6 4' })).addTo(draftLayer);
+                draft.polygon.forEach(function (v) { L.circleMarker(v, { radius: 5, color: '#fff', weight: 2, fillColor: col, fillOpacity: 1 }).addTo(draftLayer); });
+            }
+        }
+
+        function fitAll() {
+            Object.keys(placeLayers).forEach(function (id) { placeLayers[id].setStyle({ opacity: 0.9, fillOpacity: card.focus === Number(id) ? 0.22 : 0.12 }); });
+            map.invalidateSize();
+            var focusPl = places.filter(function (p) { return p.id === card.focus; })[0];
+            if (focusPl) map.fitBounds(placeBounds(L, focusPl), { padding: [40, 40], maxZoom: 17 });
+            else if (places.length) {
+                var all = placeBounds(L, places[0]);
+                places.slice(1).forEach(function (p) { all.extend(placeBounds(L, p)); });
+                map.fitBounds(all, { padding: [30, 30], maxZoom: 16 });
+            } else if (card.here) map.setView(card.here, 15);
+            else map.setView([55.68, 12.57], 11);
+        }
+
+        showList();
+        loadLeaflet().then(function (lib) {
+            if (!mapEl.isConnected) return;
+            L = lib;
+            map = L.map(mapEl, { zoomControl: true });
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+            }).addTo(map);
+            places.forEach(function (pl) {
+                var layer = drawPlace(L, map, pl, card.focus === pl.id);
+                layer.on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit(pl); } });
+                placeLayers[pl.id] = layer;
+            });
+            if (card.here) {
+                L.circleMarker(card.here, { radius: 6, color: '#fff', weight: 2, fillColor: '#0ea5e9', fillOpacity: 1 })
+                    .bindTooltip(daText('Your latest position', 'Din seneste position')).addTo(map);
+            }
+            map.on('click', function (ev) {
+                if (!draft) return;
+                var ll = [Math.round(ev.latlng.lat * 1e6) / 1e6, Math.round(ev.latlng.lng * 1e6) / 1e6];
+                if (draft.shape === 'circle') { draft.lat = ll[0]; draft.lon = ll[1]; }
+                else draft.polygon.push(ll);
+                drawDraft();
+            });
+            fitAll();
+            if (draft) drawDraft();
+            if (window.ResizeObserver) {
+                var lastW = mapEl.clientWidth;
+                new ResizeObserver(function () {
+                    if (mapEl.clientWidth && mapEl.clientWidth !== lastW) { lastW = mapEl.clientWidth; map.invalidateSize(); }
+                }).observe(mapEl);
+            }
+        }).catch(function () { mapEl.textContent = daText('The map could not load.', 'Kortet kunne ikke indlæses.'); });
     }
 
     function renderWorkHours(card) {
