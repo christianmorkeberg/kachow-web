@@ -717,6 +717,7 @@
     var cardPanelTitle = document.getElementById('cardPanelTitle');
     var cardPanelSub   = document.getElementById('cardPanelSub');
     var panelKind      = null;
+    var panelCard      = null;   // the card currently in the panel (for the live refresh)
 
     // kind → [icon, title]. Icon names come from assets/icons.js (Lucide).
     var CARD_TITLES = {
@@ -872,6 +873,7 @@
         setPanelState('hidden');
         cardPanelBody.innerHTML = '';
         panelKind = null;
+        panelCard = null;
         // On desktop the panel is a permanent column (CSS keeps it visible even when
         // "hidden"); reset the header so a cleared column reads as the neutral empty
         // state rather than a stale card title.
@@ -911,6 +913,7 @@
         }
 
         panelKind = card.kind;
+        panelCard = card;
         recordRailCard(card);
         renderRail();
         setIconText(cardPanelTitle, cardIconFor(card), cardTitleFor(card));
@@ -929,6 +932,64 @@
         }
         flashPanel();
     }
+
+    // ---- Live refresh of an open work card (desktop) ----------------------------------
+    // While a work session is running, re-fetch the open work_hours / work_chart card once a
+    // minute and redraw it in place, so the running clock keeps counting on the desktop
+    // canvas. Only on desktop, only while the tab is visible, only while the card shows an
+    // ongoing session — so it stops by itself after clock-out. Quiet: no flash, no state or
+    // rail changes, scroll position kept.
+    var LIVE_REFRESH_MS = 60000;
+
+    function workCardIsLive(card) {
+        if (!card) return false;
+        if (card.kind === 'work_hours') return !!card.ongoing;
+        if (card.kind === 'work_chart') return (card.bars || []).some(function (b) { return b.ongoing; });
+        return false;
+    }
+
+    function refetchWorkCard(card) {
+        var url, body;
+        if (card.kind === 'work_hours') {
+            var q = card.query || {};
+            url = '/api/work-hours.php';
+            body = { scope: q.scope || 'today', date: q.date || undefined, to: q.to || undefined, place: q.place || undefined };
+        } else {
+            var f = card.filter || {};
+            url = '/api/work-summary.php';
+            body = { period: card.mode, place: f.place || undefined, from: f.from || undefined, to: f.to || undefined, bucket: f.bucket || undefined };
+        }
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.ok ? r.json() : null; });
+    }
+
+    // Redraw the panel's card without presentCard's side effects.
+    function refreshPanelCard(card) {
+        if (!cardPanel || !card || card.kind !== panelKind) return;
+        var scroll = cardPanelBody.scrollTop;
+        cardPanelBody.innerHTML = '';
+        var orig = messages.appendChild;
+        messages.appendChild = function (node) { return cardPanelBody.appendChild(node); };
+        try { renderCard(card); } finally { messages.appendChild = orig; }
+        panelCard = card;
+        cardPanelSub.textContent = cardSubFor(card);
+        cardPanelBody.scrollTop = scroll;
+    }
+
+    setInterval(function () {
+        var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
+        if (!desktop || document.visibilityState !== 'visible' || !cardPanel || cardPanel.hidden) return;
+        var card = panelCard;
+        if (!workCardIsLive(card)) return;
+        refetchWorkCard(card).then(function (j) {
+            // Still the same card on screen? (the user may have switched meanwhile)
+            if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+        }).catch(function () { /* next minute */ });
+    }, LIVE_REFRESH_MS);
 
     (function wireCardPanel() {
         if (!cardPanel) return;
@@ -3255,7 +3316,11 @@
             body: JSON.stringify(body)
         }).then(function (r) { return r.json(); }).then(function (res) {
             wrap.classList.remove('loading');
-            if (res && res.card) buildWorkChart(wrap, res.card);
+            if (res && res.card) {
+                buildWorkChart(wrap, res.card);
+                // Keep the live refresh on the view the user just switched to.
+                if (panelKind === 'work_chart' && cardPanelBody.contains(wrap)) panelCard = res.card;
+            }
         }).catch(function () { wrap.classList.remove('loading'); });
     }
 
