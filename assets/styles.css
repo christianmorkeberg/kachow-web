@@ -2345,3 +2345,60 @@ svg.cyc-emoji { overflow: visible; }
     .loc-card > .loc-map { height: min(62vh, 560px); }
     .loc-card > .plan-empty { grid-column: 1 / -1; }
 }
+
+/* ---- Time in places (day card) + Places card (phase 2) --------------------------- */
+.loc-inplaces { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
+.loc-ip { display: grid; grid-template-columns: 10px 1fr auto; column-gap: 8px; align-items: baseline; }
+.loc-ip-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; align-self: center; }
+.loc-ip-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loc-ip-time { font-variant-numeric: tabular-nums; font-weight: 600; }
+.loc-ip-visits { grid-column: 2 / -1; font-size: 12px; color: var(--muted); }
+
+.places-side { margin-bottom: 10px; }
+.places-add {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--accent-soft, transparent); color: inherit; font: inherit; font-weight: 600;
+}
+.places-add svg { width: 16px; height: 16px; }
+.places-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.places-list li {
+    display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; cursor: pointer;
+    padding: 7px 8px; border-radius: 8px; border: 1px solid transparent;
+}
+.places-list li:hover, .places-list li.is-focus { border-color: var(--line); background: var(--accent-soft, transparent); }
+.pl-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.places-form { display: flex; flex-direction: column; gap: 8px; }
+.places-form label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.places-form input[type="text"], .places-form select {
+    font: inherit; font-size: 15px; color: inherit; padding: 7px 9px; border-radius: 8px;
+    border: 1px solid var(--line); background: transparent;
+}
+.places-form select option { color: #111; }
+.places-form input[type="range"] { width: 100%; }
+.pf-radius-v { color: inherit; font-weight: 600; }
+.pf-shape, .pf-poly-row, .pf-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.pf-shape button, .pf-poly-row button, .pf-actions button {
+    font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: inherit;
+}
+.pf-shape button.is-on { background: var(--accent); color: var(--accent-ink, #fff); border-color: var(--accent); }
+.pf-actions .pf-save { background: var(--accent); color: var(--accent-ink, #fff); border-color: var(--accent); font-weight: 600; }
+.pf-actions .pf-delete { margin-left: auto; color: #dc2626; }
+.pf-hint { font-size: 12px; color: var(--muted); }
+.places-map { cursor: crosshair; }
+.places-form [hidden] { display: none !important; }
+/* Phone: map first (tap it, then name + save below), name + type side by side. */
+.places-card { display: flex; flex-direction: column; }
+.places-card > .places-map { order: -1; height: 280px; margin-bottom: 10px; }
+.pf-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@container cardpanel (min-width: 720px) {
+    .loc-card > .loc-inplaces { grid-column: 1; }
+    .loc-card { grid-template-rows: auto auto 1fr; }
+    .loc-card > .loc-map { grid-column: 2; grid-row: 2 / span 2; }
+    .places-card { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; gap: 0 20px; align-items: start; }
+    .places-card > .places-side { grid-column: 1; grid-row: 1; }
+    .places-card > .places-map { grid-column: 2; grid-row: 1; height: min(64vh, 580px); margin-bottom: 0; }
+    .pf-row2 { grid-template-columns: 1fr; }
+    .places-card > .plan-empty { grid-column: 1 / -1; }
+}

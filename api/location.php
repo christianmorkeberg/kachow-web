@@ -14,6 +14,7 @@ require __DIR__ . '/../bootstrap.php';
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\LocationPoints;
+use App\Data\Places;
 use App\Data\RememberTokens;
 use App\Data\Users;
 use App\Data\WorkEvents;
@@ -47,7 +48,7 @@ $date = is_array($in) && isset($in['date']) && is_string($in['date']) && preg_ma
     : (new DateTimeImmutable('now', new DateTimeZone(WorkEvents::LOCAL_TZ)))->format('Y-m-d');
 
 try {
-    out(200, ['ok' => true, 'card' => (new LocationPoints())->day($userId, $date)['card']]);
+    out(200, ['ok' => true, 'card' => (new LocationPoints())->day($userId, $date, (new Places())->list($userId))['card']]);
 } catch (\Throwable $e) {
     error_log('location.php: ' . $e->getMessage());
     out(500, ['error' => 'Something went wrong.']);
