@@ -112,6 +112,9 @@ $location = null;
 if (isset($input['location']['lat'], $input['location']['lon'])
     && is_numeric($input['location']['lat']) && is_numeric($input['location']['lon'])) {
     $location = ['lat' => (float) $input['location']['lat'], 'lon' => (float) $input['location']['lon']];
+    if (isset($input['location']['acc']) && is_numeric($input['location']['acc'])) {
+        $location['acc'] = (float) $input['location']['acc']; // metres; lets "here" use this fix
+    }
 }
 
 try {
