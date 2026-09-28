@@ -2402,3 +2402,23 @@ svg.cyc-emoji { overflow: visible; }
     .pf-row2 { grid-template-columns: 1fr; }
     .places-card > .plan-empty { grid-column: 1 / -1; }
 }
+
+/* ---- Timeline (phase 3) + place suggestions ---------------------------------------- */
+.loc-timeline { list-style: none; margin: 4px 0 10px; padding: 0; display: flex; flex-direction: column; }
+.loc-timeline li { display: grid; grid-template-columns: 10px 112px 1fr auto; gap: 8px; align-items: center; padding: 4px 0; font-size: 14px; }
+.loc-timeline .tl-when { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.loc-timeline .tl-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.loc-timeline .tl-name.is-unnamed { font-weight: 400; font-style: italic; color: var(--muted); }
+.loc-timeline .tl-dur { font-variant-numeric: tabular-nums; font-size: 13px; }
+.loc-timeline .tl-trip .tl-name { font-weight: 400; color: var(--muted); font-size: 13px; }
+.loc-timeline .tl-line { width: 2px; height: 18px; margin: 0 auto; background: var(--line); border-radius: 1px; }
+.loc-timeline .is-live .tl-dur { color: #16a34a; font-weight: 600; }
+.places-sugg-head { margin: 12px 0 4px; font-size: 12px; color: var(--muted); }
+.places-sugg li { grid-template-columns: 10px 1fr auto; row-gap: 0; }
+.places-sugg .pl-sub { grid-column: 2 / -1; font-size: 12px; color: var(--muted); }
+.sugg-dot { background: transparent; border: 2px dashed #94a3b8; box-sizing: border-box; }
+@container cardpanel (min-width: 720px) {
+    .loc-card > .loc-timeline { grid-column: 1; }
+    .loc-card { grid-template-rows: auto auto auto 1fr; }
+    .loc-card > .loc-map { grid-row: 2 / span 3; }
+}

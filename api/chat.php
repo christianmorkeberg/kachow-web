@@ -5,7 +5,9 @@ declare(strict_types=1);
 /**
  * The single chat endpoint the frontend calls.
  *
- * POST JSON: { "message": string, "conversation_id"?: int }
+ * POST JSON: { "message": string, "conversation_id"?: int, "notice"?: string }
+ *   notice: the text of the push notification a fresh chat was opened from — stored as the
+ *   conversation's opening assistant turn so the model knows what the user is answering.
  * Returns JSON: { "reply": string, "conversation_id": int }
  *
  * Requires an authenticated app session (or a valid remember-me cookie). Google
@@ -122,6 +124,12 @@ try {
         }
     } else {
         $conversationId = $conversations->start($userId);
+        // Opened from a notification: its text becomes the assistant's opening turn, so a
+        // reply like "Clock me out now" or "Not yet" is read in context (and history shows it).
+        $notice = trim((string) ($input['notice'] ?? ''));
+        if ($notice !== '') {
+            $conversations->addMessage($conversationId, 'assistant', mb_substr($notice, 0, 600));
+        }
     }
 
     $oauth        = GoogleOAuth::fromEnv($users);

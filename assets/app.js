@@ -5927,6 +5927,32 @@
             wrap.appendChild(ip);
         }
 
+        // Timeline (phase 3): stays and the trips between them, in order.
+        if ((card.timeline || []).length) {
+            var tl = document.createElement('ol');
+            tl.className = 'loc-timeline';
+            card.timeline.forEach(function (it) {
+                var li = document.createElement('li');
+                if (it.kind === 'stay') {
+                    li.className = 'tl-stay' + (it.ongoing ? ' is-live' : '');
+                    var name = it.place || daText('Unnamed place', 'Unavngivet sted');
+                    li.innerHTML = '<span class="loc-ip-dot" style="background:' + (it.place ? placeColor(it.type) : '#94a3b8') + '"></span>'
+                        + '<span class="tl-when">' + progEsc((it.prev_day ? '… ' : '') + it.from + '–' + (it.ongoing ? daText('now', 'nu') : it.to) + (it.next_day ? ' …' : '')) + '</span>'
+                        + '<span class="tl-name' + (it.place ? '' : ' is-unnamed') + '">' + progEsc(name) + '</span>'
+                        + '<span class="tl-dur">' + progEsc(wchFmtMin(it.minutes)) + '</span>';
+                } else {
+                    li.className = 'tl-trip';
+                    var mode = { walk: daText('walk', 'gang'), bike: daText('bike', 'cykel'), vehicle: daText('car/train', 'bil/tog'), unknown: '' }[it.mode] || '';
+                    li.innerHTML = '<span class="tl-line"></span>'
+                        + '<span class="tl-when">' + progEsc(it.start_time + '–' + it.end_time) + '</span>'
+                        + '<span class="tl-name">' + progEsc([mode, it.km + ' km'].filter(Boolean).join(' · ')) + '</span>'
+                        + '<span class="tl-dur">' + progEsc(wchFmtMin(it.minutes)) + '</span>';
+                }
+                tl.appendChild(li);
+            });
+            wrap.appendChild(tl);
+        }
+
         // A card reopened from chat history carries no coordinates (they're only kept 60 days,
         // server-side) — fetch the day live instead.
         if (card.stripped && !pts.length && card.date) {
@@ -5941,7 +5967,7 @@
             return;
         }
 
-        if (!pts.length) {
+        if (!pts.length && !(card.timeline || []).length) {
             var empty = document.createElement('div');
             empty.className = 'plan-empty';
             empty.textContent = daText('No location points for this day.', 'Ingen positioner for denne dag.');
@@ -5964,6 +5990,13 @@
             }).addTo(map);
 
             (card.places || []).forEach(function (pl) { drawPlace(L, map, pl, false); });
+            (card.timeline || []).forEach(function (it) {
+                if (it.kind !== 'stay') return;
+                L.circleMarker([it.lat, it.lon], { radius: 9, weight: 2, color: '#fff',
+                    fillColor: it.place ? placeColor(it.type) : '#94a3b8', fillOpacity: 0.95 })
+                    .bindTooltip((it.place || daText('Unnamed place', 'Unavngivet sted')) + ' · ' + it.from + '–'
+                        + (it.ongoing ? daText('now', 'nu') : it.to)).addTo(map);
+            });
 
             var goodAcc = card.good_acc_m || 100;
             var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3b82f6';
@@ -5980,13 +6013,16 @@
                   .addTo(map);
             });
             var first = pts[0], last = pts[pts.length - 1];
+            if (first) {
             // Start drawn larger underneath, so a round trip (start ≈ end) still shows both.
             L.circleMarker([first[0], first[1]], { radius: 10, weight: 2, color: '#fff', fillColor: '#16a34a', fillOpacity: 1 })
                 .bindTooltip(daText('Start ', 'Start ') + first[2]).addTo(map);
             L.circleMarker([last[0], last[1]], { radius: 6, weight: 2, color: '#fff', fillColor: '#dc2626', fillOpacity: 1 })
                 .bindTooltip(daText('Last ', 'Seneste ') + last[2]).addTo(map);
+            }
 
-            var bounds = L.latLngBounds((line.length ? line : pts.map(function (p) { return [p[0], p[1]]; })));
+            var stayLL = (card.timeline || []).filter(function (it) { return it.kind === 'stay'; }).map(function (it) { return [it.lat, it.lon]; });
+            var bounds = L.latLngBounds(line.concat(stayLL).length ? line.concat(stayLL) : pts.map(function (p) { return [p[0], p[1]]; }));
             function fit() { map.invalidateSize(); map.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 }); }
             fit();
             // The panel may be minimised or resized (split / full width): refit when it gets a size.
@@ -6030,7 +6066,8 @@
         return L.latLng(pl.lat, pl.lon).toBounds((pl.radius_m || 100) * 2);
     }
 
-    function postPlaces(body) {
+    function postPlaces(body, withSuggestions) {
+        if (withSuggestions) body.suggest = true;
         return fetch('/api/places.php', {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
@@ -6051,7 +6088,7 @@
             ld.textContent = daText('Loading places…', 'Henter steder…');
             wrap.appendChild(ld);
             messages.appendChild(wrap);
-            postPlaces({ action: 'list' }).then(function (j) { if (j.card) refreshPanelCard(j.card); })
+            postPlaces({ action: 'list' }, card.stripped && card.suggestions !== undefined).then(function (j) { if (j.card) refreshPanelCard(j.card); })
                 .catch(function () { ld.textContent = daText('Could not load places.', 'Kunne ikke hente steder.'); });
             return;
         }
@@ -6084,6 +6121,28 @@
                     'Ingen steder endnu. Tilføj et her, eller skriv "gem stedet her som Kontor".');
                 side.appendChild(e);
             }
+            // Frequent unnamed places (phase 3): name one with a tap.
+            if ((card.suggestions || []).length) {
+                var sh = document.createElement('div');
+                sh.className = 'places-sugg-head';
+                sh.textContent = daText('Suggested — places you keep returning to', 'Forslag — steder du ofte kommer');
+                side.appendChild(sh);
+                var su = document.createElement('ul');
+                su.className = 'places-list places-sugg';
+                card.suggestions.forEach(function (sg, i) {
+                    var li = document.createElement('li');
+                    li.innerHTML = '<span class="loc-ip-dot sugg-dot"></span>'
+                        + '<span class="pl-name">' + progEsc(daText('Suggestion ', 'Forslag ') + (i + 1)) + '</span>'
+                        + '<span class="pl-meta">' + progEsc(sg.days + ' ' + daText('days', 'dage') + ' · ~' + wchFmtMin(sg.avg_minutes)) + '</span>'
+                        + '<span class="pl-sub">' + progEsc(sg.typical) + '</span>';
+                    li.title = daText('Name this place', 'Navngiv stedet');
+                    li.addEventListener('click', function () {
+                        edit({ id: null, name: '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] });
+                    });
+                    su.appendChild(li);
+                });
+                side.appendChild(su);
+            }
             var ul = document.createElement('ul');
             ul.className = 'places-list';
             places.forEach(function (pl) {
@@ -6104,6 +6163,7 @@
         function edit(pl) {
             var here = card.here || null;
             var c = map && map._loaded ? map.getCenter() : null;
+            var isNew = !pl || !pl.id;
             draft = pl ? JSON.parse(JSON.stringify(pl)) : {
                 id: null, name: '', type: 'work', shape: 'circle',
                 lat: here ? here[0] : (c ? c.lat : null), lon: here ? here[1] : (c ? c.lng : null),
@@ -6126,7 +6186,7 @@
                 + '<div class="pf-hint"></div>'
                 + '<div class="pf-actions"><button type="button" class="pf-save">' + progEsc(daText('Save', 'Gem'))
                 + '</button><button type="button" class="pf-cancel">' + progEsc(daText('Cancel', 'Annuller')) + '</button>'
-                + (pl ? '<button type="button" class="pf-delete">' + progEsc(daText('Delete', 'Slet')) + '</button>' : '') + '</div>';
+                + (!isNew ? '<button type="button" class="pf-delete">' + progEsc(daText('Delete', 'Slet')) + '</button>' : '') + '</div>';
             side.appendChild(f);
 
             var nameIn = f.querySelector('.pf-name'), typeSel = f.querySelector('.pf-type');
@@ -6175,7 +6235,7 @@
             var del = f.querySelector('.pf-delete');
             if (del) del.addEventListener('click', function () {
                 if (!confirm(daText('Delete "' + pl.name + '"?', 'Slet "' + pl.name + '"?'))) return;
-                postPlaces({ action: 'delete', id: pl.id }).then(function (j) { refreshPanelCard(j.card); })
+                postPlaces({ action: 'delete', id: pl.id }, !!card.suggestions).then(function (j) { refreshPanelCard(j.card); })
                     .catch(function (e) { toast(e.message); });
             });
             f.querySelector('.pf-save').addEventListener('click', function () {
@@ -6189,7 +6249,7 @@
                     if (draft.lat == null) { toast(daText('Tap the map to place it.', 'Tryk på kortet for at placere det.')); return; }
                     body.lat = draft.lat; body.lon = draft.lon; body.radius_m = draft.radius_m;
                 }
-                postPlaces(body).then(function (j) { refreshPanelCard(j.card); })
+                postPlaces(body, !!card.suggestions).then(function (j) { refreshPanelCard(j.card); })
                     .catch(function (e) { toast(e.message); });
             });
 
@@ -6247,6 +6307,11 @@
                 var layer = drawPlace(L, map, pl, card.focus === pl.id);
                 layer.on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit(pl); } });
                 placeLayers[pl.id] = layer;
+            });
+            (card.suggestions || []).forEach(function (sg, i) {
+                L.circle([sg.lat, sg.lon], { radius: 60, color: '#94a3b8', weight: 2, dashArray: '4 4', fillOpacity: 0.08 })
+                    .bindTooltip(daText('Suggestion ', 'Forslag ') + (i + 1)).addTo(map)
+                    .on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit({ id: null, name: '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] }); } });
             });
             if (card.here) {
                 L.circleMarker(card.here, { radius: 6, color: '#fff', weight: 2, fillColor: '#0ea5e9', fillOpacity: 1 })
@@ -6646,6 +6711,9 @@
                     conversation_id: conversationId || undefined,
                     location: location || undefined,
                     turn_id: turnId,
+                    // First reply in a chat opened from a notification: the server stores the
+                    // notification as the opening assistant turn, so the model has the context.
+                    notice: !conversationId && pendingNotice ? pendingNotice.text : undefined,
                 }),
                 signal: sendController ? sendController.signal : undefined,
             });
@@ -6667,6 +6735,7 @@
             }
 
             if (data.conversation_id) {
+                pendingNotice = null;
                 conversationId = data.conversation_id;
                 localStorage.setItem(CONV_KEY, String(conversationId));
             }
@@ -6746,10 +6815,13 @@
 
     // Load a past conversation's messages into the view and make it the active one.
     // Note: old interactive cards aren't restored — only the text of each turn.
-    function loadConversation(id) {
+    function loadConversation(id, gen) {
         return fetch('/api/conversations.php?id=' + encodeURIComponent(id), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
+                // A notification opened meanwhile (startup restore only): leave its view alone.
+                if (gen !== undefined && gen !== navGen) return data;
+                pendingNotice = null;
                 messages.innerHTML = '';
                 hidePanel();
                 // Cards live in the panel now (the "current view"), not inline in the
@@ -6931,31 +7003,43 @@
     // the last conversation.
     var _params = new URLSearchParams(window.location.search);
     var cardParam = _params.get('card');
-    if (cardParam) {
-        openNotificationCard(cardParam, _params.get('rid'));
-    } else {
-        decideStartupChat();
-    }
+    // A tapped notification wins over restoring the last conversation. The service worker
+    // parks the tap (with the notification's own text) in CacheStorage, because iOS often
+    // drops its postMessage to a suspended or discarded page — so check that first.
+    takePendingOpen().then(function (p) {
+        if (p) handlePendingOpen(p);
+        else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
+        else decideStartupChat();
+    });
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible') return;
+        takePendingOpen().then(function (p) { if (p) handlePendingOpen(p); });
+    });
 
     // Resume the last conversation only if it's still "warm" (server says its last
     // message was <1h ago) — a quick refresh lands you back where you were. After a
     // longer gap, start a fresh chat but offer a "pick up where you left off" pill.
     // The idle age is measured server-side, so it's robust across devices/clock skew.
     function decideStartupChat() {
+        // If a notification opens while this is still loading, it wins: every step below
+        // checks the generation and stands down instead of overwriting the notification view.
+        var gen = navGen;
         fetch('/api/conversations.php?recent=1', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
+                if (gen !== navGen) return;
                 var recent = data && data.recent ? data.recent : null;
                 if (recent && recent.age_seconds <= IDLE_RESUME_SECONDS) {
-                    loadConversation(recent.id).catch(function () { startFreshChat(recent); });
+                    loadConversation(recent.id, gen).catch(function () { if (gen === navGen) startFreshChat(recent); });
                 } else {
                     startFreshChat(recent);   // idle gap (or no history) → fresh screen
                 }
             })
             .catch(function () {
+                if (gen !== navGen) return;
                 // Endpoint/network failure → fall back to the old restore behavior.
                 if (conversationId) {
-                    loadConversation(conversationId).catch(function () { startFreshChat(null); });
+                    loadConversation(conversationId, gen).catch(function () { if (gen === navGen) startFreshChat(null); });
                 } else {
                     startFreshChat(null);
                 }
@@ -6987,29 +7071,107 @@
         return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? m.da : m.en;
     }
 
-    function openNotificationCard(key, rid) {
+    // Quick replies offered under a notification, per type — each is a complete sentence,
+    // so it reads naturally as the user's answer (the notification text is in the chat too).
+    var NOTIF_REPLIES = {
+        checkout_nudge: { en: ['Clock me out now', 'I left earlier — I\'ll tell you when'], da: ['Stempl mig ud nu', 'Jeg gik tidligere — jeg siger hvornår'] },
+        reminder:       { en: ['Done ✓', 'Remind me again in 1 hour'],                    da: ['Klaret ✓', 'Mind mig om det igen om 1 time'] },
+        cycle_upcoming: { en: ['My period started today', 'Not yet'],                        da: ['Min menstruation startede i dag', 'Ikke endnu'] },
+        work_log_nudge: { en: ['Nothing to log today'],                                       da: ['Intet at logge i dag'] },
+        wfh_prompt:     { en: ['Yes, I\'m working from home today', 'Not working today'],    da: ['Ja, jeg arbejder hjemmefra i dag', 'Jeg arbejder ikke i dag'] }
+    };
+    function notifReplies(type) {
+        var m = NOTIF_REPLIES[type];
+        if (!m) return null;
+        return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? m.da : m.en;
+    }
+
+    // Generation counter: bumped when a notification opens, so a slower startup restore
+    // (decideStartupChat → loadConversation) never overwrites the notification view.
+    var navGen = 0;
+    // The notification a fresh chat was opened from — sent with the first message so the
+    // server stores it as the assistant's opening turn (the model then knows the context).
+    var pendingNotice = null;
+    var lastPendingAt = 0;
+
+    // Read + clear the tap the service worker parked in CacheStorage (null if none / stale).
+    function takePendingOpen() {
+        if (!window.caches) return Promise.resolve(null);
+        return caches.open('kachow-pending').then(function (c) {
+            return c.match('/__pending-open').then(function (r) {
+                if (!r) return null;
+                return r.json().then(function (p) {
+                    c.delete('/__pending-open');
+                    return p && p.at && Date.now() - p.at < 10 * 60 * 1000 ? p : null;
+                });
+            });
+        }).catch(function () { return null; });
+    }
+
+    // One tapped notification → the matching view. The SW both posts it and parks it, so
+    // the same tap can arrive twice: handle each tap once.
+    function handlePendingOpen(p) {
+        if (!p || (p.at && p.at === lastPendingAt)) return;
+        lastPendingAt = p.at || 0;
+        if (window.caches) caches.open('kachow-pending').then(function (c) { c.delete('/__pending-open'); }).catch(function () {});
+        var u;
+        try { u = new URL(p.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
+        openNotificationCard(u.searchParams.get('card'), u.searchParams.get('rid'), p);
+    }
+
+    function openNotificationCard(key, rid, note) {
+        navGen++;
         // Start clean: no active conversation, empty transcript.
         conversationId = null;
         localStorage.removeItem(CONV_KEY);
+        resumeConversation = null;
+        clearSuggestions();
         messages.innerHTML = '';
         hidePanel();
         // Drop the query params so a refresh doesn't re-trigger it.
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
 
+        // Lead with what the notification actually said (not a generic line), so the chat
+        // picks up exactly where the push left off; fall back to the card's stock intro.
+        var noticeText = note && (note.title || note.body)
+            ? [note.title, note.body].filter(Boolean).join(' — ') : null;
+        if (noticeText) {
+            addMessage(noticeText, 'assistant', note.title && note.body
+                ? '<p><strong>' + progEsc(note.title) + '</strong><br>' + progEsc(note.body) + '</p>' : null);
+            pendingNotice = { text: noticeText, type: note.type || '' };
+        } else {
+            pendingNotice = null;
+        }
+        var replies = notifReplies(note && note.type);
+        var gen = navGen;
+
+        if (!key) {                                   // a notification without a card
+            if (!noticeText) showEmptyHint();
+            if (replies) renderSuggestions(replies);
+            return;
+        }
         var url = '/api/card.php?for=' + encodeURIComponent(key);
         if (rid) url += '&rid=' + encodeURIComponent(rid);
         fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
             .then(function (data) {
+                if (gen !== navGen) return;
                 if (data && data.card) {
-                    var intro = cardIntro(key);
-                    if (intro) addMessage(intro, 'assistant');
-                    presentCard(data.card);
-                } else {
+                    if (!noticeText) {
+                        var intro = cardIntro(key);
+                        if (intro) addMessage(intro, 'assistant');
+                    }
+                    presentCard(data.card, 'open');
+                } else if (!noticeText) {
                     showEmptyHint();
                 }
+                if (replies) renderSuggestions(replies);
             })
-            .catch(function () { showEmptyHint(); });
+            .catch(function () {
+                if (gen !== navGen) return;
+                if (!noticeText) showEmptyHint();
+                if (replies) renderSuggestions(replies);
+            });
     }
 
     // Location is requested lazily (only when a message actually needs it — see
@@ -7034,11 +7196,7 @@
         navigator.serviceWorker.addEventListener('message', function (e) {
             var d = e.data || {};
             if (d.type !== 'kachow-open' || !d.url) return;
-            try {
-                var u = new URL(d.url, location.origin);
-                var card = u.searchParams.get('card');
-                if (card) openNotificationCard(card, u.searchParams.get('rid'));
-            } catch (err) { /* ignore malformed url */ }
+            handlePendingOpen({ url: d.url, type: d.ntype || '', title: d.title, body: d.body, at: d.at });
         });
 
         window.addEventListener('load', function () {

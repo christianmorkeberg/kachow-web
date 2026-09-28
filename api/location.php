@@ -16,7 +16,9 @@ use App\Auth\Session;
 use App\Data\LocationPoints;
 use App\Data\Places;
 use App\Data\RememberTokens;
+use App\Data\Timeline;
 use App\Data\Users;
+use App\Data\UserSettings;
 use App\Data\WorkEvents;
 
 header('Content-Type: application/json');
@@ -48,7 +50,8 @@ $date = is_array($in) && isset($in['date']) && is_string($in['date']) && preg_ma
     : (new DateTimeImmutable('now', new DateTimeZone(WorkEvents::LOCAL_TZ)))->format('Y-m-d');
 
 try {
-    out(200, ['ok' => true, 'card' => (new LocationPoints())->day($userId, $date, (new Places())->list($userId))['card']]);
+    $timeline = new Timeline(new LocationPoints(), new Places(), new UserSettings());
+    out(200, ['ok' => true, 'card' => $timeline->day($userId, $date)['card']]);
 } catch (\Throwable $e) {
     error_log('location.php: ' . $e->getMessage());
     out(500, ['error' => 'Something went wrong.']);

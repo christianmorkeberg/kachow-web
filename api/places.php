@@ -11,6 +11,7 @@ declare(strict_types=1);
  *   POST { action: "create", name, type, polygon: [[lat, lon], …] }       → { card }   (polygon)
  *   POST { action: "update", id, name?, type?, lat?, lon?, radius_m?, polygon? } → { card }
  *   POST { action: "delete", id }                                         → { card }
+ *   Any action with suggest: true also returns the frequent-unnamed-place suggestions.
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -20,7 +21,9 @@ use App\Auth\Session;
 use App\Data\LocationPoints;
 use App\Data\Places;
 use App\Data\RememberTokens;
+use App\Data\Timeline;
 use App\Data\Users;
+use App\Data\UserSettings;
 
 header('Content-Type: application/json');
 
@@ -68,8 +71,14 @@ try {
         out(400, ['error' => 'Unknown action.']);
     }
 
-    $last = (new LocationPoints())->latest($userId);
-    out(200, ['ok' => true, 'card' => Places::card($places->list($userId), $focus, $last !== null ? [$last['lat'], $last['lon']] : null)]);
+    $points = new LocationPoints();
+    $last   = $points->latest($userId);
+    $card   = Places::card($places->list($userId), $focus, $last !== null ? [$last['lat'], $last['lon']] : null);
+    if (!empty($in['suggest'])) {
+        $card['suggestions'] = (new Timeline($points, $places, new UserSettings()))->suggestions($userId);
+        $card['_persist_strip'][] = 'suggestions';
+    }
+    out(200, ['ok' => true, 'card' => $card]);
 } catch (\InvalidArgumentException $e) {
     out(422, ['error' => $e->getMessage()]);
 } catch (\Throwable $e) {
