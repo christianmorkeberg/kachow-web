@@ -904,6 +904,7 @@
         var wasMin   = cardPanel.getAttribute('data-state') === 'min';
 
         cardPanelBody.innerHTML = '';
+        cardPanel.hidden = false;   // visible before drawing, so charts can measure the panel
         var orig = messages.appendChild;
         messages.appendChild = function (node) { return cardPanelBody.appendChild(node); };
         try {
@@ -978,6 +979,18 @@
         panelCard = card;
         cardPanelSub.textContent = cardSubFor(card);
         cardPanelBody.scrollTop = scroll;
+        // Keep the rail's stored copy current too, so switching back never shows old data.
+        railRecents.forEach(function (r) { if (r.kind === card.kind) r.card = card; });
+    }
+
+    // Re-fetch the card now in the panel if it's one that goes stale (work hours/charts),
+    // e.g. right after restoring it from the rail. Other kinds keep their snapshot.
+    function freshenPanelCard() {
+        var card = panelCard;
+        if (!card || (card.kind !== 'work_hours' && card.kind !== 'work_chart')) return;
+        refetchWorkCard(card).then(function (j) {
+            if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+        }).catch(function () { /* keep the snapshot */ });
     }
 
     setInterval(function () {
@@ -1136,7 +1149,10 @@
         if (railRecents.length) {
             var sep = document.createElement('div'); sep.className = 'rail-sep'; rail.appendChild(sep);
             railRecents.forEach(function (r) {
-                rail.appendChild(railBtn(r.icon, r.label, panelKind === r.kind, function () { presentCard(r.card); }));
+                rail.appendChild(railBtn(r.icon, r.label, panelKind === r.kind, function () {
+                    presentCard(r.card);
+                    freshenPanelCard();   // a snapshot can be stale (e.g. a running work clock)
+                }));
             });
         }
     }
@@ -1290,17 +1306,25 @@
                 return open.some(function (it) { return it.category === g.key; });
             });
             if (groups.length > 1) {
+                // Each aisle is one section, so a wide desktop panel can flow them into
+                // columns without splitting a group (on a phone they simply stack).
+                var secs = document.createElement('div');
+                secs.className = 'shop-secs';
                 groups.forEach(function (g) {
+                    var sec = document.createElement('div');
+                    sec.className = 'shop-sec';
                     var gh = document.createElement('div');
                     gh.className = 'shop-group';
                     setIconText(gh, g.icon, daText(g.en, g.da));
-                    wrap.appendChild(gh);
+                    sec.appendChild(gh);
                     var gul = document.createElement('ul');
                     gul.className = 'plan-items';
                     open.filter(function (it) { return it.category === g.key; })
                         .forEach(function (it) { gul.appendChild(shoppingLi(it, wrap, card)); });
-                    wrap.appendChild(gul);
+                    sec.appendChild(gul);
+                    secs.appendChild(sec);
                 });
+                wrap.appendChild(secs);
             } else {
                 var ul = document.createElement('ul');
                 ul.className = 'plan-items';
@@ -1538,6 +1562,20 @@
             s.style.animationDelay = (i * 0.16) + 's';
             bubble.appendChild(s);
         });
+    }
+
+    // List rows: date and name as separate parts — read as "date  name" on a phone, and
+    // line up as table columns on the desktop card canvas.
+    function rowDateName(el, date, name) {
+        el.textContent = '';
+        var d = document.createElement('span');
+        d.className = 'row-date';
+        d.textContent = date || '';
+        var n = document.createElement('span');
+        n.className = 'row-name';
+        n.textContent = name || '';
+        el.appendChild(d);
+        el.appendChild(n);
     }
 
     function fmtMoney(n, currency) {
@@ -2221,7 +2259,7 @@
                 left.className = 'exp-when';
                 var main = document.createElement('div');
                 main.className = 'exp-main';
-                main.textContent = (it.date || '') + '  ' + (it.vendor || '');
+                rowDateName(main, it.date, it.vendor || '');
                 left.appendChild(main);
                 if (it.note) {
                     var noteEl = document.createElement('div');
@@ -2527,6 +2565,20 @@
             src.textContent = 'Seasons based on: ' + (card.season_source.title || 'source');
             wrap.appendChild(src);
         }
+
+        // Two blocks (same order as before, so a phone looks identical): the ring + season
+        // info, and the day-to-day part (mood/energy, history, logging). A wide desktop
+        // panel shows them side by side.
+        var colA = document.createElement('div'); colA.className = 'cycle-col cycle-col-a';
+        var colB = document.createElement('div'); colB.className = 'cycle-col cycle-col-b';
+        Array.prototype.slice.call(wrap.children).forEach(function (el) {
+            if (el.classList.contains('plan-card-title')) return;
+            var dayToDay = el.classList.contains('cycle-mood') || el.classList.contains('cycle-recent')
+                || el.classList.contains('cycle-log') || el.classList.contains('cycle-source');
+            (dayToDay ? colB : colA).appendChild(el);
+        });
+        wrap.appendChild(colA);
+        wrap.appendChild(colB);
     }
 
     function cycTodayIso() {
@@ -2715,10 +2767,23 @@
         return parseInt(m[3], 10) + ' ' + months[parseInt(m[2], 10) - 1];
     }
 
+    // Chart drawing size. Phones (and the transcript) keep the classic 320×H viewBox that
+    // scales to fit; on a wide desktop panel the chart is drawn at the panel's REAL width,
+    // so labels stay a normal size instead of being blown up 3× (they're styled in px).
+    function chartDims(baseW, baseH) {
+        var body = cardPanelBody;
+        if (!body || !body.clientWidth) return [baseW, baseH];
+        var scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-scale')) || 1;
+        var w = (body.clientWidth - 24) / scale;
+        if (w < 560) return [baseW, baseH];
+        return [Math.round(Math.min(w, 1100)), Math.round(Math.min(baseH * 1.8, 300))];
+    }
+
     // Hand-rolled inline SVG line chart (no chart lib — matches the app's aesthetic).
     function progChartSvg(card) {
         var pts = card.points || [];
-        var W = 320, H = 150, padL = 8, padR = 10, padT = 12, padB = 22;
+        var dims = chartDims(320, 150);
+        var W = dims[0], H = dims[1], padL = 8, padR = 10, padT = 12, padB = 22;
         var innerW = W - padL - padR, innerH = H - padT - padB;
         var vals = pts.map(function (p) { return p.value; });
         var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
@@ -3007,13 +3072,14 @@
 
     function wchBarsSvg(card) {
         var bars = card.bars || [];
-        var W = 320, H = 150, padL = 8, padR = 8, padT = 12, padB = 22;
+        var dims = chartDims(320, 150);
+        var W = dims[0], H = dims[1], padL = 8, padR = 8, padT = 12, padB = 22;
         var innerW = W - padL - padR, innerH = H - padT - padB;
         var n = bars.length || 1;
         var maxMin = Math.max.apply(null, bars.map(function (b) { return b.minutes; }).concat([1]));
         var y0 = padT + innerH;
         var step = innerW / n;
-        var barW = Math.min(step * 0.64, 34);
+        var barW = Math.min(step * 0.64, 34 * Math.min(2, W / 320));   // wider bars on a wide panel
         function bx(i) { return padL + step * i + (step - barW) / 2; }
 
         var grid = '<line class="wch-grid" x1="' + padL + '" y1="' + padT + '" x2="' + (W - padR) + '" y2="' + padT + '"/>'
@@ -3067,7 +3133,8 @@
     function chartSvg(card) {
         var labels = card.labels || [], series = card.series || [];
         var n = labels.length || 1, S = series.length || 1;
-        var W = 320, H = 170, padL = 8, padR = 8, padT = 14, padB = 22;
+        var dims = chartDims(320, 170);
+        var W = dims[0], H = dims[1], padL = 8, padR = 8, padT = 14, padB = 22;
         var innerW = W - padL - padR, innerH = H - padT - padB;
         var stacked = !!card.stacked, isLine = card.type === 'line';
 
@@ -3118,7 +3185,7 @@
                 }
             });
         } else {
-            var groupW = Math.min(step * 0.72, stacked ? 34 : 14 * S + 6);
+            var groupW = Math.min(step * 0.72, (stacked ? 34 : 14 * S + 6) * Math.min(2, W / 320));
             var barW = stacked ? groupW : groupW / S;
             labels.forEach(function (_, i) {
                 var gx = padL + step * i + (step - groupW) / 2, up = y0, down = y0;
@@ -4184,7 +4251,7 @@
                 var li = document.createElement('li');
                 var left = document.createElement('div'); left.className = 'exp-when';
                 var main = document.createElement('div'); main.className = 'exp-main';
-                main.textContent = (it.date || '') + '  ' + (it.customer || (it.doc_number || ''));
+                rowDateName(main, it.date, it.customer || it.doc_number || '');
                 left.appendChild(main);
                 var right = document.createElement('span');
                 right.className = 'exp-amt';
@@ -4250,7 +4317,7 @@
                 var li = document.createElement('li');
                 var left = document.createElement('div'); left.className = 'exp-when';
                 var main = document.createElement('div'); main.className = 'exp-main';
-                main.textContent = (it.date || '') + (it.note ? '  ' + it.note : '');
+                rowDateName(main, it.date, it.note || '');
                 left.appendChild(main);
                 var right = document.createElement('span');
                 right.className = 'exp-amt';
@@ -4571,7 +4638,7 @@
             li.className = 'books-row books-row-click';
             li.title = daText('Open', 'Åbn');
             var left = document.createElement('div'); left.className = 'books-row-main';
-            left.textContent = (it.date || '') + '  ' + (it.customer || it.doc_number || '—');
+            rowDateName(left, it.date, it.customer || it.doc_number || '—');
             var badge = document.createElement('span');
             var state = it.status === 'draft' ? 'draft' : (it.paid ? 'paid' : 'unpaid');
             badge.className = 'books-badge books-badge-' + state;
@@ -4612,7 +4679,7 @@
             var li = document.createElement('li'); li.className = 'books-row books-row-click';
             li.title = daText('Open', 'Åbn');
             var left = document.createElement('div'); left.className = 'books-row-main';
-            left.textContent = (it.date || '') + '  ' + (it.vendor || '—');
+            rowDateName(left, it.date, it.vendor || '—');
             var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.total, it.currency || cur);
             li.appendChild(left); li.appendChild(amt);
             li.addEventListener('click', function () { booksExpenseEntry(wrap, it.id, card.granularity, card.offset); });
@@ -4675,7 +4742,7 @@
         (dr.items || []).forEach(function (it) {
             var li = document.createElement('li'); li.className = 'books-row books-row-draw';
             var left = document.createElement('div'); left.className = 'books-row-main';
-            left.textContent = (it.date || '') + (it.note ? '  ' + it.note : '');
+            rowDateName(left, it.date, it.note || '');
             var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(it.amount, it.currency || cur);
             var del = deleteButton(daText('Delete draw', 'Slet hævning'));
             del.className += ' books-row-del';
@@ -5028,7 +5095,7 @@
                 var li = document.createElement('li'); li.className = 'books-row';
                 var left = document.createElement('div'); left.className = 'books-row-main';
                 var sign = it.direction === 'in' ? '+' : '−';
-                left.textContent = (it.date || '') + '  ' + cashCatLabel(it.category) + (it.note ? ' · ' + it.note : '');
+                rowDateName(left, it.date, cashCatLabel(it.category) + (it.note ? ' · ' + it.note : ''));
                 var amt = document.createElement('span');
                 amt.className = 'books-amt cash-' + (it.direction === 'in' ? 'pos' : 'neg');
                 amt.textContent = sign + ' ' + fmtMoney(it.amount, cur);
@@ -5189,8 +5256,35 @@
         stmt.appendChild(line(daText('Profit', 'Resultat'), card.profit, 'pl-profit ' + ((card.profit || 0) < 0 ? 'is-loss' : 'is-profit')));
         wrap.appendChild(stmt);
 
-        // Tax reserve note.
+        // Desktop summary (hidden on a phone): profit, margin, after the tax reserve, and
+        // where the money went — all from the numbers above, no extra data.
         var tr = card.tax_reserve || {};
+        var side = document.createElement('div');
+        side.className = 'pl-side';
+        var rev = card.revenue || 0, profit = card.profit || 0;
+        var margin = rev > 0 ? Math.round(profit / rev * 100) : null;
+        side.innerHTML = '<div class="pl-kpis">'
+            + '<div class="pl-kpi"><div class="pl-kpi-label">' + progEsc(daText('Profit', 'Resultat')) + '</div><div class="pl-kpi-val' + (profit < 0 ? ' is-loss' : '') + '">' + progEsc(fmtMoney(profit, cur)) + '</div></div>'
+            + '<div class="pl-kpi"><div class="pl-kpi-label">' + progEsc(daText('Margin', 'Margin')) + '</div><div class="pl-kpi-val">' + (margin == null ? '—' : margin + '%') + '</div></div>'
+            + '<div class="pl-kpi"><div class="pl-kpi-label">' + progEsc(daText('After tax reserve', 'Efter skattehensættelse')) + '</div><div class="pl-kpi-val">' + progEsc(fmtMoney(profit - (tr.amount || 0), cur)) + '</div></div>'
+            + '</div>';
+        var parts = (card.expense_categories || []).map(function (c) { return { label: c.category || 'Other', value: c.ex || 0 }; });
+        if (card.mileage) parts.push({ label: daText('Driving (business)', 'Kørsel (erhverv)'), value: card.mileage });
+        var costTotal = parts.reduce(function (a, b) { return a + b.value; }, 0);
+        if (parts.length && costTotal > 0) {
+            parts.sort(function (a, b) { return b.value - a.value; });
+            var bars = '<div class="pl-bars-head">' + progEsc(daText('Where the costs went', 'Hvor udgifterne gik hen')) + '</div>';
+            parts.forEach(function (x, i) {
+                var pct = Math.round(x.value / costTotal * 100);
+                bars += '<div class="wpb-row"><span class="wpb-name">' + progEsc(x.label) + '</span>'
+                    + '<span class="wpb-track"><span class="wpb-fill" style="width:' + pct + '%;background:' + seriesColor(i) + '"></span></span>'
+                    + '<span class="wpb-val">' + pct + '%</span></div>';
+            });
+            side.innerHTML += '<div class="pl-bars">' + bars + '</div>';
+        }
+        wrap.appendChild(side);
+
+        // Tax reserve note.
         var note = document.createElement('div');
         note.className = 'pl-note';
         setIconText(note, 'lock', daText('Set aside for tax (est. ', 'Hensæt til skat (ca. ') + (tr.pct || 0) + '%): '
@@ -5384,7 +5478,7 @@
                 var badge = document.createElement('span');
                 badge.className = 'mileage-badge mileage-badge-' + t.bucket;
                 badge.textContent = t.bucket === 'business' ? daText('business', 'erhverv') : daText('commute', 'pendling');
-                left.textContent = (t.date || '') + '  ' + (t.destination ? t.destination + ' · ' : '') + (t.km || 0) + ' km' + (t.note ? ' · ' + t.note : '') + '  ';
+                rowDateName(left, t.date, (t.destination ? t.destination + ' · ' : '') + (t.km || 0) + ' km' + (t.note ? ' · ' + t.note : ''));
                 left.appendChild(badge);
                 var amt = document.createElement('span'); amt.className = 'books-amt'; amt.textContent = fmtMoney(t.amount, cur);
                 var del = deleteButton(daText('Delete day', 'Slet dag'));
@@ -5701,6 +5795,9 @@
         head.textContent = (card.title || 'Work') + (card.range && card.range !== card.title ? ' · ' + card.range : '');
         wrap.appendChild(head);
 
+        // Summary block (left column on desktop): total, stats, per-workplace split.
+        var side = document.createElement('div');
+        side.className = 'work-side';
         var total = document.createElement('div');
         total.className = 'work-total';
         total.textContent = card.total || '0m';
@@ -5710,40 +5807,74 @@
             live.textContent = 'on the clock';
             total.appendChild(live);
         }
-        wrap.appendChild(total);
+        side.appendChild(total);
 
-        // Per-workplace breakdown (only present when >1 labelled place).
+        var sessions = card.sessions || [];
+        // Days worked + average per day (from the sessions shown).
+        var days = {};
+        sessions.forEach(function (x) { days[x.day] = true; });
+        var nDays = Object.keys(days).length;
+        if (nDays > 1 && card.total_minutes) {
+            var stats = document.createElement('div');
+            stats.className = 'work-stats';
+            stats.textContent = nDays + ' ' + daText('days', 'dage') + ' · ' + sessions.length + ' '
+                + daText('sessions', 'sessioner') + ' · ' + daText('avg ', 'gns. ')
+                + wchFmtMin(Math.round(card.total_minutes / nDays)) + daText(' / day', ' / dag');
+            side.appendChild(stats);
+        }
+
+        // Per-workplace breakdown (only present when >1 labelled place): chips on a
+        // phone, proportional bars on desktop (CSS picks which shows).
         if ((card.places || []).length) {
             var bd = document.createElement('div');
             bd.className = 'work-breakdown';
-            card.places.forEach(function (p) {
+            var bars = document.createElement('div');
+            bars.className = 'work-place-bars';
+            var maxMin = Math.max.apply(null, card.places.map(function (p) { return p.minutes || 0; }).concat([1]));
+            card.places.forEach(function (p, pi) {
                 var chip = document.createElement('span');
                 chip.className = 'work-place-total';
                 chip.textContent = (p.place || '—') + ' ' + p.total;
                 bd.appendChild(chip);
+                var row = document.createElement('div');
+                row.className = 'wpb-row';
+                row.innerHTML = '<span class="wpb-name">' + progEsc(p.place || '—') + '</span>'
+                    + '<span class="wpb-track"><span class="wpb-fill" style="width:' + Math.round(100 * (p.minutes || 0) / maxMin)
+                    + '%;background:' + seriesColor(pi) + '"></span></span>'
+                    + '<span class="wpb-val">' + progEsc(p.total) + '</span>';
+                bars.appendChild(row);
             });
-            wrap.appendChild(bd);
+            side.appendChild(bd);
+            side.appendChild(bars);
         }
 
-        var sessions = card.sessions || [];
+        if ((card.needs_fix || []).length) {
+            var warn = document.createElement('div');
+            warn.className = 'work-warn';
+            var f = card.needs_fix[0];
+            warn.textContent = 'No clock-out for ' + f.day + (f.place ? ' @ ' + f.place : '')
+                + ' (in at ' + f.in + '). Tell me when you left.';
+            warn.insertBefore(iconEl('triangle-alert', 'ic-lead'), warn.firstChild);
+            side.appendChild(warn);
+        }
+        wrap.appendChild(side);
+
+        // Sessions (right column on desktop, as an aligned table). Separate day / time /
+        // place / duration parts: inline on a phone, columns on desktop.
         if (sessions.length) {
             var list = document.createElement('ul');
             list.className = 'work-sessions';
-            sessions.forEach(function (s) {
+            sessions.forEach(function (x) {
                 var li = document.createElement('li');
+                if (x.ongoing) li.className = 'is-live';
                 var when = document.createElement('span');
                 when.className = 'work-when';
-                when.textContent = s.day + '  ' + s.in + ' – ' + (s.out || (s.ongoing ? 'now' : '?'));
-                if (s.place) {
-                    var tag = document.createElement('span');
-                    tag.className = 'work-place';
-                    tag.textContent = s.place;
-                    when.appendChild(document.createTextNode('  '));
-                    when.appendChild(tag);
-                }
+                when.innerHTML = '<span class="ws-day">' + progEsc(x.day) + '</span>'
+                    + '<span class="ws-time">' + progEsc(x.in + ' – ' + (x.out || (x.ongoing ? 'now' : '?'))) + '</span>'
+                    + (x.place ? '<span class="work-place">' + progEsc(x.place) + '</span>' : '<span class="work-place is-none"></span>');
                 var dur = document.createElement('span');
                 dur.className = 'work-dur';
-                dur.textContent = s.duration;
+                dur.textContent = x.duration;
                 li.appendChild(when);
                 li.appendChild(dur);
                 list.appendChild(li);
@@ -5754,16 +5885,6 @@
             empty.className = 'plan-empty';
             empty.textContent = 'No time logged yet.';
             wrap.appendChild(empty);
-        }
-
-        if ((card.needs_fix || []).length) {
-            var warn = document.createElement('div');
-            warn.className = 'work-warn';
-            var f = card.needs_fix[0];
-            warn.textContent = 'No clock-out for ' + f.day + (f.place ? ' @ ' + f.place : '')
-                + ' (in at ' + f.in + '). Tell me when you left.';
-            warn.insertBefore(iconEl('triangle-alert', 'ic-lead'), warn.firstChild);
-            wrap.appendChild(warn);
         }
 
         messages.appendChild(wrap);

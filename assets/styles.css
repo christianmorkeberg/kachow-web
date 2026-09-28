@@ -2159,3 +2159,162 @@ svg.cyc-emoji { overflow: visible; }
     }
 }
 .appearance-sub { margin-top: 14px; }
+
+/* =====================================================================================
+   Desktop cards. The card panel is a size container, so these layouts respond to the
+   PANEL's width (split view ~900px, ⤢ full width), not the window. Below 720px nothing
+   here applies and cards look exactly as on a phone.
+   ===================================================================================== */
+.card-panel-body { container: cardpanel / inline-size; }
+
+/* Bits that exist on every width (phone look unchanged). */
+.row-date { margin-right: .6em; font-variant-numeric: tabular-nums; }
+.ws-day { margin-right: .5em; }
+.ws-time { margin-right: .4em; font-variant-numeric: tabular-nums; }
+.work-place.is-none { display: none; }
+.work-stats { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
+.work-place-bars, .pl-side { display: none; }
+.wpb-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: 10px; font-size: 13px; padding: 4px 0; }
+.wpb-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wpb-track { height: 8px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; }
+.wpb-fill { display: block; height: 100%; border-radius: 4px; }
+.wpb-val { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@container cardpanel (min-width: 720px) {
+    /* ---- shared: two-column "summary | detail" layout ---- */
+    .work-card, .expenses-card, .moms-card, .mileage-card, .pl-card, .cycle-card {
+        display: grid;
+        grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+        column-gap: 32px;
+        align-items: start;
+    }
+    .work-card > .plan-card-title, .expenses-card > .plan-card-title,
+    .moms-card > .books-head, .mileage-card > .books-head, .pl-card > .books-head,
+    .cycle-card > .plan-card-title,
+    .moms-card > .moms-foot, .mileage-card > .moms-foot, .pl-card > .moms-foot, .pl-card > .pl-note {
+        grid-column: 1 / -1;
+    }
+    /* Table-style rows for every list: hover, aligned columns, dates in a fixed column. */
+    .exp-list li, .work-sessions li, .books-list .books-row {
+        border-radius: 8px; padding-left: 8px; padding-right: 8px;
+    }
+    .exp-list li:hover, .work-sessions li:hover, .books-list .books-row:hover { background: var(--accent-soft); }
+    .row-date { display: inline-block; min-width: 7.2em; color: var(--muted); }
+
+    /* ---- work hours: summary left, sessions table right ---- */
+    .work-card > .work-side { grid-column: 1; }
+    .work-card > .work-sessions, .work-card > .plan-empty { grid-column: 2; grid-row: 2 / span 20; }
+    .work-card .work-total { font-size: 40px; }
+    .work-card .work-breakdown { display: none; }
+    .work-card .work-place-bars { display: block; margin-top: 6px; }
+    .work-sessions { border-top: 0; }
+    .work-sessions li { display: grid; grid-template-columns: 130px 120px minmax(0, 1fr) auto; align-items: center; padding-top: 8px; padding-bottom: 8px; }
+    .work-sessions .work-when { display: contents; }
+    .work-sessions .work-place { justify-self: start; }
+    .work-sessions .work-place.is-none { display: block; }
+    .work-sessions li.is-live .work-dur { color: #34d399; font-weight: 600; }
+    .work-sessions .work-dur { color: var(--text); font-variant-numeric: tabular-nums; }
+
+    /* ---- income / expenses / owner draws: totals + categories left, table right ---- */
+    .expenses-card > .exp-totals, .expenses-card > .income-outstanding, .expenses-card > .exp-breakdown { grid-column: 1; }
+    .expenses-card > .exp-list, .expenses-card > .plan-empty { grid-column: 2; grid-row: 2 / span 20; margin-top: 0; }
+    .expenses-card .exp-total { font-size: 34px; }
+    .expenses-card .exp-breakdown { flex-direction: column; align-items: stretch; }
+    .expenses-card .exp-cat { display: flex; justify-content: space-between; border-radius: 8px; }
+    .exp-list li { padding-top: 7px; padding-bottom: 7px; }
+
+    /* ---- moms: the amount + deadline left, the calculation right ---- */
+    .moms-card > .moms-hero, .moms-card > .moms-deadline, .moms-card > .moms-record, .moms-card > .moms-note { grid-column: 1; }
+    .moms-card > .moms-calc { grid-column: 2; grid-row: 2 / span 4; }
+    .moms-card .moms-hero { text-align: left; }
+    .moms-card .moms-record { justify-self: start; }
+
+    /* ---- mileage: deductions + destinations left, the kørebog right ---- */
+    .mileage-card > .cash-heroes, .mileage-card > .mileage-dests, .mileage-card > .mileage-add,
+    .mileage-card > .mileage-logform { grid-column: 1; }
+    .mileage-card > .books-list { grid-column: 2; grid-row: 2 / span 20; max-height: 70vh; overflow-y: auto; margin-top: 0; }
+    .mileage-card .cash-heroes { grid-template-columns: 1fr; }
+
+    /* ---- P&L: statement left, summary + cost breakdown right ---- */
+    .pl-card { grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); }
+    .pl-card > .pl-statement { grid-column: 1; }
+    .pl-card > .pl-side { display: block; grid-column: 2; grid-row: 2; }
+    .pl-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .pl-kpi { background: var(--panel-2); border-radius: var(--radius-sm); padding: 10px 12px; }
+    .pl-kpi:first-child { grid-column: 1 / -1; }
+    .pl-kpi-label { font-size: 12px; color: var(--muted); }
+    .pl-kpi-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .pl-kpi:first-child .pl-kpi-val { font-size: 28px; color: #34d399; }
+    .pl-kpi-val.is-loss, .pl-kpi:first-child .pl-kpi-val.is-loss { color: #f87171; }
+    .pl-bars-head { font-size: 12px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+
+    /* ---- books cockpit: KPI values never wrap mid-number ---- */
+    .books-kpi-val { font-size: clamp(13px, 1.6cqi, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* the cockpit's modules are narrow columns: the date sits on its own small line */
+    .books-module .books-row-main { flex-wrap: wrap; row-gap: 0; }
+    .books-module .row-date { flex: 0 0 100%; min-width: 0; margin: 0; font-size: 11px; }
+    .books-module .books-row { padding-left: 4px; padding-right: 4px; }
+
+    /* ---- cycle: ring + season left, day-to-day right ---- */
+    .cycle-card { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+    .cycle-card > .cycle-col-a { grid-column: 1; }
+    .cycle-card > .cycle-col-b { grid-column: 2; text-align: left; }
+    .cycle-card > .plan-card-title { text-align: left; }
+    .cycle-card .cycle-mood { margin-top: 0; }
+
+    /* ---- agenda + workout plan: days side by side ---- */
+    .agenda-card, .plan-card:has(> .plan-day) {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-items: start;
+    }
+    .agenda-card > :not(.plan-day), .plan-card:has(> .plan-day) > :not(.plan-day) { grid-column: 1 / -1; }
+    .agenda-card > .plan-day, .plan-card:has(> .plan-day) > .plan-day {
+        background: var(--panel-2); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0;
+    }
+
+    /* ---- weather: the week as tiles ---- */
+    .wx-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+    .wx-day { flex-direction: column; align-items: center; text-align: center; gap: 6px;
+        background: var(--panel-2); border-radius: var(--radius-sm); padding: 10px 6px; border: 0; }
+    .wx-day .wx-sym { width: auto; font-size: 30px; }
+    .wx-day .wx-day-extra { margin-left: 0; justify-content: center; flex-wrap: wrap; }
+    .wx-day .wx-stat { margin-right: 6px; }
+    .wx-now-temp { font-size: 52px; }
+
+    /* ---- shopping list: aisles flow into columns ---- */
+    .shop-secs { columns: 3 200px; column-gap: 28px; }
+    .shop-sec { break-inside: avoid; margin-bottom: 8px; }
+    .shop-sec .shop-group { margin-top: 4px; }
+    .shopping-card .shop-add { max-width: 520px; }
+
+    /* ---- charts: drawn at real width (chartDims); readable px labels ---- */
+    .wch-ylab, .wch-xlab { font-size: 12px; }
+    .prog-card .prog-summary, .wch-card .wch-summary { font-size: 15px; }
+    .prog-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* ---- email list: sender | subject + snippet | date ---- */
+    .email-card .email-row { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto; grid-template-areas: "from subject date" "from snippet date"; column-gap: 16px; row-gap: 2px; align-items: baseline; }
+    .email-row .email-row-top { display: contents; }
+    .email-row .email-from { grid-area: from; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .email-row .email-date { grid-area: date; }
+    .email-row .email-subject { grid-area: subject; }
+    .email-row .email-snippet { grid-area: snippet; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ---- reading cards: comfortable line length ---- */
+    .email-open, .email-draft, .feedback-card, .personality-card, .notice-card { max-width: 760px; }
+    .worklog-entry { display: grid; grid-template-columns: 170px minmax(0, 1fr); column-gap: 16px; align-items: baseline; }
+    .worklog-card { max-width: 980px; }
+
+    /* ---- editors (receipt / income): a real form grid, not one stretched column ---- */
+    .receipt-card { max-width: 980px; }
+    .receipt-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
+    .receipt-fields .receipt-field { margin: 0; }
+    .receipt-fields .receipt-field:has(textarea), .receipt-fields .receipt-field:last-child:nth-child(3n + 1) { grid-column: 1 / -1; }
+    .receipt-actions { justify-content: flex-end; }
+    .receipt-actions .receipt-confirm { flex: 0 0 auto; min-width: 180px; }
+}
+
+/* Very wide (⤢ full width): three-column KPI-ish layouts get more room. */
+@container cardpanel (min-width: 1200px) {
+    .work-card, .expenses-card, .moms-card, .mileage-card, .cycle-card { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); column-gap: 48px; }
+    .receipt-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
