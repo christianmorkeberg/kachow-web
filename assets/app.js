@@ -56,7 +56,7 @@
     let quickActions = null;   // cached suggestions for the empty-screen chips
     let resumeConversation = null;      // {id,title} offered as a "pick up where you left off" pill
     const IDLE_RESUME_SECONDS = 3600;   // only auto-resume the last chat if <1h since its last message
-    let deviceLocation = null; // {lat, lon} from the browser, for weather etc.
+    let deviceLocation = null; // {lat, lon, acc, at} from the browser, for weather, "here" etc.
 
     function showEmptyHint() {
         if (messages.children.length) return;
@@ -6618,19 +6618,23 @@
     // Does this message plausibly need the device's location? (weather, "near me")
     function needsLocation(text) {
         var s = String(text || '');
-        return looksLikeWeather(s) || /\bnear(by| me| here)?\b|closest|nearest|around here|where i am|i'm at|næmeste|nærmeste|i nærheden|tæt på/i.test(s);
+        return looksLikeWeather(s) || /\bnear(by| me| here)?\b|closest|nearest|around here|where i am|i'?m (at|home|here)|i am (at|home|here)|næmeste|nærmeste|i nærheden|tæt på|jeg er (hjemme|her|på|ved)|hvor jeg er|stedet her/i.test(s);
     }
 
     // Resolve the device location on demand (cached for the session). Resolves to
     // null if unavailable/denied — the assistant then falls back to named places.
     function getLocation() {
-        if (deviceLocation) return Promise.resolve(deviceLocation);
+        // Short-lived cache: "I'm at home now" must not reuse a fix from across town.
+        if (deviceLocation && Date.now() - deviceLocation.at < 120000) return Promise.resolve(deviceLocation);
         if (!('geolocation' in navigator)) return Promise.resolve(null);
         return new Promise(function (resolve) {
             navigator.geolocation.getCurrentPosition(
-                function (pos) { deviceLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude }; resolve(deviceLocation); },
+                function (pos) {
+                    deviceLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: Math.round(pos.coords.accuracy), at: Date.now() };
+                    resolve(deviceLocation);
+                },
                 function () { resolve(null); },
-                { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 120000 }
             );
         });
     }
