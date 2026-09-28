@@ -7,7 +7,9 @@ declare(strict_types=1);
  * the work_chart card (week / 4w / 12w / year). Own data only. Rebuilds the exact
  * card shape the tool returns.
  *
- *   POST { period?, place? } → returns { card }  (place: prefix-matched workplace filter)
+ *   POST { period?, place?, from?, to?, bucket? } → returns { card }
+ *   (place: prefix-matched workplace filter; from/to YYYY-MM-DD = a custom range, bucket
+ *   day|week|month — also used by the once-a-minute live refresh of an open chart)
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -47,7 +49,11 @@ $period = is_array($in) && isset($in['period']) && $in['period'] !== '' ? (strin
 try {
     $place = is_array($in) && isset($in['place']) && is_string($in['place']) && trim($in['place']) !== ''
         ? mb_substr(trim($in['place']), 0, 64) : null;
-    $card  = (new WorkEvents())->breakdown($userId, $period, null, null, null, $place);
+    $date   = static fn (string $k): ?string => is_array($in) && isset($in[$k]) && is_string($in[$k])
+        && preg_match('/^\d{4}-\d{2}-\d{2}$/', $in[$k]) ? $in[$k] : null;
+    $bucket = is_array($in) && isset($in['bucket']) && in_array($in['bucket'], ['day', 'week', 'month'], true)
+        ? (string) $in['bucket'] : null;
+    $card  = (new WorkEvents())->breakdown($userId, $period, $date('from'), $date('to'), $bucket, $place);
     unset($card['places_all']);
     out(200, ['ok' => true, 'card' => $card]);
 } catch (\Throwable $e) {
