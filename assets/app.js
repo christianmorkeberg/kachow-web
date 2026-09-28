@@ -741,6 +741,7 @@
         cash:          ['landmark', 'Cash'],
         pl:            ['trending-up', 'P&L'],
         mileage:       ['car', 'Mileage'],
+        location_day:  ['map', 'Location'],
         email_list:    ['inbox', 'Inbox'],
         email:         ['mail', 'Email'],
         email_draft:   ['pencil-line', 'Draft'],
@@ -851,6 +852,10 @@
             return Math.round(card.current.temp_c) + '°';
         }
         if (card.kind === 'chart' && card.title) return card.title;
+        if (card.kind === 'location_day') {
+            var ls = card.stats || {};
+            return (card.title || '') + (ls.points ? ' · ' + ls.distance_km + ' km' : '');
+        }
         if (card.kind === 'shopping_list' && Array.isArray(card.items)) {
             var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
             return openN + (openN === 1 ? ' item' : ' items');
@@ -987,6 +992,12 @@
     // e.g. right after restoring it from the rail. Other kinds keep their snapshot.
     function freshenPanelCard() {
         var card = panelCard;
+        if (card && card.kind === 'location_day' && card.date === locToday()) {
+            fetchLocationDay(card.date).then(function (j) {
+                if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+            }).catch(function () { /* keep the snapshot */ });
+            return;
+        }
         if (!card || (card.kind !== 'work_hours' && card.kind !== 'work_chart')) return;
         refetchWorkCard(card).then(function (j) {
             if (j && j.card && panelCard === card) refreshPanelCard(j.card);
@@ -1185,6 +1196,7 @@
         if (card.kind === 'cash') { renderCash(card); return; }
         if (card.kind === 'pl') { renderPl(card); return; }
         if (card.kind === 'mileage') { renderMileage(card); return; }
+        if (card.kind === 'location_day') { renderLocationDay(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -5785,6 +5797,182 @@
     }
 
     // Read-only work-hours card: a big total + the day's sessions (in–out).
+    // ---- Location day (OwnTracks raw points on a map) --------------------------------
+    // Leaflet is self-hosted (assets/leaflet, BSD-2) and loaded only when a map card first
+    // renders, so the app shell stays light. Tiles come from OpenStreetMap (attribution shown).
+    var leafletLoading = null;
+    function loadLeaflet() {
+        if (window.L && window.L.map) return Promise.resolve(window.L);
+        if (leafletLoading) return leafletLoading;
+        leafletLoading = new Promise(function (resolve, reject) {
+            var css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = '/assets/leaflet/leaflet.css?v=1.9.4';
+            document.head.appendChild(css);
+            var js = document.createElement('script');
+            js.src = '/assets/leaflet/leaflet.js?v=1.9.4';
+            js.onload = function () { resolve(window.L); };
+            js.onerror = function () { leafletLoading = null; reject(new Error('leaflet')); };
+            document.head.appendChild(js);
+        });
+        return leafletLoading;
+    }
+
+    function locToday() {
+        var d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function locShiftDate(ymd, days) {
+        var p = ymd.split('-').map(Number);
+        var d = new Date(p[0], p[1] - 1, p[2] + days);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function fetchLocationDay(date) {
+        return fetch('/api/location.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: date })
+        }).then(function (r) { return r.json(); });
+    }
+
+    function renderLocationDay(card) {
+        clearEmptyHint();
+        var st = card.stats || {};
+        var pts = card.points || [];
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card loc-card';
+
+        // Header: day with previous / next (no "next" past today).
+        var head = document.createElement('div');
+        head.className = 'plan-card-title loc-head';
+        var prev = document.createElement('button');
+        prev.type = 'button';
+        prev.className = 'loc-nav';
+        prev.setAttribute('aria-label', daText('Previous day', 'Forrige dag'));
+        prev.innerHTML = icon('chevron-left');
+        var title = document.createElement('span');
+        title.className = 'loc-title';
+        title.textContent = card.title || card.date || '';
+        var next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'loc-nav';
+        next.setAttribute('aria-label', daText('Next day', 'Næste dag'));
+        next.innerHTML = icon('chevron-right');
+        next.disabled = !card.date || card.date >= locToday();
+        function go(days) {
+            if (!card.date) return;
+            prev.disabled = next.disabled = true;
+            fetchLocationDay(locShiftDate(card.date, days)).then(function (j) {
+                if (j && j.card) refreshPanelCard(j.card);
+            }).catch(function () {
+                prev.disabled = false;
+                next.disabled = card.date >= locToday();
+                toast(daText('Could not load that day.', 'Kunne ikke hente den dag.'));
+            });
+        }
+        prev.addEventListener('click', function () { go(-1); });
+        next.addEventListener('click', function () { go(1); });
+        head.appendChild(prev);
+        head.appendChild(title);
+        head.appendChild(next);
+        wrap.appendChild(head);
+
+        // Stats (data quality for phase 1): points, span, distance, cadence, gaps, accuracy, battery.
+        var stats = document.createElement('div');
+        stats.className = 'loc-stats';
+        function stat(label, value) {
+            if (value == null || value === '') return;
+            var d = document.createElement('div');
+            d.className = 'loc-stat';
+            d.innerHTML = '<span class="loc-stat-v">' + progEsc(String(value)) + '</span>'
+                + '<span class="loc-stat-l">' + progEsc(label) + '</span>';
+            stats.appendChild(d);
+        }
+        if (st.points) {
+            stat(daText('distance', 'distance'), st.distance_km + ' km');
+            stat(daText('tracked', 'sporet'), st.first + ' – ' + st.last);
+            stat(daText('points', 'punkter'), st.points);
+            stat(daText('avg interval', 'gns. interval'), st.avg_interval_min != null ? st.avg_interval_min + ' min' : null);
+            if (st.largest_gap && st.largest_gap.minutes) {
+                stat(daText('largest gap ', 'største hul ') + st.largest_gap.from + '–' + st.largest_gap.to, st.largest_gap.minutes + ' min');
+            }
+            stat(daText('median accuracy', 'median nøjagtighed'), st.median_acc_m != null ? '±' + st.median_acc_m + ' m' : null);
+            if (st.battery) stat(daText('battery', 'batteri'), st.battery.from + '% → ' + st.battery.to + '%');
+        }
+        wrap.appendChild(stats);
+
+        // A card reopened from chat history carries no coordinates (they're only kept 60 days,
+        // server-side) — fetch the day live instead.
+        if (card.stripped && !pts.length && card.date) {
+            var loading = document.createElement('div');
+            loading.className = 'plan-empty';
+            loading.textContent = daText('Loading map…', 'Henter kort…');
+            wrap.appendChild(loading);
+            messages.appendChild(wrap);
+            fetchLocationDay(card.date).then(function (j) {
+                if (j && j.card) refreshPanelCard(j.card);
+            }).catch(function () { loading.textContent = daText('Could not load this day.', 'Kunne ikke hente dagen.'); });
+            return;
+        }
+
+        if (!pts.length) {
+            var empty = document.createElement('div');
+            empty.className = 'plan-empty';
+            empty.textContent = daText('No location points for this day.', 'Ingen positioner for denne dag.');
+            wrap.appendChild(empty);
+            messages.appendChild(wrap);
+            return;
+        }
+
+        var mapEl = document.createElement('div');
+        mapEl.className = 'loc-map';
+        wrap.appendChild(mapEl);
+        messages.appendChild(wrap);
+
+        loadLeaflet().then(function (L) {
+            if (!mapEl.isConnected) return;
+            var map = L.map(mapEl, { zoomControl: true, attributionControl: true });
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+            }).addTo(map);
+
+            var goodAcc = card.good_acc_m || 100;
+            var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3b82f6';
+            var good = pts.filter(function (p) { return p[3] == null || p[3] <= goodAcc; });
+            var line = good.map(function (p) { return [p[0], p[1]]; });
+            if (line.length > 1) L.polyline(line, { color: accent, weight: 4, opacity: 0.85 }).addTo(map);
+
+            pts.forEach(function (p) {
+                var isGood = p[3] == null || p[3] <= goodAcc;
+                L.circleMarker([p[0], p[1]], {
+                    radius: isGood ? 3 : 2, weight: 1, color: accent,
+                    opacity: isGood ? 0.9 : 0.35, fillOpacity: isGood ? 0.6 : 0.15
+                }).bindTooltip(p[2] + (p[3] != null ? ' · ±' + p[3] + ' m' : '') + (p[4] ? ' · ' + p[4] + ' km/h' : ''))
+                  .addTo(map);
+            });
+            var first = pts[0], last = pts[pts.length - 1];
+            // Start drawn larger underneath, so a round trip (start ≈ end) still shows both.
+            L.circleMarker([first[0], first[1]], { radius: 10, weight: 2, color: '#fff', fillColor: '#16a34a', fillOpacity: 1 })
+                .bindTooltip(daText('Start ', 'Start ') + first[2]).addTo(map);
+            L.circleMarker([last[0], last[1]], { radius: 6, weight: 2, color: '#fff', fillColor: '#dc2626', fillOpacity: 1 })
+                .bindTooltip(daText('Last ', 'Seneste ') + last[2]).addTo(map);
+
+            var bounds = L.latLngBounds((line.length ? line : pts.map(function (p) { return [p[0], p[1]]; })));
+            function fit() { map.invalidateSize(); map.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 }); }
+            fit();
+            // The panel may be minimised or resized (split / full width): refit when it gets a size.
+            if (window.ResizeObserver) {
+                var lastW = mapEl.clientWidth;
+                new ResizeObserver(function () {
+                    if (mapEl.clientWidth && mapEl.clientWidth !== lastW) { lastW = mapEl.clientWidth; fit(); }
+                }).observe(mapEl);
+            }
+        }).catch(function () {
+            mapEl.textContent = daText('The map could not load.', 'Kortet kunne ikke indlæses.');
+        });
+    }
+
     function renderWorkHours(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');

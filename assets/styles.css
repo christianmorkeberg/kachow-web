@@ -2318,3 +2318,30 @@ svg.cyc-emoji { overflow: visible; }
     .work-card, .expenses-card, .moms-card, .mileage-card, .cycle-card { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); column-gap: 48px; }
     .receipt-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* ---- Location day card (OwnTracks points on a Leaflet map) ---------------------- */
+.loc-head { display: flex; align-items: center; gap: 6px; }
+.loc-title { flex: 1; text-align: center; }
+.loc-nav {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line, rgba(127,127,127,.25));
+    background: transparent; color: inherit; cursor: pointer;
+}
+.loc-nav:disabled { opacity: .35; cursor: default; }
+.loc-nav svg { width: 16px; height: 16px; }
+.loc-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px 12px; margin: 8px 0 10px; }
+.loc-stat { display: flex; flex-direction: column; min-width: 0; }
+.loc-stat-v { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loc-stat-l { font-size: 12px; color: var(--muted); }
+.loc-map {
+    height: 300px; border-radius: 10px; overflow: hidden; isolation: isolate;
+    border: 1px solid var(--line, rgba(127,127,127,.25)); background: var(--surface-2, #e5e7eb);
+}
+.loc-map .leaflet-control-attribution { font-size: 10px; }
+@container cardpanel (min-width: 720px) {
+    .loc-card { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; grid-template-rows: auto 1fr; gap: 0 20px; }
+    .loc-card > .loc-head { grid-column: 1 / -1; }
+    .loc-card > .loc-stats { grid-template-columns: 1fr; align-content: start; gap: 10px; margin: 4px 0 0; }
+    .loc-card > .loc-map { height: min(62vh, 560px); }
+    .loc-card > .plan-empty { grid-column: 1 / -1; }
+}
