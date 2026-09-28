@@ -5927,6 +5927,32 @@
             wrap.appendChild(ip);
         }
 
+        // Timeline (phase 3): stays and the trips between them, in order.
+        if ((card.timeline || []).length) {
+            var tl = document.createElement('ol');
+            tl.className = 'loc-timeline';
+            card.timeline.forEach(function (it) {
+                var li = document.createElement('li');
+                if (it.kind === 'stay') {
+                    li.className = 'tl-stay' + (it.ongoing ? ' is-live' : '');
+                    var name = it.place || daText('Unnamed place', 'Unavngivet sted');
+                    li.innerHTML = '<span class="loc-ip-dot" style="background:' + (it.place ? placeColor(it.type) : '#94a3b8') + '"></span>'
+                        + '<span class="tl-when">' + progEsc((it.prev_day ? '… ' : '') + it.from + '–' + (it.ongoing ? daText('now', 'nu') : it.to) + (it.next_day ? ' …' : '')) + '</span>'
+                        + '<span class="tl-name' + (it.place ? '' : ' is-unnamed') + '">' + progEsc(name) + '</span>'
+                        + '<span class="tl-dur">' + progEsc(wchFmtMin(it.minutes)) + '</span>';
+                } else {
+                    li.className = 'tl-trip';
+                    var mode = { walk: daText('walk', 'gang'), bike: daText('bike', 'cykel'), vehicle: daText('car/train', 'bil/tog'), unknown: '' }[it.mode] || '';
+                    li.innerHTML = '<span class="tl-line"></span>'
+                        + '<span class="tl-when">' + progEsc(it.start_time + '–' + it.end_time) + '</span>'
+                        + '<span class="tl-name">' + progEsc([mode, it.km + ' km'].filter(Boolean).join(' · ')) + '</span>'
+                        + '<span class="tl-dur">' + progEsc(wchFmtMin(it.minutes)) + '</span>';
+                }
+                tl.appendChild(li);
+            });
+            wrap.appendChild(tl);
+        }
+
         // A card reopened from chat history carries no coordinates (they're only kept 60 days,
         // server-side) — fetch the day live instead.
         if (card.stripped && !pts.length && card.date) {
@@ -5941,7 +5967,7 @@
             return;
         }
 
-        if (!pts.length) {
+        if (!pts.length && !(card.timeline || []).length) {
             var empty = document.createElement('div');
             empty.className = 'plan-empty';
             empty.textContent = daText('No location points for this day.', 'Ingen positioner for denne dag.');
@@ -5964,6 +5990,13 @@
             }).addTo(map);
 
             (card.places || []).forEach(function (pl) { drawPlace(L, map, pl, false); });
+            (card.timeline || []).forEach(function (it) {
+                if (it.kind !== 'stay') return;
+                L.circleMarker([it.lat, it.lon], { radius: 9, weight: 2, color: '#fff',
+                    fillColor: it.place ? placeColor(it.type) : '#94a3b8', fillOpacity: 0.95 })
+                    .bindTooltip((it.place || daText('Unnamed place', 'Unavngivet sted')) + ' · ' + it.from + '–'
+                        + (it.ongoing ? daText('now', 'nu') : it.to)).addTo(map);
+            });
 
             var goodAcc = card.good_acc_m || 100;
             var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3b82f6';
@@ -5980,13 +6013,16 @@
                   .addTo(map);
             });
             var first = pts[0], last = pts[pts.length - 1];
+            if (first) {
             // Start drawn larger underneath, so a round trip (start ≈ end) still shows both.
             L.circleMarker([first[0], first[1]], { radius: 10, weight: 2, color: '#fff', fillColor: '#16a34a', fillOpacity: 1 })
                 .bindTooltip(daText('Start ', 'Start ') + first[2]).addTo(map);
             L.circleMarker([last[0], last[1]], { radius: 6, weight: 2, color: '#fff', fillColor: '#dc2626', fillOpacity: 1 })
                 .bindTooltip(daText('Last ', 'Seneste ') + last[2]).addTo(map);
+            }
 
-            var bounds = L.latLngBounds((line.length ? line : pts.map(function (p) { return [p[0], p[1]]; })));
+            var stayLL = (card.timeline || []).filter(function (it) { return it.kind === 'stay'; }).map(function (it) { return [it.lat, it.lon]; });
+            var bounds = L.latLngBounds(line.concat(stayLL).length ? line.concat(stayLL) : pts.map(function (p) { return [p[0], p[1]]; }));
             function fit() { map.invalidateSize(); map.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 }); }
             fit();
             // The panel may be minimised or resized (split / full width): refit when it gets a size.
@@ -6030,7 +6066,8 @@
         return L.latLng(pl.lat, pl.lon).toBounds((pl.radius_m || 100) * 2);
     }
 
-    function postPlaces(body) {
+    function postPlaces(body, withSuggestions) {
+        if (withSuggestions) body.suggest = true;
         return fetch('/api/places.php', {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
@@ -6051,7 +6088,7 @@
             ld.textContent = daText('Loading places…', 'Henter steder…');
             wrap.appendChild(ld);
             messages.appendChild(wrap);
-            postPlaces({ action: 'list' }).then(function (j) { if (j.card) refreshPanelCard(j.card); })
+            postPlaces({ action: 'list' }, card.stripped && card.suggestions !== undefined).then(function (j) { if (j.card) refreshPanelCard(j.card); })
                 .catch(function () { ld.textContent = daText('Could not load places.', 'Kunne ikke hente steder.'); });
             return;
         }
@@ -6084,6 +6121,28 @@
                     'Ingen steder endnu. Tilføj et her, eller skriv "gem stedet her som Kontor".');
                 side.appendChild(e);
             }
+            // Frequent unnamed places (phase 3): name one with a tap.
+            if ((card.suggestions || []).length) {
+                var sh = document.createElement('div');
+                sh.className = 'places-sugg-head';
+                sh.textContent = daText('Suggested — places you keep returning to', 'Forslag — steder du ofte kommer');
+                side.appendChild(sh);
+                var su = document.createElement('ul');
+                su.className = 'places-list places-sugg';
+                card.suggestions.forEach(function (sg, i) {
+                    var li = document.createElement('li');
+                    li.innerHTML = '<span class="loc-ip-dot sugg-dot"></span>'
+                        + '<span class="pl-name">' + progEsc(daText('Suggestion ', 'Forslag ') + (i + 1)) + '</span>'
+                        + '<span class="pl-meta">' + progEsc(sg.days + ' ' + daText('days', 'dage') + ' · ~' + wchFmtMin(sg.avg_minutes)) + '</span>'
+                        + '<span class="pl-sub">' + progEsc(sg.typical) + '</span>';
+                    li.title = daText('Name this place', 'Navngiv stedet');
+                    li.addEventListener('click', function () {
+                        edit({ id: null, name: '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] });
+                    });
+                    su.appendChild(li);
+                });
+                side.appendChild(su);
+            }
             var ul = document.createElement('ul');
             ul.className = 'places-list';
             places.forEach(function (pl) {
@@ -6104,6 +6163,7 @@
         function edit(pl) {
             var here = card.here || null;
             var c = map && map._loaded ? map.getCenter() : null;
+            var isNew = !pl || !pl.id;
             draft = pl ? JSON.parse(JSON.stringify(pl)) : {
                 id: null, name: '', type: 'work', shape: 'circle',
                 lat: here ? here[0] : (c ? c.lat : null), lon: here ? here[1] : (c ? c.lng : null),
@@ -6126,7 +6186,7 @@
                 + '<div class="pf-hint"></div>'
                 + '<div class="pf-actions"><button type="button" class="pf-save">' + progEsc(daText('Save', 'Gem'))
                 + '</button><button type="button" class="pf-cancel">' + progEsc(daText('Cancel', 'Annuller')) + '</button>'
-                + (pl ? '<button type="button" class="pf-delete">' + progEsc(daText('Delete', 'Slet')) + '</button>' : '') + '</div>';
+                + (!isNew ? '<button type="button" class="pf-delete">' + progEsc(daText('Delete', 'Slet')) + '</button>' : '') + '</div>';
             side.appendChild(f);
 
             var nameIn = f.querySelector('.pf-name'), typeSel = f.querySelector('.pf-type');
@@ -6175,7 +6235,7 @@
             var del = f.querySelector('.pf-delete');
             if (del) del.addEventListener('click', function () {
                 if (!confirm(daText('Delete "' + pl.name + '"?', 'Slet "' + pl.name + '"?'))) return;
-                postPlaces({ action: 'delete', id: pl.id }).then(function (j) { refreshPanelCard(j.card); })
+                postPlaces({ action: 'delete', id: pl.id }, !!card.suggestions).then(function (j) { refreshPanelCard(j.card); })
                     .catch(function (e) { toast(e.message); });
             });
             f.querySelector('.pf-save').addEventListener('click', function () {
@@ -6189,7 +6249,7 @@
                     if (draft.lat == null) { toast(daText('Tap the map to place it.', 'Tryk på kortet for at placere det.')); return; }
                     body.lat = draft.lat; body.lon = draft.lon; body.radius_m = draft.radius_m;
                 }
-                postPlaces(body).then(function (j) { refreshPanelCard(j.card); })
+                postPlaces(body, !!card.suggestions).then(function (j) { refreshPanelCard(j.card); })
                     .catch(function (e) { toast(e.message); });
             });
 
@@ -6247,6 +6307,11 @@
                 var layer = drawPlace(L, map, pl, card.focus === pl.id);
                 layer.on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit(pl); } });
                 placeLayers[pl.id] = layer;
+            });
+            (card.suggestions || []).forEach(function (sg, i) {
+                L.circle([sg.lat, sg.lon], { radius: 60, color: '#94a3b8', weight: 2, dashArray: '4 4', fillOpacity: 0.08 })
+                    .bindTooltip(daText('Suggestion ', 'Forslag ') + (i + 1)).addTo(map)
+                    .on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit({ id: null, name: '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] }); } });
             });
             if (card.here) {
                 L.circleMarker(card.here, { radius: 6, color: '#fff', weight: 2, fillColor: '#0ea5e9', fillOpacity: 1 })
