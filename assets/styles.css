@@ -808,6 +808,26 @@ button.ghost {
 .mileage-logform { flex-wrap: wrap; }
 .mileage-destsel { flex: 1 1 140px; }
 
+/* Work clock — shadow comparison (phase 4) */
+.wc-card { display: flex; flex-direction: column; gap: 10px; }
+.wc-summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.wc-chip { flex: 1 1 90px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; }
+.wc-chip.wc-auto { border-left: 3px solid var(--accent); }
+.wc-chip.wc-punch { border-left: 3px solid var(--muted); }
+.wc-chip-l { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.wc-chip-v { font-size: 15px; font-weight: 700; color: var(--text-strong); }
+.wc-day { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 8px; padding: 7px 2px; border-top: 1px solid var(--line); }
+.wc-date { font-size: 12px; color: var(--muted); }
+.wc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-width: 0; }
+.wc-col { min-width: 0; }
+.wc-col-total { font-size: 13px; font-weight: 600; color: var(--text-strong); }
+.wc-col.wc-auto .wc-col-total { color: var(--accent); }
+.wc-col-sub { font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc-delta { font-size: 12px; font-weight: 700; justify-self: end; }
+.wc-day.is-match .wc-delta { color: var(--accent); }
+.wc-day.is-diff .wc-delta { color: var(--warn); }
+.wc-note { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+
 .books-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 .books-chip {
     font-size: 11.5px; padding: 2px 8px; border-radius: 999px;

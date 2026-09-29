@@ -1211,6 +1211,7 @@
         if (card.kind === 'cycle') { renderCycle(card); return; }
         if (card.kind === 'progression') { renderProgression(card); return; }
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
+        if (card.kind === 'work_clock') { renderWorkClock(card); return; }
         if (card.kind === 'chart') { renderChart(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
         if (card.kind === 'personality') { renderPersonality(card); return; }
@@ -3300,6 +3301,86 @@
         var wrap = document.createElement('div');
         wrap.className = 'plan-card wch-card';
         buildChart(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Phase-4 shadow work clock: location-derived hours vs recorded punches, per day.
+    function renderWorkClock(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card wc-card';
+
+        var head = document.createElement('div'); head.className = 'books-head';
+        var title = document.createElement('div'); title.className = 'books-title';
+        title.textContent = daText('Work clock · shadow', 'Arbejdsur · skygge');
+        head.appendChild(title);
+        var range = document.createElement('span'); range.className = 'books-navlabel'; range.textContent = card.range || '';
+        head.appendChild(range);
+        wrap.appendChild(head);
+
+        // Summary: auto total vs punch total + agreement.
+        var sum = document.createElement('div'); sum.className = 'wc-summary';
+        function chip(labelText, value, cls) {
+            var c = document.createElement('div'); c.className = 'wc-chip ' + (cls || '');
+            var l = document.createElement('div'); l.className = 'wc-chip-l'; l.textContent = labelText;
+            var v = document.createElement('div'); v.className = 'wc-chip-v'; v.textContent = value;
+            c.appendChild(l); c.appendChild(v); return c;
+        }
+        sum.appendChild(chip(daText('Auto (location)', 'Auto (lokation)'), card.location_total || '0m', 'wc-auto'));
+        sum.appendChild(chip(daText('Punches', 'Stempling'), card.punch_total || '0m', 'wc-punch'));
+        sum.appendChild(chip(daText('Days matching', 'Dage der matcher'),
+            (card.agree_days || 0) + '/' + (card.compared_days || 0)));
+        wrap.appendChild(sum);
+
+        // Per-day rows.
+        var days = card.days || [];
+        if (!days.length) {
+            var empty = document.createElement('div'); empty.className = 'wc-note';
+            empty.textContent = daText('No work-place stays or punches in this range.',
+                                       'Ingen ophold på arbejdssteder eller stemplinger i perioden.');
+            wrap.appendChild(empty);
+        }
+        days.forEach(function (d) {
+            var row = document.createElement('div');
+            row.className = 'wc-day' + (d.match === true ? ' is-match' : (d.match === false ? ' is-diff' : ''));
+
+            var date = document.createElement('div'); date.className = 'wc-date'; date.textContent = d.label || d.date;
+            row.appendChild(date);
+
+            var cols = document.createElement('div'); cols.className = 'wc-cols';
+            function col(cls, total, sessions) {
+                var c = document.createElement('div'); c.className = 'wc-col ' + cls;
+                var t = document.createElement('div'); t.className = 'wc-col-total'; t.textContent = total || '0m';
+                c.appendChild(t);
+                var times = (sessions || []).map(function (s) {
+                    return (s.in || '') + '–' + (s.ongoing ? '…' : (s.out || ''));
+                });
+                if (times.length) {
+                    var sub = document.createElement('div'); sub.className = 'wc-col-sub'; sub.textContent = times.join(', ');
+                    c.appendChild(sub);
+                }
+                return c;
+            }
+            cols.appendChild(col('wc-auto', d.location_total, d.location_sessions));
+            cols.appendChild(col('wc-punch', d.punch_total, d.punch_sessions));
+            row.appendChild(cols);
+
+            var delta = document.createElement('div'); delta.className = 'wc-delta';
+            delta.textContent = d.match === true ? '✓' : (d.delta_label || '');
+            row.appendChild(delta);
+
+            wrap.appendChild(row);
+        });
+
+        if (card.note) {
+            var note = document.createElement('div'); note.className = 'wc-note';
+            note.textContent = daText(
+                'Shadow only — not counted in your hours yet. Auto reads work-type places; punches are your current clock.',
+                'Kun skygge — tælles ikke med i dine timer endnu. Auto læser arbejdssteder; stempling er dit nuværende ur.');
+            wrap.appendChild(note);
+        }
+
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
