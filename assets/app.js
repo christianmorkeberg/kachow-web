@@ -5481,6 +5481,17 @@
             (com.days || 0) + ' ' + daText('days · personal tax return', 'dage · personlig selvangivelse')));
         wrap.appendChild(heroes);
 
+        // Suggested drives (phase 5) — detected from location, awaiting confirmation.
+        var suggestions = card.suggestions || [];
+        if (suggestions.length) {
+            var sSec = document.createElement('div'); sSec.className = 'mileage-suggest';
+            var sHead = document.createElement('div'); sHead.className = 'mileage-suggest-head';
+            sHead.textContent = '🚗 ' + daText('Suggested drives', 'Foreslåede ture');
+            sSec.appendChild(sHead);
+            suggestions.forEach(function (s) { sSec.appendChild(buildSuggestRow(wrap, s, cur, card)); });
+            wrap.appendChild(sSec);
+        }
+
         // Destinations — grouped by tax type (business vs commute), compact cards.
         var dests = card.destinations || [];
         var destSec = document.createElement('div');
@@ -5599,6 +5610,57 @@
             'Business destinations: first 60 days each = business driving (statens takst, in your P&L); day 61+ = commuting. Commute destinations (e.g. DTU) are befordringsfradrag from day 1 — on your personal return, never in the P&L. An estimate — check the year’s rates.',
             'Erhvervsdestinationer: første 60 dage hver = erhvervskørsel (statens takst, i dit resultat); dag 61+ = pendling. Pendlerdestinationer (fx DTU) er befordringsfradrag fra dag 1 — på din personlige selvangivelse, aldrig i resultatet. Et estimat — tjek årets satser.');
         wrap.appendChild(foot);
+    }
+
+    // One suggested drive awaiting confirmation. Confirm → log_trip; Dismiss → never re-suggest.
+    // If the place isn't linked to a destination yet, offer to link it first.
+    function buildSuggestRow(wrap, s, cur, card) {
+        var row = document.createElement('div'); row.className = 'mileage-sug';
+
+        var main = document.createElement('div'); main.className = 'mileage-sug-main';
+        var route = document.createElement('div'); route.className = 'mileage-sug-route'; route.textContent = s.route;
+        var meta = document.createElement('div'); meta.className = 'mileage-sug-meta';
+        var kmTxt = (s.km != null ? s.km + ' km' : daText('km unknown', 'km ukendt'));
+        var gps = (s.gps_km ? '  · GPS ' + s.gps_km + ' km' : '');
+        meta.textContent = (s.label || s.date) + ' · ' + kmTxt + gps;
+        main.appendChild(route); main.appendChild(meta);
+        row.appendChild(main);
+
+        var actions = document.createElement('div'); actions.className = 'mileage-sug-actions';
+        if (s.needs_link) {
+            var sel = document.createElement('select'); sel.className = 'books-addinput mileage-sug-sel';
+            var ph = document.createElement('option'); ph.value = ''; ph.textContent = daText('Link to…', 'Knyt til…'); sel.appendChild(ph);
+            (card.destinations || []).forEach(function (d) {
+                var o = document.createElement('option'); o.value = d.id;
+                o.textContent = d.name + (d.type === 'commute' ? ' · ' + daText('commute', 'pendling') : '');
+                sel.appendChild(o);
+            });
+            var link = document.createElement('button'); link.type = 'button'; link.className = 'books-addsave';
+            link.textContent = daText('Link', 'Knyt');
+            link.addEventListener('click', function () {
+                if (!sel.value) { sel.focus(); return; }
+                mileagePost(wrap, { action: 'link_place', destination_id: parseInt(sel.value, 10), place_id: s.place_id });
+            });
+            actions.appendChild(sel); actions.appendChild(link);
+        } else {
+            var conf = document.createElement('button'); conf.type = 'button'; conf.className = 'books-addsave';
+            conf.textContent = daText('Log it', 'Registrér');
+            conf.addEventListener('click', function () {
+                var body = { action: 'confirm_suggestion', date: s.date, destination_id: s.destination_id };
+                if (s.km != null) body.km = s.km;
+                mileagePost(wrap, body);
+            });
+            actions.appendChild(conf);
+        }
+        var dismiss = document.createElement('button'); dismiss.type = 'button'; dismiss.className = 'mileage-link mileage-sug-dismiss';
+        dismiss.textContent = daText('Dismiss', 'Afvis');
+        dismiss.addEventListener('click', function () {
+            mileagePost(wrap, { action: 'dismiss_suggestion', date: s.date, place_id: s.place_id });
+        });
+        actions.appendChild(dismiss);
+        row.appendChild(actions);
+
+        return row;
     }
 
     // One COMPACT destination card: name + distance chip + edit; a slim 60-day bar for

@@ -760,6 +760,18 @@ button.ghost {
 .mileage-badge-business { background: var(--accent-soft); color: var(--accent); }
 .mileage-badge-commuter { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
 
+/* Mileage — suggested drives (phase 5) */
+.mileage-suggest { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 10px; }
+.mileage-suggest-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); }
+.mileage-sug { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--accent-line); }
+.mileage-sug:first-of-type { border-top: none; }
+.mileage-sug-main { flex: 1 1 160px; min-width: 0; }
+.mileage-sug-route { font-size: 13px; font-weight: 600; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mileage-sug-meta { font-size: 11px; color: var(--muted); }
+.mileage-sug-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.mileage-sug-sel { flex: 0 0 auto; max-width: 130px; }
+.mileage-sug-dismiss { color: var(--muted); }
+
 /* Mileage destinations — compact, grouped by tax type */
 .mileage-dests { display: flex; flex-direction: column; gap: 6px; }
 .mileage-dests-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
