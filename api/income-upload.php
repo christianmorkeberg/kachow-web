@@ -9,6 +9,10 @@ declare(strict_types=1);
  *   POST (multipart/form-data) with file field "invoice" (image OR PDF)
  *     → stores the bilag outside the webroot, reads it with the AI, creates a draft
  *       income entry, and returns its editable card.
+ *   POST … plus "income_id" = N
+ *     → ATTACHES the file to that existing entry instead (report #31: an entry created in
+ *       chat could not be given its PDF afterwards). The file is only stored and linked —
+ *       it is NOT read by the AI, so amounts the user already corrected stay untouched.
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -54,12 +58,27 @@ if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
     out(400, ['error' => 'Upload failed. Please try again.']);
 }
 
+$attachTo = (int) ($_POST['income_id'] ?? 0);
+
 try {
     $storage = new ReceiptStorage();
-    $stored  = $storage->store($userId, (string) $file['tmp_name'], (int) $file['size']);
+    $income  = new Income();
 
-    $income = new Income();
-    $path   = $storage->pathFor($userId, $stored['file_ref']);
+    // Attaching to an existing entry: check ownership BEFORE storing anything.
+    if ($attachTo > 0 && $income->get($userId, $attachTo) === null) {
+        out(404, ['error' => 'That income entry no longer exists.']);
+    }
+
+    $stored = $storage->store($userId, (string) $file['tmp_name'], (int) $file['size']);
+
+    if ($attachTo > 0) {
+        $income->attachFile($userId, $attachTo, $stored['file_ref'], $stored['mime']);
+        (new BookkeepingAudit())->log($userId, 'income', $attachTo, 'update', ['bilag' => 'attached']);
+        $row = $income->get($userId, $attachTo);
+        out(200, ['ok' => true, 'attached' => true, 'card' => $row !== null ? $income->card($row) : null]);
+    }
+
+    $path = $storage->pathFor($userId, $stored['file_ref']);
     $read   = $path !== null ? (new InvoiceReader(GeminiClient::fromEnv()))->read($path, $stored['mime']) : [];
 
     // Fill the moms triple from whatever the reader got (DK 25%).

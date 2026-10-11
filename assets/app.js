@@ -1003,6 +1003,28 @@
             }).catch(function () { /* keep the snapshot */ });
             return;
         }
+        // Bookkeeping cards change outside the chat (Confirm on the card, an upload, the
+        // cockpit) — a reopened snapshot showed an entry as unconfirmed when it was long
+        // booked (report #31), so re-read these from the server too.
+        var booksUrl = null;
+        if (card && card.kind === 'income' && card.id) {
+            booksUrl = '/api/books.php?action=entry&id=' + encodeURIComponent(card.id);
+        } else if (card && card.kind === 'receipt' && card.id) {
+            booksUrl = '/api/books.php?action=expense&id=' + encodeURIComponent(card.id);
+        } else if (card && card.kind === 'bookkeeping') {
+            booksUrl = '/api/books.php?granularity=' + encodeURIComponent(card.granularity || 'quarter')
+                + '&offset=' + encodeURIComponent(card.offset || 0);
+        }
+        if (booksUrl) {
+            fetch(booksUrl, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) {
+                    if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+                })
+                .catch(function () { /* keep the snapshot */ });
+            return;
+        }
+
         if (!card || (card.kind !== 'work_hours' && card.kind !== 'work_chart')) return;
         refetchWorkCard(card).then(function (j) {
             if (j && j.card && panelCard === card) refreshPanelCard(j.card);
@@ -4084,6 +4106,34 @@
             }
         }
 
+        // Attach (or replace) the invoice file on an entry that already exists — e.g. one
+        // created in chat, where the PDF only arrives afterwards.
+        if (card.id) {
+            var attach = document.createElement('button');
+            attach.type = 'button';
+            attach.className = 'ghost income-attach';
+            setIconText(attach, 'file-plus', card.has_image
+                ? daText('Replace invoice file', 'Erstat fakturafil')
+                : daText('Attach invoice (PDF or photo)', 'Vedhæft faktura (PDF eller foto)'));
+            attach.addEventListener('click', function () {
+                pickFile('image/*,application/pdf', function (f) {
+                    attach.disabled = true;
+                    setIconText(attach, 'file-plus', daText('Uploading…', 'Uploader…'));
+                    incomeAttachFile(card.id, f).then(function (j) {
+                        if (j && j.card) {
+                            buildIncome(wrap, j.card, onChange);
+                            if (onChange) onChange(j.card);
+                        } else {
+                            attach.disabled = false;
+                            setIconText(attach, 'file-plus', daText('Upload failed — try again',
+                                                                    'Upload mislykkedes — prøv igen'));
+                        }
+                    });
+                });
+            });
+            wrap.appendChild(attach);
+        }
+
         // Generated (private) invoice: a printable document link + the line items.
         if (card.invoice_url) {
             var docLink = document.createElement('a');
@@ -4703,6 +4753,17 @@
                 else booksFetch(wrap, card.granularity, card.offset);
             })
             .catch(function () { booksFetch(wrap, card.granularity, card.offset); });
+    }
+
+    // Attach a file to an EXISTING income entry (income_id → the endpoint links it instead
+    // of creating a new draft, and does not re-read the amounts).
+    function incomeAttachFile(id, file) {
+        var fd = new FormData();
+        fd.append('invoice', file);
+        fd.append('income_id', String(id));
+        return fetch('/api/income-upload.php', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) { return r.json(); })
+            .catch(function () { return null; });
     }
 
     // "+ Add" from the Income module: make a blank draft and open the income editor

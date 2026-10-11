@@ -556,6 +556,12 @@ button.ghost {
     border-radius: var(--radius-sm); padding: 6px 10px; margin-bottom: 8px;
 }
 .income-bilag:hover { text-decoration: underline; }
+/* Attach / replace the invoice file on an entry that already exists. */
+.income-attach {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; padding: 5px 10px; margin-bottom: 8px;
+}
+.income-attach:disabled { opacity: .6; cursor: default; }
 
 /* ---------- Bookkeeping cockpit (kind: bookkeeping) ---------- */
 .books { display: flex; flex-direction: column; gap: 14px; }
