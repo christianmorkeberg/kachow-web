@@ -3343,9 +3343,19 @@
         }
         days.forEach(function (d) {
             var row = document.createElement('div');
-            row.className = 'wc-day' + (d.match === true ? ' is-match' : (d.match === false ? ' is-diff' : ''));
+            row.className = 'wc-day' + (d.match === true ? ' is-match' : (d.match === false ? ' is-diff' : ''))
+                + (d.incomplete ? ' is-incomplete' : '');
 
             var date = document.createElement('div'); date.className = 'wc-date'; date.textContent = d.label || d.date;
+            // A day the tracker missed part of: the auto figure is low because of missing data,
+            // not because the rules are wrong.
+            if (d.incomplete) {
+                var warn = document.createElement('span'); warn.className = 'wc-gap';
+                warn.textContent = daText('gap', 'hul');
+                warn.title = daText('No positions for part of this day', 'Ingen positioner i en del af dagen');
+                date.appendChild(document.createTextNode(' '));
+                date.appendChild(warn);
+            }
             row.appendChild(date);
 
             var cols = document.createElement('div'); cols.className = 'wc-cols';
@@ -3372,6 +3382,16 @@
 
             wrap.appendChild(row);
         });
+
+        if (card.incomplete_days) {
+            var inc = document.createElement('div'); inc.className = 'wc-note is-warn';
+            inc.textContent = daText(
+                card.incomplete_days + ' of these days are marked "gap": the phone stopped reporting for an hour or '
+                    + 'more, so the auto figure saw only part of the day. Judge the rules on the other days.',
+                card.incomplete_days + ' af dagene er markeret "hul": telefonen holdt op med at sende i en time '
+                    + 'eller mere, så auto-tallet har kun set en del af dagen. Vurdér reglerne på de øvrige dage.');
+            wrap.appendChild(inc);
+        }
 
         if (card.note) {
             var note = document.createElement('div'); note.className = 'wc-note';
@@ -6083,6 +6103,15 @@
                         + '<span class="tl-when">' + progEsc((it.prev_day ? '… ' : '') + it.from + '–' + (it.ongoing ? daText('now', 'nu') : it.to) + (it.next_day ? ' …' : '')) + '</span>'
                         + '<span class="tl-name' + (it.place ? '' : ' is-unnamed') + '">' + progEsc(name) + '</span>'
                         + '<span class="tl-dur">' + progEsc(wchFmtMin(it.minutes)) + '</span>';
+                } else if (it.kind === 'gap') {
+                    // The phone reported nothing here. Say so — never fill it in with a guess.
+                    li.className = 'tl-gap' + (it.ongoing ? ' is-stopped' : '');
+                    li.innerHTML = '<span class="tl-line is-dashed"></span>'
+                        + '<span class="tl-when">' + progEsc((it.prev_day ? '… ' : '') + it.start_time + '–' + it.end_time + (it.next_day ? ' …' : '')) + '</span>'
+                        + '<span class="tl-name">' + progEsc(it.ongoing
+                            ? daText('No data — tracking stopped', 'Ingen data — sporing stoppet')
+                            : daText('No data', 'Ingen data')) + '</span>'
+                        + '<span class="tl-dur">' + progEsc(wchFmtMin(it.minutes)) + '</span>';
                 } else {
                     li.className = 'tl-trip';
                     var mode = { walk: daText('walk', 'gang'), bike: daText('bike', 'cykel'), vehicle: daText('car/train', 'bil/tog'), unknown: '' }[it.mode] || '';
@@ -7225,7 +7254,8 @@
         reminder:       { en: ['Done ✓', 'Remind me again in 1 hour'],                    da: ['Klaret ✓', 'Mind mig om det igen om 1 time'] },
         cycle_upcoming: { en: ['My period started today', 'Not yet'],                        da: ['Min menstruation startede i dag', 'Ikke endnu'] },
         work_log_nudge: { en: ['Nothing to log today'],                                       da: ['Intet at logge i dag'] },
-        wfh_prompt:     { en: ['Yes, I\'m working from home today', 'Not working today'],    da: ['Ja, jeg arbejder hjemmefra i dag', 'Jeg arbejder ikke i dag'] }
+        wfh_prompt:     { en: ['Yes, I\'m working from home today', 'Not working today'],    da: ['Ja, jeg arbejder hjemmefra i dag', 'Jeg arbejder ikke i dag'] },
+        tracking_silent: { en: ['Check my tracking setup', 'Show me today on the map'],          da: ['Tjek min sporing', 'Vis mig i dag på kortet'] }
     };
     function notifReplies(type) {
         var m = NOTIF_REPLIES[type];

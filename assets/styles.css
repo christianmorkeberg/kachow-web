@@ -839,6 +839,11 @@ button.ghost {
 .wc-day.is-match .wc-delta { color: var(--accent); }
 .wc-day.is-diff .wc-delta { color: var(--warn); }
 .wc-note { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.wc-note.is-warn { color: #b45309; }
+/* A day with a tracking hole: the auto figure is incomplete, so flag it rather than compare it. */
+.wc-gap { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: #b45309; background: rgba(180, 83, 9, .12); border-radius: 4px; padding: 1px 4px; vertical-align: 1px; }
+.wc-day.is-incomplete .wc-auto .wc-col-total { opacity: .6; }
 
 .books-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 .books-chip {
@@ -2444,6 +2449,11 @@ svg.cyc-emoji { overflow: visible; }
 .loc-timeline .tl-dur { font-variant-numeric: tabular-nums; font-size: 13px; }
 .loc-timeline .tl-trip .tl-name { font-weight: 400; color: var(--muted); font-size: 13px; }
 .loc-timeline .tl-line { width: 2px; height: 18px; margin: 0 auto; background: var(--line); border-radius: 1px; }
+/* A hole in the data: dashed, muted, and never dressed up as a stay or a trip. */
+.loc-timeline .tl-line.is-dashed { background: repeating-linear-gradient(to bottom, var(--line) 0 3px, transparent 3px 6px); }
+.loc-timeline .tl-gap .tl-name,
+.loc-timeline .tl-gap .tl-dur { font-weight: 400; font-style: italic; color: var(--muted); font-size: 13px; }
+.loc-timeline .tl-gap.is-stopped .tl-name { color: #b45309; font-style: normal; font-weight: 600; }
 .loc-timeline .is-live .tl-dur { color: #16a34a; font-weight: 600; }
 .places-sugg-head { margin: 12px 0 4px; font-size: 12px; color: var(--muted); }
 .places-sugg li { grid-template-columns: 10px 1fr auto; row-gap: 0; }
