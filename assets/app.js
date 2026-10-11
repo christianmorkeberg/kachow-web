@@ -5605,8 +5605,8 @@
         if (!dests.length) {
             var noDest = document.createElement('div');
             noDest.className = 'mileage-dist';
-            noDest.textContent = daText('No destinations yet — add one (e.g. a customer, or DTU) to start logging.',
-                                        'Ingen destinationer endnu — tilføj en (fx en kunde eller DTU) for at logge.');
+            noDest.textContent = daText('No destinations yet — add one (a customer or a workplace) to start logging.',
+                                        'Ingen destinationer endnu — tilføj en (en kunde eller en arbejdsplads) for at logge.');
             destSec.appendChild(noDest);
         }
 
@@ -5688,8 +5688,8 @@
         var foot = document.createElement('div');
         foot.className = 'moms-foot';
         foot.textContent = daText(
-            'Business destinations: first 60 days each = business driving (statens takst, in your P&L); day 61+ = commuting. Commute destinations (e.g. DTU) are befordringsfradrag from day 1 — on your personal return, never in the P&L. An estimate — check the year’s rates.',
-            'Erhvervsdestinationer: første 60 dage hver = erhvervskørsel (statens takst, i dit resultat); dag 61+ = pendling. Pendlerdestinationer (fx DTU) er befordringsfradrag fra dag 1 — på din personlige selvangivelse, aldrig i resultatet. Et estimat — tjek årets satser.');
+            'Business destinations: first 60 days each = business driving (statens takst, in your P&L); day 61+ = commuting. Commute destinations (a fixed workplace) are befordringsfradrag from day 1 — on your personal return, never in the P&L. An estimate — check the year’s rates.',
+            'Erhvervsdestinationer: første 60 dage hver = erhvervskørsel (statens takst, i dit resultat); dag 61+ = pendling. Pendlerdestinationer (en fast arbejdsplads) er befordringsfradrag fra dag 1 — på din personlige selvangivelse, aldrig i resultatet. Et estimat — tjek årets satser.');
         wrap.appendChild(foot);
     }
 
@@ -5807,7 +5807,7 @@
         var box = document.createElement('div'); box.className = 'mileage-dest-editor';
 
         var nameIn = document.createElement('input'); nameIn.type = 'text'; nameIn.className = 'books-addinput';
-        nameIn.placeholder = daText('Name (e.g. Customer, DTU)', 'Navn (fx Kunde, DTU)');
+        nameIn.placeholder = daText('Name (e.g. Customer, Office)', 'Navn (fx Kunde, Kontor)');
         nameIn.value = isNew ? '' : (d.name || '');
 
         var typeSel = document.createElement('select'); typeSel.className = 'books-addinput';
