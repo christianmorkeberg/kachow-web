@@ -7279,11 +7279,17 @@
     // the last conversation.
     var _params = new URLSearchParams(window.location.search);
     var cardParam = _params.get('card');
+    // A scheduled task's own notification deep-links straight to its conversation
+    // (?conv=<id>, set by notify_me) rather than a card — so the user sees exactly what
+    // that run did/found, not just a generic card.
+    var convParam = _params.get('conv');
     // A tapped notification wins over restoring the last conversation. The service worker
     // parks the tap (with the notification's own text) in CacheStorage, because iOS often
     // drops its postMessage to a suspended or discarded page — so check that first.
     takePendingOpen().then(function (p) {
+        var gen = navGen;
         if (p) handlePendingOpen(p);
+        else if (convParam) loadConversation(Number(convParam), gen).catch(function () { if (gen === navGen) decideStartupChat(); });
         else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
         else decideStartupChat();
     });
