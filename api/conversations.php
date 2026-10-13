@@ -22,6 +22,7 @@ use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Conversations;
 use App\Data\RememberTokens;
+use App\Data\ScheduledTasks;
 use App\Data\Users;
 use App\Support\Markdown;
 
@@ -74,7 +75,12 @@ try {
     // GET ?recent=1 → the most recent conversation + server-side idle age, so the
     // client can decide whether to resume it or start fresh after a gap.
     if (isset($_GET['recent'])) {
-        out(200, ['recent' => $conversations->mostRecent($userId)]);
+        out(200, [
+            'recent'      => $conversations->mostRecent($userId),
+            // Scheduled tasks that found something, so the client can show a "here's
+            // something to see" banner even if the push notification was missed.
+            'unseen_tasks' => (new ScheduledTasks())->unseenForUser($userId),
+        ]);
     }
 
     // GET: one conversation's messages (reopen).
@@ -82,6 +88,13 @@ try {
         $id = (int) $_GET['id'];
         if ($conversations->ownerId($id) !== $userId) {
             out(404, ['error' => 'Conversation not found.']);
+        }
+        // Best-effort: if this is a scheduled task's own conversation, opening it is
+        // what "seeing" the result means.
+        try {
+            (new ScheduledTasks())->clearUnseenByConversation($userId, $id);
+        } catch (\Throwable $e) {
+            error_log('conversations.php clearUnseenByConversation: ' . $e->getMessage());
         }
         $out = [];
         foreach ($conversations->messages($id) as $m) {

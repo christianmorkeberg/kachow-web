@@ -279,6 +279,11 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             </div>
         <?php endforeach; ?>
 
+        <!-- Shown when a scheduled task found something but its push may have been missed
+             (dismissed, phone off, notifications denied) — cleared once its conversation is
+             actually opened. Populated/toggled client-side (api/conversations.php?recent=1). -->
+        <div id="taskAlert" class="banner info task-alert" role="button" tabindex="0" hidden></div>
+
         <div id="historyModal" class="modal" hidden>
             <div class="modal-card" role="dialog" aria-modal="true" aria-label="Chat history">
                 <div class="modal-head">
