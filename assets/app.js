@@ -132,7 +132,11 @@
         if (hint) hint.remove();
     }
 
-    function addMessage(text, role, html) {
+    // atUtc: optional "YYYY-MM-DD HH:MM:SS" (the DB's created_at, UTC per app convention —
+    // see config.php's date_default_timezone_set('UTC')), for restoring a past conversation's
+    // real send time. Omitted for a message created live, which just means "now" — correct
+    // either way since it IS now.
+    function addMessage(text, role, html, atUtc) {
         clearEmptyHint();
 
         const bubble = document.createElement('div');
@@ -143,6 +147,8 @@
         } else {
             bubble.textContent = text;
         }
+        var when = atUtc ? new Date(String(atUtc).replace(' ', 'T') + 'Z') : new Date();
+        if (!isNaN(when.getTime())) bubble.title = emailDate(when.toISOString());
 
         // Assistant messages carry the hummingbird avatar next to the bubble.
         // Returns the row so callers (e.g. the typing placeholder) can style/remove
@@ -7078,11 +7084,11 @@
                 var lastCard = null;
                 (data.messages || []).forEach(function (m) {
                     if (m.role === 'assistant') {
-                        var row = addMessage(m.content, 'assistant', m.html);
+                        var row = addMessage(m.content, 'assistant', m.html, m.at);
                         attachMessageMeta(row, { id: m.id, diagnostics: m.diagnostics });
                         if (m.card) lastCard = m.card;
                     } else {
-                        var urow = addMessage(m.content, 'user');
+                        var urow = addMessage(m.content, 'user', null, m.at);
                         attachMessageMeta(urow, { id: m.id });
                     }
                 });

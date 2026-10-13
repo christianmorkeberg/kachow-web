@@ -107,6 +107,9 @@ try {
                 'html'        => $role === 'assistant' ? Markdown::toHtml($content) : null,
                 'card'        => $card,
                 'diagnostics' => $diagnostics,
+                // DB TIMESTAMP, UTC per the app's convention (config.php sets UTC as the
+                // PHP/MySQL session default) — the client appends 'Z' itself.
+                'at'          => (string) $m['created_at'],
             ];
         }
         out(200, ['id' => $id, 'title' => $conversations->title($userId, $id), 'messages' => $out]);
