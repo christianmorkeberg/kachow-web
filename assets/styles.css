@@ -298,6 +298,20 @@ button.ghost {
     border: 1px solid var(--border);
     border-bottom-left-radius: 4px;
 }
+/* Tap a message to reveal its timestamp (also available as a hover title on desktop) —
+   collapsed by default so it adds no visible space until opened. */
+.msg-time-tag {
+    display: block;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--muted);
+    transition: max-height .15s ease, opacity .15s ease, margin-top .15s ease;
+}
+.msg.user .msg-time-tag { color: rgba(255,255,255,.75); text-align: right; }
+.msg.msg-time-open .msg-time-tag { max-height: 16px; opacity: 1; margin-top: 4px; }
 /* Assistant avatar + bubble sit in a row; the row is the flex item. */
 .row.assistant {
     align-self: flex-start;

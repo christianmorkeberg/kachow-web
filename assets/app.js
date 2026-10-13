@@ -148,7 +148,14 @@
             bubble.textContent = text;
         }
         var when = atUtc ? new Date(String(atUtc).replace(' ', 'T') + 'Z') : new Date();
-        if (!isNaN(when.getTime())) bubble.title = emailDate(when.toISOString());
+        if (!isNaN(when.getTime())) {
+            var whenLabel = emailDate(when.toISOString());
+            bubble.title = whenLabel;   // hover, on desktop
+            var timeTag = document.createElement('span');
+            timeTag.className = 'msg-time-tag';
+            timeTag.textContent = whenLabel;
+            bubble.appendChild(timeTag);   // tap to reveal, on any device
+        }
 
         // Assistant messages carry the hummingbird avatar next to the bubble.
         // Returns the row so callers (e.g. the typing placeholder) can style/remove
@@ -170,6 +177,15 @@
         messages.scrollTop = messages.scrollHeight;
         return el;
     }
+
+    // Tap a message bubble to toggle its timestamp (hover already shows it on desktop, but
+    // touch has no hover). Delegated once on the container since bubbles come and go.
+    // Ignored on a link/button tap so it doesn't also fire alongside their own click.
+    messages.addEventListener('click', function (e) {
+        if (e.target.closest('a, button')) return;
+        var bubble = e.target.closest('.msg');
+        if (bubble) bubble.classList.toggle('msg-time-open');
+    });
 
     // ---- Developer mode: per-message diagnostics + "report to developer" ----------
     var DEV_KEY = 'kachow.dev';
