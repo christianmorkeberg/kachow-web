@@ -942,6 +942,10 @@
             setPanelState('open');
         }
         flashPanel();
+        // On desktop, every card open (fresh from chat, from the rail, reopened) re-fetches a
+        // card that's known to go stale (location/income/receipt/bookkeeping/work hours) so you
+        // never land on an old snapshot. No-ops for kinds freshenPanelCard doesn't cover.
+        if (desktop) freshenPanelCard();
     }
 
     // ---- Live refresh of an open work card (desktop) ----------------------------------
@@ -1044,11 +1048,19 @@
 
     (function wireCardPanel() {
         if (!cardPanel) return;
-        var head   = document.getElementById('cardPanelHead');
-        var close  = document.getElementById('cardPanelClose');
-        var tgl    = document.getElementById('cardPanelToggle');
-        var expand = document.getElementById('cardPanelExpand');
+        var head    = document.getElementById('cardPanelHead');
+        var close   = document.getElementById('cardPanelClose');
+        var tgl     = document.getElementById('cardPanelToggle');
+        var expand  = document.getElementById('cardPanelExpand');
+        var refresh = document.getElementById('cardPanelRefresh');
         var workspace = document.getElementById('workspace');
+        function manualRefresh(e) {
+            if (e) e.stopPropagation();
+            var ic = refresh ? refresh.querySelector('svg') : null;
+            if (ic) ic.classList.add('tl-spin');
+            freshenPanelCard();
+            setTimeout(function () { if (ic) ic.classList.remove('tl-spin'); }, 500);
+        }
         function toggleMin(e) {
             if (e) e.stopPropagation();
             setPanelState(cardPanel.getAttribute('data-state') === 'min' ? 'open' : 'min');
@@ -1064,10 +1076,11 @@
                 expand.setAttribute('aria-label', full ? 'Collapse to split view' : 'Expand to full width');
             }
         }
-        if (head)   head.addEventListener('click', toggleMin);
-        if (tgl)    tgl.addEventListener('click', toggleMin);
-        if (expand) expand.addEventListener('click', toggleExpand);
-        if (close)  close.addEventListener('click', function (e) { e.stopPropagation(); hidePanel(); });
+        if (head)    head.addEventListener('click', toggleMin);
+        if (tgl)     tgl.addEventListener('click', toggleMin);
+        if (expand)  expand.addEventListener('click', toggleExpand);
+        if (refresh) refresh.addEventListener('click', manualRefresh);
+        if (close)   close.addEventListener('click', function (e) { e.stopPropagation(); hidePanel(); });
     })();
 
     // Draggable divider: resize the desktop chat rail between 23% and 60% of the width,
@@ -1188,8 +1201,7 @@
             var sep = document.createElement('div'); sep.className = 'rail-sep'; rail.appendChild(sep);
             railRecents.forEach(function (r) {
                 rail.appendChild(railBtn(r.icon, r.label, panelKind === r.kind, function () {
-                    presentCard(r.card);
-                    freshenPanelCard();   // a snapshot can be stale (e.g. a running work clock)
+                    presentCard(r.card);   // desktop-only rail — presentCard() itself now freshens
                 }));
             });
         }
