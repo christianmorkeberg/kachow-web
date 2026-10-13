@@ -107,8 +107,10 @@ try {
                 'html'        => $role === 'assistant' ? Markdown::toHtml($content) : null,
                 'card'        => $card,
                 'diagnostics' => $diagnostics,
-                // DB TIMESTAMP, UTC per the app's convention (config.php sets UTC as the
-                // PHP/MySQL session default) — the client appends 'Z' itself.
+                // DB TIMESTAMP — despite config.php's UTC default for PHP's own clock, this
+                // column is MySQL's own DEFAULT CURRENT_TIMESTAMP, stamped in the DB
+                // connection's session zone (confirmed server-local, not UTC, by a 2h-off
+                // hover time). The client parses it as local wall-clock time, no 'Z'.
                 'at'          => (string) $m['created_at'],
             ];
         }

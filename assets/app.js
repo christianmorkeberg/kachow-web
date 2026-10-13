@@ -132,11 +132,16 @@
         if (hint) hint.remove();
     }
 
-    // atUtc: optional "YYYY-MM-DD HH:MM:SS" (the DB's created_at, UTC per app convention —
-    // see config.php's date_default_timezone_set('UTC')), for restoring a past conversation's
-    // real send time. Omitted for a message created live, which just means "now" — correct
-    // either way since it IS now.
-    function addMessage(text, role, html, atUtc) {
+    // atLocal: optional "YYYY-MM-DD HH:MM:SS" (the DB's created_at) for restoring a past
+    // conversation's real send time. NOT UTC despite config.php's date_default_timezone_set
+    // ('UTC') — that governs PHP's own clock, but this column is MySQL's own
+    // DEFAULT CURRENT_TIMESTAMP, stamped in the DB connection's session zone (confirmed by a
+    // 2h-off hover time otherwise) — the same "TIMESTAMP renders server-local" gotcha already
+    // hit once with location_points.received_at. Parsed with no 'Z', so the browser reads it
+    // as wall-clock time directly — correct as long as the browser is also Europe/Copenhagen,
+    // a safe bet (Christian is the only user). Omitted for a message created live, which just
+    // means "now" either way.
+    function addMessage(text, role, html, atLocal) {
         clearEmptyHint();
 
         const bubble = document.createElement('div');
@@ -147,7 +152,7 @@
         } else {
             bubble.textContent = text;
         }
-        var when = atUtc ? new Date(String(atUtc).replace(' ', 'T') + 'Z') : new Date();
+        var when = atLocal ? new Date(String(atLocal).replace(' ', 'T')) : new Date();
         if (!isNaN(when.getTime())) {
             var whenLabel = emailDate(when.toISOString());
             bubble.title = whenLabel;   // hover, on desktop
