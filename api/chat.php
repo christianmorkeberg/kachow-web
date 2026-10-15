@@ -5,9 +5,11 @@ declare(strict_types=1);
 /**
  * The single chat endpoint the frontend calls.
  *
- * POST JSON: { "message": string, "conversation_id"?: int, "notice"?: string }
+ * POST JSON: { "message": string, "conversation_id"?: int, "notice"?: string, "view"?: object }
  *   notice: the text of the push notification a fresh chat was opened from — stored as the
  *   conversation's opening assistant turn so the model knows what the user is answering.
+ *   view: { kind: string, title: string, summary?: string } — the card/view currently open in
+ *   the app (if any), so the model can resolve an ambiguous reference to what's on screen.
  * Returns JSON: { "reply": string, "conversation_id": int }
  *
  * Requires an authenticated app session (or a valid remember-me cookie). Google
@@ -117,6 +119,22 @@ if (isset($input['location']['lat'], $input['location']['lon'])
     }
 }
 
+// Optional "what's on screen right now" (the card/view open in the app), so the model
+// can resolve an ambiguous reference ("add one for yesterday") without being told the
+// list/card by name. Passive context only — sanitised and length-capped client input.
+$openView = null;
+if (isset($input['view']['kind'], $input['view']['title'])
+    && is_string($input['view']['kind']) && is_string($input['view']['title'])
+    && trim($input['view']['title']) !== '') {
+    $openView = [
+        'kind'  => mb_substr(trim((string) $input['view']['kind']), 0, 40),
+        'title' => mb_substr(trim((string) $input['view']['title']), 0, 120),
+    ];
+    if (isset($input['view']['summary']) && is_string($input['view']['summary']) && trim($input['view']['summary']) !== '') {
+        $openView['summary'] = mb_substr(trim((string) $input['view']['summary']), 0, 120);
+    }
+}
+
 try {
     $conversations = new Conversations();
 
@@ -183,7 +201,7 @@ try {
         });
     }
 
-    $reply = $loop->handle($userId, $conversationId, $message, $location);
+    $reply = $loop->handle($userId, $conversationId, $message, $location, null, $openView);
 
     if (isset($_SERVER['REQUEST_TIME_FLOAT'])) {
         error_log('timing request: total='

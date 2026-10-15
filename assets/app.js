@@ -897,6 +897,19 @@
         return '';
     }
 
+    // What the user currently has open (dev idea #42), sent with each chat message so
+    // the model can resolve an ambiguous reference ("add one for yesterday") to the
+    // visible card without being told its name. Prefers the card's OWN title (e.g. a
+    // named list like "Pakkeliste") over the generic per-kind label.
+    function currentOpenView() {
+        if (!panelCard || !panelCard.kind || !cardPanel || cardPanel.hidden) return null;
+        return {
+            kind:    panelCard.kind,
+            title:   panelCard.title || cardTitleFor(panelCard),
+            summary: cardSubFor(panelCard)
+        };
+    }
+
     function setPanelState(state) {
         if (!cardPanel) return;
         cardPanel.setAttribute('data-state', state);
@@ -6990,6 +7003,7 @@
                     // First reply in a chat opened from a notification: the server stores the
                     // notification as the opening assistant turn, so the model has the context.
                     notice: !conversationId && pendingNotice ? pendingNotice.text : undefined,
+                    view: currentOpenView() || undefined,
                 }),
                 signal: sendController ? sendController.signal : undefined,
             });
