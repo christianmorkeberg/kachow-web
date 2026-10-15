@@ -1279,6 +1279,11 @@ button.ghost {
 .cp-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .cp-actions { margin-left: auto; display: flex; gap: 2px; flex: 0 0 auto; }
 .cp-expand { display: none; }   /* desktop-only (shown in the min-width block) */
+/* Dev idea #41: on mobile you can only MINIMISE a card (to its icon/title bar via
+   cp-min), never fully dismiss it — so there's always a way back to it. The close
+   (X) button only exists on desktop, shown in the min-width block below, where it
+   clears the permanent card column back to its empty state instead. */
+.cp-close { display: none; }
 .ws-divider { display: none; }  /* desktop-only drag handle */
 .card-rail { display: none; }   /* desktop-only card switcher rail */
 .cp-btn {
@@ -1364,6 +1369,7 @@ button.ghost {
     .workspace.ws-focus-card #composer,
     .workspace.ws-focus-card .ws-divider { display: none; }
     .cp-expand { display: inline-flex; }
+    .cp-close  { display: inline-flex; }  /* desktop keeps a real close (clears to empty state) */
 
     /* The card panel is a permanent right column now — a left border, always present
        (even with no card), and it fills the column height with its own scroll. */
