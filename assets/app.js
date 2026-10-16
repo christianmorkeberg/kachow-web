@@ -498,6 +498,7 @@
         [/instruction/,                         'list-checks',   'your preferences',   'dine præferencer'],
         [/connection|invite/,                   'users',         'your connections',   'dine forbindelser'],
         [/setting|appearance|my_name|company/,  'settings',      'your settings',      'dine indstillinger'],
+        [/home_/,                               'lightbulb',     'your home devices',  'dine hjemmeenheder'],
         [/chart/,                               'chart-column',  'a chart',            'en graf']
     ];
     var TOOL_SPECIAL = {
@@ -513,7 +514,9 @@
         create_invoice:       ['Creating the invoice', 'Opretter fakturaen'],
         recommend_vinyl:      ['Finding a record for you', 'Finder en plade til dig'],
         assess_vinyl:         ['Looking at the record', 'Kigger på pladen'],
-        remember_about_me:    ['Remembering that', 'Husker det']
+        remember_about_me:    ['Remembering that', 'Husker det'],
+        home_device_call:     ['Talking to your home devices', 'Taler med dine hjemmeenheder'],
+        get_home_agent_setup: ['Checking your home agent', 'Tjekker din hjemmeagent']
     };
     function toolInfo(name) {
         name = String(name || '');
