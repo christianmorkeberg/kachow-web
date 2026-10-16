@@ -641,10 +641,8 @@
         btn.innerHTML = icon('flag');
         btn.addEventListener('click', function (e) { e.stopPropagation(); openReportDialog(msgId); });
         bubble.appendChild(btn);
-
-        // Desktop convenience; the visible ⚑ button is the primary path on touch (a
-        // long-press would fight native text selection, so we don't use it).
-        bubble.addEventListener('contextmenu', function (e) { e.preventDefault(); openReportDialog(msgId); });
+        // No right-click / long-press shortcut: it hijacked the browser's own menu (copy, paste,
+        // inspect). The visible flag button is the only way in.
     }
 
     function buildDiagPanel(d) {
