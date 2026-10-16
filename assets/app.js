@@ -6416,13 +6416,18 @@
                 su.className = 'places-list places-sugg';
                 card.suggestions.forEach(function (sg, i) {
                     var li = document.createElement('li');
+                    // A nearby POI (e.g. a supermarket) gives a best-effort name — shown as a
+                    // hint here, and pre-filled (still editable) when you tap to name it.
+                    var label = sg.suggested_name
+                        ? sg.suggested_name
+                        : daText('Suggestion ', 'Forslag ') + (i + 1);
                     li.innerHTML = '<span class="loc-ip-dot sugg-dot"></span>'
-                        + '<span class="pl-name">' + progEsc(daText('Suggestion ', 'Forslag ') + (i + 1)) + '</span>'
+                        + '<span class="pl-name">' + progEsc(label) + '</span>'
                         + '<span class="pl-meta">' + progEsc(sg.days + ' ' + daText('days', 'dage') + ' · ~' + wchFmtMin(sg.avg_minutes)) + '</span>'
                         + '<span class="pl-sub">' + progEsc(sg.typical) + '</span>';
                     li.title = daText('Name this place', 'Navngiv stedet');
                     li.addEventListener('click', function () {
-                        edit({ id: null, name: '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] });
+                        edit({ id: null, name: sg.suggested_name || '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] });
                     });
                     su.appendChild(li);
                 });
@@ -6594,9 +6599,10 @@
                 placeLayers[pl.id] = layer;
             });
             (card.suggestions || []).forEach(function (sg, i) {
+                var label = sg.suggested_name || (daText('Suggestion ', 'Forslag ') + (i + 1));
                 L.circle([sg.lat, sg.lon], { radius: 60, color: '#94a3b8', weight: 2, dashArray: '4 4', fillOpacity: 0.08 })
-                    .bindTooltip(daText('Suggestion ', 'Forslag ') + (i + 1)).addTo(map)
-                    .on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit({ id: null, name: '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] }); } });
+                    .bindTooltip(label).addTo(map)
+                    .on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit({ id: null, name: sg.suggested_name || '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] }); } });
             });
             if (card.here) {
                 L.circleMarker(card.here, { radius: 6, color: '#fff', weight: 2, fillColor: '#0ea5e9', fillOpacity: 1 })
