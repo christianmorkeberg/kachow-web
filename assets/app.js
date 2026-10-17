@@ -2224,7 +2224,7 @@
             row.appendChild(top);
             row.appendChild(subj);
             row.appendChild(snip);
-            row.addEventListener('click', function () { openEmail(card.account_id, m); });
+            row.addEventListener('click', function () { openEmail(m.account_id != null ? m.account_id : card.account_id, m); });   // a merged list: each mail knows its own mailbox
             wrap.appendChild(row);
         });
 
