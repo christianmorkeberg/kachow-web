@@ -1398,10 +1398,29 @@
         var open = items.filter(function (it) { return !it.done; });
         var checked = items.filter(function (it) { return it.done; });
 
+        var head = document.createElement('div');
+        head.className = 'shop-head';
         var h = document.createElement('div');
         h.className = 'plan-card-title';
         h.textContent = (card.title || 'Shopping list') + (open.length ? ' · ' + open.length + ' left' : '');
-        wrap.appendChild(h);
+        head.appendChild(h);
+        // Grouped by category ↔ one flat list, saved per list (older cards without the field get no switch).
+        if (card.list_id && (card.grouping === 'auto' || card.grouping === 'none')) {
+            var grouped = card.grouping === 'auto';
+            var gt = document.createElement('button');
+            gt.type = 'button';
+            gt.className = 'shop-group-toggle' + (grouped ? ' on' : '');
+            gt.setAttribute('role', 'switch');
+            gt.setAttribute('aria-checked', grouped ? 'true' : 'false');
+            gt.title = daText('Group items by category', 'Grupper varer efter kategori');
+            gt.innerHTML = '<span class="sgt-track"><span class="sgt-knob"></span></span>';
+            gt.appendChild(document.createTextNode(daText('Grouped', 'Grupperet')));
+            gt.addEventListener('click', function () {
+                shopPost({ action: 'grouping', list_id: card.list_id, grouping: grouped ? 'none' : 'auto' }, wrap, false);
+            });
+            head.appendChild(gt);
+        }
+        wrap.appendChild(head);
 
         if (!open.length) {
             var empty = document.createElement('div');
@@ -1509,6 +1528,11 @@
             wrap.classList.remove('loading');
             if (res && res.card) {
                 buildShopping(wrap, res.card);
+                // Keep the panel's (and rail's) copy current, e.g. after flipping the grouping switch.
+                if (panelCard && panelCard.kind === 'shopping_list' && panelCard.list_id === res.card.list_id) {
+                    panelCard = res.card;
+                    railRecents.forEach(function (r) { if (r.kind === 'shopping_list') r.card = res.card; });
+                }
                 if (panelKind === 'shopping_list' && cardPanelSub) {
                     var openN = (res.card.items || []).filter(function (i) { return !i.done; }).length;
                     cardPanelSub.textContent = openN + (openN === 1 ? ' item' : ' items');
@@ -7663,13 +7687,41 @@
         // page runs the fresh assets. Crucial for the installed PWA, which can stay
         // open for days. Only for pages that were already controlled (returning
         // users), so a first-time visitor doesn't get a spurious reload.
+        // But never under the user's fingers: launching the PWA right after a deploy swaps the
+        // worker 1–2 s in, and an immediate reload wiped whatever was being typed (dev report).
+        // So the reload waits until the composer is empty, unfocused and no reply is in flight
+        // (or the app goes to the background), and a draft is carried across it regardless.
         var hadController = !!navigator.serviceWorker.controller;
         var refreshing = false;
+        var reloadPending = false;
+        var DRAFT_KEY = 'kachow-draft-across-reload';
+        function safeToReload() {
+            return !busy && input.value.trim() === '' && document.activeElement !== input;
+        }
+        function reloadNow() {
+            if (refreshing) return;
+            refreshing = true;
+            try { if (input.value) sessionStorage.setItem(DRAFT_KEY, input.value); } catch (e) { /* private mode */ }
+            window.location.reload();
+        }
+        function maybeReload() {
+            if (reloadPending && (safeToReload() || document.visibilityState === 'hidden')) reloadNow();
+        }
         navigator.serviceWorker.addEventListener('controllerchange', function () {
             if (refreshing || !hadController) return;
-            refreshing = true;
-            window.location.reload();
+            reloadPending = true;
+            maybeReload();
         });
+        input.addEventListener('blur', function () { setTimeout(maybeReload, 300); });
+        document.addEventListener('visibilitychange', maybeReload);
+        setInterval(maybeReload, 5000);   // e.g. right after a reply finishes
+        try {
+            var carried = sessionStorage.getItem(DRAFT_KEY);
+            if (carried) {
+                sessionStorage.removeItem(DRAFT_KEY);
+                if (!input.value) { input.value = carried; autogrow(); }
+            }
+        } catch (e) { /* private mode */ }
 
         // A tapped notification on an already-open app: the SW hands us the deep-link
         // URL (since iOS won't navigate it), and we open the matching card in a fresh chat.

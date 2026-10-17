@@ -8,6 +8,7 @@ declare(strict_types=1);
  *   GET  ?list=NAME             → card for that list (default list if omitted)
  *   POST { item_id, checked }  → tick/untick an item, returns the fresh card
  *   POST { action:'add', list_id, item } → add an item, returns the fresh card
+ *   POST { action:'grouping', list_id, grouping:'auto'|'none' } → group or flatten, returns the fresh card
  *
  * Requires an authenticated session (or remember-me cookie). Toggling is
  * authorised by connection membership inside ShoppingLists::toggleItem.
@@ -62,6 +63,23 @@ try {
                 out(400, ['error' => 'list_id and item are required.']);
             }
             $res = $lists->addItemForUser($userId, $listId, $item);
+            if ($res === null) {
+                out(404, ['error' => 'No such list, or not shared with you.']);
+            }
+            out(200, [
+                'ok'   => true,
+                'card' => $lists->cardForList($res['connection_id'], $res['list_id'], $res['name']),
+            ]);
+        }
+
+        // The grouping switch on the card: grouped ('auto') or flat ('none').
+        if (($in['action'] ?? '') === 'grouping') {
+            $listId = (int) ($in['list_id'] ?? 0);
+            $mode   = (string) ($in['grouping'] ?? '');
+            if ($listId <= 0 || !in_array($mode, ['auto', 'none'], true)) {
+                out(400, ['error' => 'list_id and grouping (auto|none) are required.']);
+            }
+            $res = $lists->setGroupingForUser($userId, $listId, $mode);
             if ($res === null) {
                 out(404, ['error' => 'No such list, or not shared with you.']);
             }
