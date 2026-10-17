@@ -57,6 +57,10 @@ try {
         case 'work_hours':
             $card = (new WorkEvents())->summary($userId, 'today')['card'];
             break;
+        case 'work_yesterday':
+            $yesterday = (new DateTimeImmutable('yesterday', new DateTimeZone('Europe/Copenhagen')))->format('Y-m-d');
+            $card = (new WorkEvents())->summary($userId, 'today', $yesterday)['card'];
+            break;
         case 'work_week':
             $card = (new WorkEvents())->summary($userId, 'lastweek')['card'];
             break;

@@ -19,6 +19,7 @@ require __DIR__ . '/../bootstrap.php';
 
 use App\Data\ApiTokens;
 use App\Data\LocationPoints;
+use App\Data\LocationWorkClock;
 use App\Data\Places;
 use App\Data\Reminders;
 use App\Notify\PlaceReminderRunner;
@@ -104,6 +105,20 @@ try {
             (new PlaceReminderRunner(new Reminders(), new Places()))->onPoints($userId, $stored);
         } catch (\Throwable $e) {
             error_log('owntracks place reminders: ' . $e->getMessage());
+        }
+        // Location work clock (only when the user switched to it): keep today's punches current.
+        // Just after midnight also yesterday, whose last departure may only show up now.
+        try {
+            $clock = LocationWorkClock::standard();
+            if ($clock->isOn($userId)) {
+                $local = new DateTimeImmutable('now', new DateTimeZone('Europe/Copenhagen'));
+                $clock->sync($userId, $local->format('Y-m-d'));
+                if ((int) $local->format('G') < 3) {
+                    $clock->sync($userId, $local->modify('-1 day')->format('Y-m-d'));
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('owntracks work clock: ' . $e->getMessage());
         }
     }
 

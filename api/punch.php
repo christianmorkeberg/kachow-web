@@ -19,6 +19,7 @@ declare(strict_types=1);
 require __DIR__ . '/../bootstrap.php';
 
 use App\Data\ApiTokens;
+use App\Data\UserSettings;
 use App\Data\WorkEvents;
 
 header('Content-Type: text/plain; charset=utf-8');
@@ -49,6 +50,10 @@ try {
         line(403, 'Invalid token.');
     }
 
+    // Switched to the location clock: the Shortcut must not count the same hours a second time.
+    if ((new UserSettings())->get($userId, 'work_clock') === 'location') {
+        line(200, 'Location clock is on, so this punch was ignored. You can turn off the Shortcut automations.');
+    }
     $res = (new WorkEvents())->add($userId, $kind, null, 'ios_geofence', null, $place);
 
     $where = $place !== null && $place !== '' ? ' @ ' . $place : '';
