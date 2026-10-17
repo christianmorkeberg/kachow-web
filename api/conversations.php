@@ -21,6 +21,7 @@ use App\Assistant\GeminiClient;
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Conversations;
+use App\Data\NotificationHistory;
 use App\Data\RememberTokens;
 use App\Data\ScheduledTasks;
 use App\Data\Users;
@@ -95,6 +96,11 @@ try {
             (new ScheduledTasks())->clearUnseenByConversation($userId, $id);
         } catch (\Throwable $e) {
             error_log('conversations.php clearUnseenByConversation: ' . $e->getMessage());
+        }
+        try {
+            (new NotificationHistory())->markReadByUrl($userId, '/?conv=' . $id);
+        } catch (\Throwable $e) {
+            error_log('conversations.php markReadByUrl: ' . $e->getMessage());
         }
         // A scheduled task's own conversation reads differently: its "user" lines are the task's
         // stored instruction (not something typed), and a notify_me call is shown as the notification.

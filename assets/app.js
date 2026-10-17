@@ -7851,6 +7851,13 @@
         if (window.caches) caches.open('kachow-pending').then(function (c) { c.delete('/__pending-open'); }).catch(function () {});
         var u;
         try { u = new URL(p.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
+        refreshInboxCount();
+        var convParam2 = u.searchParams.get('conv');
+        if (convParam2) {
+            navGen++;
+            loadConversation(Number(convParam2)).catch(function () { openNotificationCard(null, null, p); });
+            return;
+        }
         openNotificationCard(u.searchParams.get('card'), u.searchParams.get('rid'), p);
     }
 
@@ -8395,6 +8402,159 @@
                     connectBtn.textContent = 'Connect';
                 });
         }
+    })();
+
+    // ---------- Notification history (the bell) ----------
+    // Every push the app sends is kept server-side (api/notifications.php), so one that was missed or
+    // dismissed can still be read and opened. Tapping an entry opens what the push opens; the badge
+    // counts the unread ones.
+    var refreshInboxCount = function () {};
+    (function initInbox() {
+        var btn = document.getElementById('inboxBtn');
+        var badge = document.getElementById('inboxCount');
+        var modal = document.getElementById('inboxModal');
+        var list = document.getElementById('inboxList');
+        var closeBtn = document.getElementById('inboxClose');
+        var readAll = document.getElementById('inboxReadAll');
+        var settings = document.getElementById('inboxSettings');
+        if (!btn || !modal || !list) return;
+
+        var TYPE_ICONS = {
+            checkout_nudge: 'clock', weekly_summary: 'chart-column', work_log_nudge: 'notebook-pen',
+            cycle_upcoming: 'moon', moms_deadline: 'percent', reminder: 'alarm-clock', wfh_prompt: 'clock',
+            tracking_silent: 'map-pin', scheduled_task: 'sparkles', work_clock_gap: 'clock', test: 'bell'
+        };
+        var oldest = null;     // smallest id shown, for "Show older"
+
+        function setBadge(n) {
+            if (!badge) return;
+            badge.hidden = !n;
+            badge.textContent = n > 99 ? '99+' : String(n || '');
+            btn.classList.toggle('has-unread', n > 0);
+            btn.setAttribute('aria-label', daText('Notification history', 'Notifikationshistorik') + (n ? ' (' + n + ' ' + daText('unread', 'ulæste') + ')' : ''));
+            if (readAll) readAll.hidden = !n;
+        }
+
+        refreshInboxCount = function () {
+            fetch('/api/notifications.php?count=1', { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) { if (j && typeof j.unread === 'number') setBadge(j.unread); })
+                .catch(function () { /* offline / not logged in */ });
+        };
+
+        function ago(atLocal) {
+            var d = new Date(String(atLocal).replace(' ', 'T'));
+            if (isNaN(d.getTime())) return '';
+            var min = Math.round((Date.now() - d.getTime()) / 60000);
+            if (min < 1) return daText('just now', 'lige nu');
+            if (min < 60) return min + ' ' + daText('min ago', 'min siden');
+            if (min < 24 * 60 && d.toDateString() === new Date().toDateString()) return Math.round(min / 60) + ' ' + daText('h ago', 't siden');
+            return emailDate(d.toISOString());
+        }
+
+        function open() { modal.hidden = false; load(null); }
+        function close() { modal.hidden = true; }
+
+        function failed() {
+            list.innerHTML = '<div class="history-empty">' + daText("Couldn't load.", 'Kunne ikke hente.') + '</div>';
+        }
+
+        function load(before) {
+            if (!before) { list.innerHTML = '<div class="history-empty">' + daText('Loading…', 'Henter…') + '</div>'; oldest = null; }
+            fetch('/api/notifications.php' + (before ? '?before=' + before : ''), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                    if (!j || !j.items) { failed(); return; }
+                    setBadge(j.unread || 0);
+                    if (!before) list.innerHTML = '';
+                    var more = list.querySelector('.inbox-more');
+                    if (more) more.remove();
+                    if (!j.items.length && !before) {
+                        list.innerHTML = '<div class="history-empty">' + daText('No notifications yet. Anything the app sends you will be listed here.',
+                            'Ingen notifikationer endnu. Alt hvad appen sender dig står her.') + '</div>';
+                        return;
+                    }
+                    j.items.forEach(function (it) { list.appendChild(row(it)); oldest = it.id; });
+                    if (j.items.length >= 50) {
+                        var m = document.createElement('button');
+                        m.type = 'button'; m.className = 'inbox-more';
+                        m.textContent = daText('Show older', 'Vis ældre');
+                        m.addEventListener('click', function () { load(oldest); });
+                        list.appendChild(m);
+                    }
+                })
+                .catch(failed);
+        }
+
+        function row(it) {
+            var el = document.createElement('div');
+            el.className = 'history-item inbox-item' + (it.read ? '' : ' unread');
+            el.tabIndex = 0;
+            el.setAttribute('role', 'button');
+            var ic = document.createElement('span');
+            ic.className = 'inbox-ic';
+            ic.innerHTML = icon(TYPE_ICONS[it.type] || 'bell');
+            var main = document.createElement('div');
+            main.className = 'history-main';
+            var t = document.createElement('div');
+            t.className = 'history-title';
+            t.textContent = it.title;
+            var b = document.createElement('div');
+            b.className = 'inbox-body';
+            b.textContent = it.body;
+            var sub = document.createElement('div');
+            sub.className = 'history-sub';
+            sub.textContent = [it.label, ago(it.at)].filter(Boolean).join(' · ');
+            main.appendChild(t); main.appendChild(b); main.appendChild(sub);
+            el.appendChild(ic); el.appendChild(main);
+            var go = function () { openEntry(it, el); };
+            el.addEventListener('click', go);
+            el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+            return el;
+        }
+
+        function openEntry(it, el) {
+            if (!it.read) {
+                it.read = true;
+                el.classList.remove('unread');
+                fetch('/api/notifications.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                    body: JSON.stringify({ action: 'read', id: it.id })
+                }).then(function () { refreshInboxCount(); }).catch(function () { /* non-fatal */ });
+            }
+            close();
+            var u;
+            try { u = new URL(it.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
+            var conv = u.searchParams.get('conv');
+            if (conv) {
+                navGen++;
+                loadConversation(Number(conv)).catch(function () { toast(daText('That conversation is gone.', 'Samtalen findes ikke mere.')); });
+                return;
+            }
+            openNotificationCard(u.searchParams.get('card'), u.searchParams.get('rid'), { title: it.title, body: it.body, type: it.type });
+        }
+
+        btn.addEventListener('click', open);
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+        if (readAll) readAll.addEventListener('click', function () {
+            fetch('/api/notifications.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                body: JSON.stringify({ action: 'read_all' })
+            }).then(function () {
+                list.querySelectorAll('.inbox-item.unread').forEach(function (e) { e.classList.remove('unread'); });
+                setBadge(0);
+            }).catch(function () { /* non-fatal */ });
+        });
+        if (settings) settings.addEventListener('click', function () {
+            close();
+            var nb = document.getElementById('notifBtn');
+            if (nb) nb.click();
+        });
+
+        refreshInboxCount();
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshInboxCount(); });
+        setInterval(function () { if (document.visibilityState === 'visible') refreshInboxCount(); }, 60000);
     })();
 
     // ---------- Chat history ----------

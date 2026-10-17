@@ -207,6 +207,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
         <header class="topbar">
             <span class="brand" data-icon="zap">Kachow</span>
             <div class="topbar-actions">
+                <button type="button" id="inboxBtn" class="badge iconbtn inbox-btn" title="Notification history" aria-label="Notification history"><span data-icon="bell" data-icon-only></span><span class="inbox-count" id="inboxCount" hidden></span></button>
                 <button type="button" id="historyBtn" class="badge iconbtn" title="Chat history" aria-label="Chat history"><span data-icon="history" data-icon-only></span></button>
                 <details class="topbar-menu" id="topbarMenu">
                     <summary class="badge tm-summary" title="Menu" aria-label="Menu"><span data-icon="menu" data-icon-only></span></summary>
@@ -292,6 +293,18 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 </div>
                 <input type="search" id="historySearch" class="history-search" placeholder="Search your chats…" autocomplete="off">
                 <div id="historyList" class="history-list"></div>
+            </div>
+        </div>
+
+        <div id="inboxModal" class="modal" hidden>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-label="Notification history">
+                <div class="modal-head">
+                    <strong>Notification history</strong>
+                    <button type="button" class="inbox-readall" id="inboxReadAll" hidden>Mark all read</button>
+                    <button type="button" class="modal-close" id="inboxClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
+                </div>
+                <div id="inboxList" class="history-list"></div>
+                <button type="button" class="inbox-settings" id="inboxSettings">Notification settings</button>
             </div>
         </div>
 

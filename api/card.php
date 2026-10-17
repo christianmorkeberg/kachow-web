@@ -17,6 +17,7 @@ use App\Auth\Session;
 use App\Data\CycleTracker;
 use App\Data\Income;
 use App\Data\Moms;
+use App\Data\NotificationHistory;
 use App\Data\Receipts;
 use App\Data\RememberTokens;
 use App\Data\Reminders;
@@ -96,6 +97,14 @@ try {
             break;
         default:
             out(404, ['error' => 'Unknown card.']);
+    }
+
+    // Opening what a notification points to counts as reading it.
+    try {
+        $rid = isset($_GET['rid']) ? (int) $_GET['rid'] : 0;
+        (new NotificationHistory())->markReadByUrl($userId, '/?card=' . $for . ($rid > 0 ? '&rid=' . $rid : ''));
+    } catch (\Throwable $e) {
+        error_log('card.php markReadByUrl: ' . $e->getMessage());
     }
 
     out(200, ['ok' => true, 'card' => $card]);

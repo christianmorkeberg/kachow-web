@@ -1525,8 +1525,27 @@ button.iconbtn.on {
 }
 /* History (🕘) and notifications (🔔) are plain actions, not on/off toggles,
    so they shouldn't look dimmed like the muted toggle-off state. */
-#historyBtn, #notifBtn { opacity: .9; }
-#historyBtn:hover, #notifBtn:hover { opacity: 1; }
+#historyBtn, #notifBtn, #inboxBtn { opacity: .9; }
+#historyBtn:hover, #notifBtn:hover, #inboxBtn:hover { opacity: 1; }
+
+/* Notification history: the bell with an unread count, and the list. */
+.inbox-btn { position: relative; }
+.inbox-count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+    background: var(--accent); color: var(--accent-ink); font-size: 10.5px; font-weight: 700; line-height: 16px;
+    text-align: center; box-sizing: border-box; }
+.inbox-btn.has-unread { opacity: 1; }
+.inbox-item { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.inbox-item.unread { background: var(--accent-soft); border-color: var(--accent-line); }
+.inbox-ic { flex-shrink: 0; width: 20px; margin-top: 2px; color: var(--accent); }
+.inbox-item .history-main { min-width: 0; }
+.inbox-body { font-size: 13px; color: var(--text); white-space: pre-wrap; word-break: break-word;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.inbox-item.unread .history-title::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); margin-right: 6px; vertical-align: middle; }
+.inbox-readall, .inbox-settings, .inbox-more { background: none; border: 0; color: var(--accent); font: inherit; font-size: 12.5px;
+    cursor: pointer; padding: 6px 8px; }
+.inbox-readall { margin-left: auto; }
+.inbox-settings, .inbox-more { display: block; width: 100%; text-align: center; border-top: 1px solid var(--line); }
 
 .composer .mic { font-size: 18px; }
 .composer .mic.listening {
