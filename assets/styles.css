@@ -465,6 +465,10 @@ button.ghost {
 }
 .plan-items input[type="checkbox"]:disabled { opacity: .5; cursor: default; }
 .plan-items li.done span { text-decoration: line-through; color: var(--muted); }
+/* A shared (look-only) plan: a plain mark where your own plan has a tick box. */
+.plan-items li.ro { display: flex; align-items: baseline; gap: 11px; }
+.plan-ro-mark { flex: 0 0 22px; text-align: center; color: var(--muted); }
+.plan-items li.ro.done .plan-ro-mark { color: var(--ok); }
 .plan-empty { color: var(--muted); font-size: 14px; }
 .plan-logged { font-size: 12px; color: var(--ok); margin-left: 4px; }
 

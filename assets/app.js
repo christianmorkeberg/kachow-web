@@ -1012,7 +1012,7 @@
     var LIVE_REFRESH_MS = 60000;
 
     function workCardIsLive(card) {
-        if (!card) return false;
+        if (!card || card.person) return false;   // a shared card is someone else's clock — never refresh it from ours
         if (card.kind === 'work_hours') return !!card.ongoing;
         if (card.kind === 'work_chart') return (card.bars || []).some(function (b) { return b.ongoing; });
         return false;
@@ -1093,7 +1093,7 @@
             return;
         }
 
-        if (!card || (card.kind !== 'work_hours' && card.kind !== 'work_chart')) return;
+        if (!card || card.person || (card.kind !== 'work_hours' && card.kind !== 'work_chart')) return;
         refetchWorkCard(card).then(function (j) {
             if (j && j.card && panelCard === card) refreshPanelCard(j.card);
         }).catch(function () { /* keep the snapshot */ });
@@ -1342,6 +1342,13 @@
             h.textContent = card.title + (typeof card.remaining === 'number' ? ' · ' + card.remaining + ' left' : '');
             wrap.appendChild(h);
         }
+        // Someone else's plan (shared with you): say whose, and keep it look-only below.
+        if (card.person && card.person.name) {
+            const who = document.createElement('div');
+            who.className = 'prog-shared';
+            who.textContent = daText('shared by ', 'delt af ') + card.person.name;
+            wrap.appendChild(who);
+        }
 
         sections.forEach(function (sec) {
             const secEl = document.createElement('div');
@@ -1363,16 +1370,27 @@
                 sec.items.forEach(function (it) {
                     const li = document.createElement('li');
                     if (it.done) li.classList.add('done');
-                    const label = document.createElement('label');
-                    const cb = document.createElement('input');
-                    cb.type = 'checkbox';
-                    cb.checked = !!it.done;
-                    cb.addEventListener('change', function () { toggleCardItem(cb, it.id, endpoint, doneKey); });
                     const span = document.createElement('span');
                     span.textContent = capFirst(it.label);
-                    label.appendChild(cb);
-                    label.appendChild(span);
-                    li.appendChild(label);
+                    if (card.readonly) {
+                        // A connected person's plan: look, don't tick — it is theirs to change.
+                        li.classList.add('ro');
+                        const mark = document.createElement('span');
+                        mark.className = 'plan-ro-mark';
+                        mark.textContent = it.done ? '✓' : '○';
+                        mark.setAttribute('aria-label', it.done ? daText('done', 'gjort') : daText('not done yet', 'ikke gjort endnu'));
+                        li.appendChild(mark);
+                        li.appendChild(span);
+                    } else {
+                        const label = document.createElement('label');
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.checked = !!it.done;
+                        cb.addEventListener('change', function () { toggleCardItem(cb, it.id, endpoint, doneKey); });
+                        label.appendChild(cb);
+                        label.appendChild(span);
+                        li.appendChild(label);
+                    }
                     ul.appendChild(li);
                 });
                 secEl.appendChild(ul);
