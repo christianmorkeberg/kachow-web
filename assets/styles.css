@@ -300,6 +300,17 @@ button.ghost {
     border: 1px solid var(--border);
     border-bottom-left-radius: 4px;
 }
+/* A scheduled task's run, opened from its notification: a quiet note for the stored instruction
+   (tap to read it) and the notification itself as a card-like bubble. */
+.sched-note { align-self: stretch; font-size: 12.5px; color: var(--muted); }
+.sched-note summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; }
+.sched-note summary::-webkit-details-marker { display: none; }
+.sched-note-text { margin: 6px 0 0 22px; padding: 6px 10px; border-left: 2px solid var(--border); white-space: pre-wrap; }
+.msg.notification { align-self: flex-start; background: var(--accent-soft); border: 1px solid var(--accent-line);
+    border-bottom-left-radius: 4px; }
+.notif-title { display: flex; align-items: center; gap: 7px; font-weight: 600; margin-bottom: 3px; }
+.notif-title .ic { color: var(--accent); }
+.notif-body { white-space: pre-wrap; }
 /* Tap a message to reveal its timestamp (also available as a hover title on desktop) —
    collapsed by default so it adds no visible space until opened. */
 .msg-time-tag {

@@ -7473,6 +7473,49 @@
 
     // Load a past conversation's messages into the view and make it the active one.
     // Note: old interactive cards aren't restored — only the text of each turn.
+    // A scheduled task's run, as opened from its notification. The task's stored instruction is not
+    // something the user typed, so it shows as a quiet note (instruction tucked behind a tap) rather
+    // than a "You" bubble; the notification itself shows as the notification it was.
+    function addScheduledNote(instruction, label, atLocal) {
+        clearEmptyHint();
+        var when = atLocal ? new Date(String(atLocal).replace(' ', 'T')) : null;
+        var note = document.createElement('details');
+        note.className = 'sched-note';
+        var sum = document.createElement('summary');
+        setIconText(sum, 'alarm-clock', daText('Scheduled task', 'Planlagt opgave')
+            + (label ? ' · ' + label : '')
+            + (when && !isNaN(when.getTime()) ? ' · ' + emailDate(when.toISOString()) : ''));
+        note.appendChild(sum);
+        var body = document.createElement('div');
+        body.className = 'sched-note-text';
+        body.textContent = instruction;
+        note.appendChild(body);
+        messages.appendChild(note);
+        return note;
+    }
+
+    function addNotificationBubble(text, atLocal) {
+        clearEmptyHint();
+        var parts = String(text).split('\n');
+        var title = parts.shift() || '';
+        var bubble = document.createElement('div');
+        bubble.className = 'msg notification';
+        var h = document.createElement('div');
+        h.className = 'notif-title';
+        setIconText(h, 'bell', title);
+        bubble.appendChild(h);
+        if (parts.length) {
+            var b = document.createElement('div');
+            b.className = 'notif-body';
+            b.textContent = parts.join('\n');
+            bubble.appendChild(b);
+        }
+        var when = atLocal ? new Date(String(atLocal).replace(' ', 'T')) : null;
+        if (when && !isNaN(when.getTime())) bubble.title = emailDate(when.toISOString());
+        messages.appendChild(bubble);
+        return bubble;
+    }
+
     function loadConversation(id, gen) {
         return fetch('/api/conversations.php?id=' + encodeURIComponent(id), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
@@ -7486,7 +7529,11 @@
                 // transcript — so restore just the most recent one for this chat.
                 var lastCard = null;
                 (data.messages || []).forEach(function (m) {
-                    if (m.role === 'assistant') {
+                    if (m.role === 'scheduled') {
+                        addScheduledNote(m.content, (data.scheduled && data.scheduled.label) || '', m.at);
+                    } else if (m.role === 'notification') {
+                        addNotificationBubble(m.content, m.at);
+                    } else if (m.role === 'assistant') {
                         var row = addMessage(m.content, 'assistant', m.html, m.at);
                         attachMessageMeta(row, { id: m.id, diagnostics: m.diagnostics });
                         if (m.card) lastCard = m.card;

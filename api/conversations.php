@@ -96,13 +96,38 @@ try {
         } catch (\Throwable $e) {
             error_log('conversations.php clearUnseenByConversation: ' . $e->getMessage());
         }
+        // A scheduled task's own conversation reads differently: its "user" lines are the task's
+        // stored instruction (not something typed), and a notify_me call is shown as the notification.
+        $task = null;
+        try {
+            $task = (new ScheduledTasks())->byConversation($userId, $id);
+        } catch (\Throwable $e) {
+            error_log('conversations.php byConversation: ' . $e->getMessage());
+        }
         $out = [];
         foreach ($conversations->messages($id) as $m) {
             $role = (string) $m['role'];
+            if ($role === 'tool' && $task !== null && (string) ($m['tool_name'] ?? '') === 'notify_me') {
+                $sent = json_decode((string) $m['content'], true);
+                if (is_array($sent) && isset($sent['title'], $sent['body'])) {
+                    $out[] = [
+                        'id'      => (int) $m['id'],
+                        'role'    => 'notification',
+                        'content' => (string) $sent['title'] . "\n" . (string) $sent['body'],
+                        'html'    => null,
+                        'card'    => null,
+                        'at'      => (string) $m['created_at'],
+                    ];
+                }
+                continue;
+            }
             if ($role !== 'user' && $role !== 'assistant') {
                 continue; // internal tool rows aren't shown
             }
             $content = (string) $m['content'];
+            if ($role === 'user') {
+                $content = ScheduledTasks::stripRunPreamble($content);
+            }
             $card    = null;
             if ($role === 'assistant' && isset($m['card']) && $m['card'] !== null && $m['card'] !== '') {
                 $decoded = json_decode((string) $m['card'], true);
@@ -115,7 +140,7 @@ try {
             }
             $out[] = [
                 'id'          => (int) $m['id'],
-                'role'        => $role,
+                'role'        => $role === 'user' && $task !== null ? 'scheduled' : $role,
                 'content'     => $content,
                 'html'        => $role === 'assistant' ? Markdown::toHtml($content) : null,
                 'card'        => $card,
@@ -127,7 +152,12 @@ try {
                 'at'          => (string) $m['created_at'],
             ];
         }
-        out(200, ['id' => $id, 'title' => $conversations->title($userId, $id), 'messages' => $out]);
+        out(200, [
+            'id'        => $id,
+            'title'     => $conversations->title($userId, $id),
+            'scheduled' => $task !== null ? ['label' => $task['label']] : null,
+            'messages'  => $out,
+        ]);
     }
 
     // GET: search or list.
