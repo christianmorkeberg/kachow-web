@@ -775,6 +775,7 @@
         email:         ['mail', 'Email'],
         email_draft:   ['pencil-line', 'Draft'],
         feedback:      ['wrench', 'Feedback'],
+        dev_ideas:     ['lightbulb', 'Dev ideas'],
         personality:   ['drama', 'Personality'],
         appearance:    ['palette', 'Appearance'],
         notice:        ['circle-alert', 'Note']
@@ -881,6 +882,10 @@
             return Math.round(card.current.temp_c) + '°';
         }
         if (card.kind === 'chart' && card.title) return card.title;
+        if (card.kind === 'dev_ideas' && card.counts) {
+            return (card.counts.new || 0) + ' ' + devStatusLabel('new').toLowerCase() + ' · '
+                + (card.counts.in_progress || 0) + ' ' + devStatusLabel('in_progress').toLowerCase();
+        }
         if (card.kind === 'places') {
             var pc = card.count != null ? card.count : (card.places || []).length;
             return pc + ' ' + (pc === 1 ? daText('place', 'sted') : daText('places', 'steder'));
@@ -1066,6 +1071,15 @@
                 .then(function (j) {
                     if (j && j.card && panelCard === card) refreshPanelCard(j.card);
                 })
+                .catch(function () { /* keep the snapshot */ });
+            return;
+        }
+
+        // Dev ideas change status from chat and from the card itself.
+        if (card && card.kind === 'dev_ideas') {
+            fetch('/api/dev-ideas.php?filter=' + encodeURIComponent(card.filter || 'open'), { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) { if (j && j.card && panelCard === card) refreshPanelCard(j.card); })
                 .catch(function () { /* keep the snapshot */ });
             return;
         }
@@ -1289,6 +1303,7 @@
         if (card.kind === 'work_clock') { renderWorkClock(card); return; }
         if (card.kind === 'chart') { renderChart(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
+        if (card.kind === 'dev_ideas') { renderDevIdeas(card); return; }
         if (card.kind === 'personality') { renderPersonality(card); return; }
         if (card.kind === 'appearance') { renderAppearance(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
@@ -3778,6 +3793,144 @@
         box.appendChild(actions);
 
         return box;
+    }
+
+    // Dev-ideas backlog: filter chips by status, and (for the developer) a status picker per
+    // idea that saves straight away. The card object is updated in place so the panel snapshot
+    // and the header count stay right without a refetch.
+    var DEV_STATUS_LABELS = {
+        new:         ['New', 'Ny'],
+        in_progress: ['In progress', 'I gang'],
+        done:        ['Done', 'Færdig']
+    };
+    function devStatusLabel(s) {
+        var l = DEV_STATUS_LABELS[s] || [s, s];
+        return daText(l[0], l[1]);
+    }
+
+    function renderDevIdeas(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card dev-ideas-card';
+        var filter = card.filter || 'open';
+        var items = card.items || [];
+
+        var chips = document.createElement('div');
+        chips.className = 'di-chips';
+        var list = document.createElement('div');
+        list.className = 'di-list';
+        wrap.appendChild(chips);
+        wrap.appendChild(list);
+
+        function counts() {
+            var c = { new: 0, in_progress: 0, done: 0 };
+            items.forEach(function (i) { if (c[i.status] != null) c[i.status]++; });
+            card.counts = c;
+            return c;
+        }
+
+        function drawChips() {
+            var c = counts();
+            chips.innerHTML = '';
+            [
+                ['open', daText('Open', 'Åbne'), c.new + c.in_progress],
+                ['new', devStatusLabel('new'), c.new],
+                ['in_progress', devStatusLabel('in_progress'), c.in_progress],
+                ['done', devStatusLabel('done'), c.done],
+                ['all', daText('All', 'Alle'), items.length]
+            ].forEach(function (f) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'di-chip' + (filter === f[0] ? ' on' : '');
+                b.textContent = f[1] + ' ' + f[2];
+                b.addEventListener('click', function () { filter = f[0]; card.filter = filter; draw(); });
+                chips.appendChild(b);
+            });
+        }
+
+        function visible(i) {
+            if (filter === 'all') return true;
+            if (filter === 'open') return i.status !== 'done';
+            return i.status === filter;
+        }
+
+        function drawList() {
+            list.innerHTML = '';
+            var shown = items.filter(visible);
+            if (!shown.length) {
+                var empty = document.createElement('div');
+                empty.className = 'prog-empty';
+                empty.textContent = daText('Nothing here.', 'Intet her.');
+                list.appendChild(empty);
+                return;
+            }
+            shown.forEach(function (i) {
+                var row = document.createElement('div');
+                row.className = 'di-row ' + i.status;
+
+                var main = document.createElement('div');
+                main.className = 'di-main';
+                var text = document.createElement('div');
+                text.className = 'di-text';
+                text.textContent = i.idea;
+                var meta = document.createElement('div');
+                meta.className = 'di-meta';
+                meta.textContent = '#' + i.id + (i.noted ? ' · ' + i.noted : '') + (i.from ? ' · ' + i.from : '');
+                main.appendChild(text);
+                main.appendChild(meta);
+                row.appendChild(main);
+
+                if (card.can_edit) {
+                    var sel = document.createElement('select');
+                    sel.className = 'di-status ' + i.status;
+                    sel.setAttribute('aria-label', daText('Status of idea #', 'Status for idé #') + i.id);
+                    Object.keys(DEV_STATUS_LABELS).forEach(function (s) {
+                        var o = document.createElement('option');
+                        o.value = s;
+                        o.textContent = devStatusLabel(s);
+                        if (s === i.status) o.selected = true;
+                        sel.appendChild(o);
+                    });
+                    sel.addEventListener('change', function () {
+                        var before = i.status, next = sel.value;
+                        sel.disabled = true;
+                        fetch('/api/dev-ideas.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ id: i.id, status: next })
+                        }).then(function (x) { return x.json(); }).then(function (res) {
+                            if (res && res.ok) {
+                                i.status = next;
+                                draw();
+                                if (panelCard === card && cardPanelSub) cardPanelSub.textContent = cardSubFor(card);
+                            } else {
+                                sel.value = before;
+                                sel.disabled = false;
+                                toast((res && res.error) || daText('Could not update.', 'Kunne ikke opdatere.'));
+                            }
+                        }).catch(function () {
+                            sel.value = before;
+                            sel.disabled = false;
+                            toast(daText('Network error.', 'Netværksfejl.'));
+                        });
+                    });
+                    row.appendChild(sel);
+                } else {
+                    var pill = document.createElement('span');
+                    pill.className = 'di-pill ' + i.status;
+                    pill.textContent = devStatusLabel(i.status);
+                    row.appendChild(pill);
+                }
+                list.appendChild(row);
+            });
+        }
+
+        function draw() { drawChips(); drawList(); }
+        draw();
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
     }
 
     // Expense/receipt card: editable draft with a single Confirm, or a saved view.
