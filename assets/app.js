@@ -516,7 +516,11 @@
         assess_vinyl:         ['Looking at the record', 'Kigger på pladen'],
         remember_about_me:    ['Remembering that', 'Husker det'],
         home_device_call:     ['Talking to your home devices', 'Taler med dine hjemmeenheder'],
-        get_home_agent_setup: ['Checking your home agent', 'Tjekker din hjemmeagent']
+        get_home_agent_setup: ['Checking your home agent', 'Tjekker din hjemmeagent'],
+        web_search:           ['Searching the web', 'Søger på nettet'],
+        fetch_webpage:        ['Reading the web page', 'Læser websiden'],
+        set_place_reminder:   ['Setting a place reminder', 'Sætter en stedpåmindelse'],
+        get_calendar_month:   ['Opening your month', 'Åbner din måned']
     };
     function toolInfo(name) {
         name = String(name || '');
@@ -752,6 +756,7 @@
         shopping_list: ['shopping-cart', 'Shopping list'],
         workout_plan:  ['dumbbell', 'Workout plan'],
         agenda:        ['calendar', 'Agenda'],
+        calendar_month: ['calendar', 'Month'],
         weather:       ['cloud-sun', 'Weather'],
         work_hours:    ['clock', 'Work hours'],
         work_chart:    ['chart-column', 'Work hours'],
@@ -882,6 +887,10 @@
             return Math.round(card.current.temp_c) + '°';
         }
         if (card.kind === 'chart' && card.title) return card.title;
+        if (card.kind === 'calendar_month' && card.month) {
+            var mf = new Date(card.month + '-01T12:00:00');
+            return isNaN(mf) ? (card.title || '') : mf.toLocaleDateString(daText('en-GB', 'da-DK'), { month: 'long', year: 'numeric' });
+        }
         if (card.kind === 'dev_ideas' && card.counts) {
             return (card.counts.new || 0) + ' ' + devStatusLabel('new').toLowerCase() + ' · '
                 + (card.counts.in_progress || 0) + ' ' + devStatusLabel('in_progress').toLowerCase();
@@ -1278,6 +1287,7 @@
 
         // Calendar agenda is display-only (read from Google), so it has its own renderer.
         if (card.kind === 'agenda') { renderAgenda(card); return; }
+        if (card.kind === 'calendar_month') { renderCalendarMonth(card); return; }
         if (card.kind === 'weather') { renderWeather(card); return; }
         if (card.kind === 'work_hours') { renderWorkHours(card); return; }
         if (card.kind === 'receipt') { renderReceipt(card); return; }
@@ -1563,6 +1573,180 @@
             });
         });
         return map;
+    }
+
+    // Month grid: Monday-first weeks; on a wide (desktop) card the cells list the first titles,
+    // on a phone they show coloured dots. Tapping a day lists its events under the grid.
+    // ‹ › page months via /api/calendar-month.php and rebuild the card in place.
+    function renderCalendarMonth(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card cal-month-card';
+        buildCalendarMonth(wrap, card, null);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildCalendarMonth(wrap, card, selected) {
+        wrap.innerHTML = '';
+        var days = card.days || {};
+        var month = card.month || '';
+        var allDays = Object.keys(days).map(function (k) { return { events: days[k] }; });
+        var colors = makeCalColorMap(allDays);
+        var da = (navigator.language || '').toLowerCase().indexOf('da') === 0;
+
+        var head = document.createElement('div');
+        head.className = 'cm-head';
+        var prev = document.createElement('button');
+        prev.type = 'button'; prev.className = 'cm-nav'; prev.textContent = '‹';
+        prev.setAttribute('aria-label', daText('Previous month', 'Forrige måned'));
+        var next = document.createElement('button');
+        next.type = 'button'; next.className = 'cm-nav'; next.textContent = '›';
+        next.setAttribute('aria-label', daText('Next month', 'Næste måned'));
+        var title = document.createElement('div');
+        title.className = 'plan-card-title cm-title';
+        var first = new Date(month + '-01T12:00:00');
+        title.textContent = isNaN(first) ? (card.title || '') : first.toLocaleDateString(da ? 'da-DK' : 'en-GB', { month: 'long', year: 'numeric' });
+        head.appendChild(prev); head.appendChild(title); head.appendChild(next);
+        wrap.appendChild(head);
+
+        function go(m) {
+            wrap.classList.add('loading');
+            fetch('/api/calendar-month.php?month=' + encodeURIComponent(m), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                    wrap.classList.remove('loading');
+                    if (j && j.card) {
+                        buildCalendarMonth(wrap, j.card, null);
+                        if (panelCard && panelCard.kind === 'calendar_month') {
+                            panelCard = j.card;
+                            if (cardPanelSub) cardPanelSub.textContent = cardSubFor(j.card);
+                        }
+                    } else {
+                        toast((j && j.error) || daText('Could not load that month.', 'Kunne ikke hente måneden.'));
+                    }
+                })
+                .catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); });
+        }
+        prev.addEventListener('click', function () { if (card.prev) go(card.prev); });
+        next.addEventListener('click', function () { if (card.next) go(card.next); });
+
+        var grid = document.createElement('div');
+        grid.className = 'cm-grid';
+        var wd = da ? ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        wd.forEach(function (w) {
+            var h = document.createElement('div');
+            h.className = 'cm-wd';
+            h.textContent = w;
+            grid.appendChild(h);
+        });
+
+        var detail = document.createElement('div');
+        detail.className = 'cm-detail';
+
+        function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+        function showDay(date, cell) {
+            grid.querySelectorAll('.cm-day.sel').forEach(function (c) { c.classList.remove('sel'); });
+            if (cell) cell.classList.add('sel');
+            detail.innerHTML = '';
+            var d = new Date(date + 'T12:00:00');
+            var h = document.createElement('div');
+            h.className = 'plan-day-head';
+            h.textContent = d.toLocaleDateString(da ? 'da-DK' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+            detail.appendChild(h);
+            var list = days[date] || [];
+            if (!list.length) {
+                var e = document.createElement('div');
+                e.className = 'plan-empty';
+                e.textContent = daText('Nothing scheduled.', 'Intet i kalenderen.');
+                detail.appendChild(e);
+                return;
+            }
+            var ul = document.createElement('ul');
+            ul.className = 'agenda-items';
+            list.forEach(function (ev) {
+                var li = document.createElement('li');
+                if (ev.all_day) li.classList.add('all-day');
+                var t = document.createElement('span');
+                t.className = 'agenda-time';
+                t.textContent = ev.all_day ? daText('All day', 'Hele dagen') : (ev.time === 'cont.' ? daText('cont.', 'fortsat') : ev.time);
+                var body = document.createElement('span');
+                body.className = 'agenda-body';
+                var ttl = document.createElement('span');
+                ttl.className = 'agenda-title';
+                if (ev.calendar) {
+                    var dot = document.createElement('span');
+                    dot.className = 'cal-dot';
+                    dot.style.background = colors[ev.calendar];
+                    ttl.appendChild(dot);
+                }
+                ttl.appendChild(document.createTextNode(ev.summary));
+                body.appendChild(ttl);
+                var meta = [ev.calendar, ev.location].filter(Boolean).join(' · ');
+                if (meta) {
+                    var m = document.createElement('span');
+                    m.className = 'agenda-meta';
+                    m.textContent = meta;
+                    body.appendChild(m);
+                }
+                li.appendChild(t); li.appendChild(body);
+                ul.appendChild(li);
+            });
+            detail.appendChild(ul);
+        }
+
+        var from = new Date((card.grid_from || month + '-01') + 'T12:00:00');
+        var to = new Date((card.grid_to || month + '-28') + 'T12:00:00');
+        var todayCell = null;
+        for (var d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+            var key = iso(d);
+            var evs = days[key] || [];
+            var cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = 'cm-day' + (key.slice(0, 7) !== month ? ' out' : '') + (key === card.today ? ' today' : '')
+                + (evs.length ? ' has' : '');
+            var num = document.createElement('span');
+            num.className = 'cm-num';
+            num.textContent = d.getDate();
+            cell.appendChild(num);
+            if (evs.length) {
+                var titles = document.createElement('span');
+                titles.className = 'cm-titles';
+                evs.slice(0, 3).forEach(function (ev) {
+                    var t = document.createElement('span');
+                    t.className = 'cm-ev' + (ev.all_day ? ' all-day' : '');
+                    t.style.borderLeftColor = colors[ev.calendar] || 'var(--accent)';
+                    t.textContent = (ev.all_day || ev.time === 'cont.' ? '' : ev.time.slice(0, 5) + ' ') + ev.summary;
+                    titles.appendChild(t);
+                });
+                if (evs.length > 3) {
+                    var more = document.createElement('span');
+                    more.className = 'cm-more';
+                    more.textContent = '+' + (evs.length - 3);
+                    titles.appendChild(more);
+                }
+                cell.appendChild(titles);
+                var dots = document.createElement('span');
+                dots.className = 'cm-dots';
+                evs.slice(0, 4).forEach(function (ev) {
+                    var dt = document.createElement('span');
+                    dt.className = 'cm-dot';
+                    dt.style.background = colors[ev.calendar] || 'var(--accent)';
+                    dots.appendChild(dt);
+                });
+                cell.appendChild(dots);
+            }
+            cell.setAttribute('aria-label', key + (evs.length ? ', ' + evs.length + ' ' + daText('events', 'begivenheder') : ''));
+            (function (k, c) { c.addEventListener('click', function () { showDay(k, c); }); })(key, cell);
+            if (key === card.today) todayCell = cell;
+            grid.appendChild(cell);
+        }
+        wrap.appendChild(grid);
+        wrap.appendChild(detail);
+
+        // Open on today when it's in this month, else the 1st.
+        if (todayCell && card.today && card.today.slice(0, 7) === month) showDay(card.today, todayCell);
+        else showDay(selected || month + '-01', grid.querySelector('.cm-day:not(.out)'));
     }
 
     // Read-only calendar agenda: days, each with a list of events (time + title).
