@@ -19,6 +19,9 @@ require __DIR__ . '/../bootstrap.php';
 
 use App\Data\ApiTokens;
 use App\Data\LocationPoints;
+use App\Data\Places;
+use App\Data\Reminders;
+use App\Notify\PlaceReminderRunner;
 use App\Tools\GetLocationTrackingSetup;
 
 header('Content-Type: application/json; charset=utf-8');
@@ -63,6 +66,7 @@ try {
     $messages = array_is_list($msg) ? $msg : [$msg];
 
     $points = new LocationPoints();
+    $stored = [];
     foreach ($messages as $m) {
         if (!is_array($m)) {
             continue;
@@ -84,7 +88,23 @@ try {
         if ($device === '' && is_string($m['tid'] ?? null)) {
             $device = $m['tid'];
         }
-        $points->add($userId, $device, $p);
+        if ($points->add($userId, $device, $p) === 'ok') {
+            $stored[] = [
+                'ts'  => (new DateTimeImmutable($p['recorded_at'], new DateTimeZone('UTC')))->getTimestamp(),
+                'lat' => $p['lat'], 'lon' => $p['lon'], 'acc' => $p['acc'], 'vel' => $p['vel'],
+            ];
+        }
+    }
+
+    // React to the new positions. Each step is a convenience on top of storing the point, so a
+    // failure is logged and never turns into an error for the phone (it would just re-send).
+    if ($stored !== []) {
+        usort($stored, static fn (array $a, array $b): int => $a['ts'] <=> $b['ts']);
+        try {
+            (new PlaceReminderRunner(new Reminders(), new Places()))->onPoints($userId, $stored);
+        } catch (\Throwable $e) {
+            error_log('owntracks place reminders: ' . $e->getMessage());
+        }
     }
 
     // Retention: roughly one request in a hundred sweeps this user's points past 60 days

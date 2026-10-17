@@ -75,13 +75,19 @@ try {
             if ($rem === null) {
                 out(404, ['error' => 'Reminder not found.']);
             }
-            $when = (new DateTimeImmutable($rem['remind_at'], new DateTimeZone('UTC')))
-                ->setTimezone(new DateTimeZone('Europe/Copenhagen'));
+            if ($rem['remind_at'] === null) {
+                // Location-triggered: fired on arrival at a place.
+                $detail = 'Reminder · at ' . $rem['place'];
+            } else {
+                $when = (new DateTimeImmutable($rem['remind_at'], new DateTimeZone('UTC')))
+                    ->setTimezone(new DateTimeZone('Europe/Copenhagen'));
+                $detail = 'Reminder · ' . $when->format('D j M, H:i');
+            }
             $card = [
                 'kind'   => 'notice',
                 'tone'   => 'info',
                 'title'  => '⏰ ' . $rem['text'],
-                'detail' => 'Reminder · ' . $when->format('D j M, H:i'),
+                'detail' => $detail,
             ];
             break;
         default:
