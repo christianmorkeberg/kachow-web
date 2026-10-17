@@ -1084,6 +1084,18 @@
             return;
         }
 
+        // Reports are resolved from chat, from other devices and from the card — re-read the list (same status filter).
+        if (card && card.kind === 'feedback') {
+            fetch('/api/feedback.php?status=' + encodeURIComponent(card.status || 'new') + (card.limit ? '&limit=' + encodeURIComponent(card.limit) : ''), { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) {
+                    if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+                    else if (!j) toast(daText('Could not refresh the reports.', 'Kunne ikke opdatere rapporterne.'));
+                })
+                .catch(function () { toast(daText('Could not refresh the reports.', 'Kunne ikke opdatere rapporterne.')); });
+            return;
+        }
+
         // Dev ideas change status from chat and from the card itself.
         if (card && card.kind === 'dev_ideas') {
             fetch('/api/dev-ideas.php?filter=' + encodeURIComponent(card.filter || 'open'), { credentials: 'same-origin' })
@@ -4000,6 +4012,7 @@
                     body: JSON.stringify({ action: 'resolve', id: r.id })
                 }).then(function (x) { return x.json(); }).then(function (res) {
                     if (res && res.ok) {
+                        r.status = 'resolved';   // the stored card too, so reopening it doesn't offer the button again
                         var pill = head.querySelector('.fb-status');
                         if (pill) { pill.className = 'fb-status resolved'; pill.textContent = 'resolved'; }
                         btn.remove();   // keep the download button available after resolving
