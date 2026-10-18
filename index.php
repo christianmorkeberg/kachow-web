@@ -172,7 +172,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a">
     <!-- Apply the saved look (theme + card size) before the stylesheet paints, so there's no flash of the defaults. -->
-    <script>try{var t=localStorage.getItem('kachow-theme');if(t){document.documentElement.setAttribute('data-theme',t);}var z=localStorage.getItem('kachow-card-size');if(z){document.documentElement.setAttribute('data-card-size',z);}}catch(e){}</script>
+    <script>try{var t=localStorage.getItem('kachow-theme');if(t==='auto'){var dk=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches;t=localStorage.getItem(dk?'kachow-theme-dark':'kachow-theme-light')||(dk?'aurora':'paper');}if(t){document.documentElement.setAttribute('data-theme',t);}var z=localStorage.getItem('kachow-card-size');if(z){document.documentElement.setAttribute('data-card-size',z);}}catch(e){}</script>
     <title>Kachow Assistant</title>
     <link rel="manifest" href="/assets/manifest.json">
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">

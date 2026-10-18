@@ -818,43 +818,94 @@
 
     // Visual themes. The palettes live in styles.css ([data-theme="…"]); these entries
     // drive the picker swatches + the browser theme-color. Keep ids in sync with the CSS
-    // and with UserSettings::THEMES on the server.
+    // and with UserSettings::THEMES on the server. `dark` marks the looks device dark mode may use
+    // (keep in step with UserSettings::DARK_THEMES).
     var THEMES = [
-        { id: 'aurora',   label: 'Aurora',   bg: '#0f172a', panel: '#16233f', accent: '#38bdf8', text: '#e6edf7', radius: 14 },
-        { id: 'noir',     label: 'Noir',     bg: '#141414', panel: '#242424', accent: '#e0a24e', text: '#eaeaea', radius: 10 },
-        { id: 'paper',    label: 'Paper',    bg: '#f5f5f4', panel: '#ffffff', accent: '#2563eb', text: '#1c1c1c', radius: 10 },
-        { id: 'lavender', label: 'Lavender', bg: '#f3f0fb', panel: '#faf8ff', accent: '#8b5cf6', text: '#2e2545', radius: 16 },
-        { id: 'blush',    label: 'Blush',    bg: '#fdf2f6', panel: '#fffafc', accent: '#ec4899', text: '#3d2233', radius: 18 },
-        { id: 'disco',    label: 'Disco',    bg: '#0d0221', panel: '#2a0e52', accent: '#ff2d95', text: '#ffe9ff', radius: 20 }
+        { id: 'aurora',   label: 'Aurora',   bg: '#0f172a', panel: '#16233f', accent: '#38bdf8', text: '#e6edf7', radius: 14, dark: true },
+        { id: 'noir',     label: 'Noir',     bg: '#141414', panel: '#242424', accent: '#e0a24e', text: '#eaeaea', radius: 10, dark: true },
+        { id: 'paper',    label: 'Paper',    bg: '#f5f5f4', panel: '#ffffff', accent: '#2563eb', text: '#1c1c1c', radius: 10, dark: false },
+        { id: 'lavender', label: 'Lavender', bg: '#f3f0fb', panel: '#faf8ff', accent: '#8b5cf6', text: '#2e2545', radius: 16, dark: false },
+        { id: 'blush',    label: 'Blush',    bg: '#fdf2f6', panel: '#fffafc', accent: '#ec4899', text: '#3d2233', radius: 18, dark: false },
+        { id: 'disco',    label: 'Disco',    bg: '#0d0221', panel: '#2a0e52', accent: '#ff2d95', text: '#ffe9ff', radius: 20, dark: true }
     ];
+    // The saved choice is a look's id, or 'auto' = follow the device's light/dark setting (which an iPhone
+    // can itself switch at sunset), using the chosen light look by day and the chosen dark look at night.
     var THEME_KEY = 'kachow-theme';
+    var THEME_DARK_KEY = 'kachow-theme-dark';
+    var THEME_LIGHT_KEY = 'kachow-theme-light';
 
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
+    function themeById(id) { return THEMES.filter(function (x) { return x.id === id; })[0] || null; }
+
+    // The look in use right now (the CSS attribute) — for 'auto', whichever look the device's mode picked.
     function currentTheme() {
-        return document.documentElement.getAttribute('data-theme')
-            || (function () { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } })()
-            || 'aurora';
+        return document.documentElement.getAttribute('data-theme') || lsGet(THEME_KEY) || 'aurora';
+    }
+    // What the user chose: a look's id or 'auto'.
+    function themeChoice() {
+        var c = lsGet(THEME_KEY);
+        return c === 'auto' || themeById(c) ? c : currentTheme();
+    }
+    // The looks 'auto' uses (a stored value of the wrong kind falls back to the default of its kind).
+    function themePair() {
+        var d = themeById(lsGet(THEME_DARK_KEY)), l = themeById(lsGet(THEME_LIGHT_KEY));
+        return { dark: d && d.dark ? d.id : 'aurora', light: l && !l.dark ? l.id : 'paper' };
+    }
+    function systemDark() {
+        return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     }
 
-    // Apply a theme everywhere: set the CSS attribute, cache it (instant on next load),
+    function saveSetting(key, value) {
+        fetch('/api/settings.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ key: key, value: value })
+        }).catch(function () { /* non-fatal — localStorage already holds it */ });
+    }
+
+    // Apply a choice everywhere: set the CSS attribute, cache the choice (instant on next load),
     // sync the browser chrome colour, and (when save) persist server-side for other devices.
-    function applyTheme(id, save) {
-        var t = THEMES.filter(function (x) { return x.id === id; })[0] || THEMES[0];
+    function applyTheme(choice, save) {
+        var auto = choice === 'auto';
+        var pair = themePair();
+        var t = themeById(auto ? (systemDark() ? pair.dark : pair.light) : choice) || THEMES[0];
         document.documentElement.setAttribute('data-theme', t.id);
-        try { localStorage.setItem(THEME_KEY, t.id); } catch (e) { /* private mode */ }
+        lsSet(THEME_KEY, auto ? 'auto' : t.id);
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', t.bg);
-        if (save) {
-            fetch('/api/settings.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ key: 'theme', value: t.id })
-            }).catch(function () { /* non-fatal — localStorage already holds it */ });
-        }
+        if (save) saveSetting('theme', auto ? 'auto' : t.id);
+    }
+
+    // Choose the look 'auto' uses at night ('dark') or by day ('light').
+    function setThemePair(kind, id, save) {
+        lsSet(kind === 'dark' ? THEME_DARK_KEY : THEME_LIGHT_KEY, id);
+        if (save) saveSetting(kind === 'dark' ? 'theme_dark' : 'theme_light', id);
+        if (themeChoice() === 'auto') applyTheme('auto', false);
+    }
+
+    // The device flips between light and dark (sunset, or the user toggles it): follow it live.
+    (function followDevice() {
+        if (!window.matchMedia) return;
+        var mq = window.matchMedia('(prefers-color-scheme: dark)');
+        var onChange = function () { if (lsGet(THEME_KEY) === 'auto') applyTheme('auto', false); };
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else if (mq.addListener) mq.addListener(onChange);
+    })();
+
+    // A theme change made from chat arrives as an appearance card — apply it now. (Cards reopened from
+    // history never do, so an old card can't flip the look back.)
+    function applyAppearanceFromCard(card) {
+        if (!card || card.kind !== 'appearance') return;
+        if (card.theme_dark) lsSet(THEME_DARK_KEY, card.theme_dark);
+        if (card.theme_light) lsSet(THEME_LIGHT_KEY, card.theme_light);
+        if (card.theme) applyTheme(card.theme, false);
     }
 
     function openAppearanceCard() {
-        presentCard({ kind: 'appearance', theme: currentTheme() });
+        var p = themePair();
+        presentCard({ kind: 'appearance', theme: themeChoice(), theme_dark: p.dark, theme_light: p.light });
     }
 
     function cardIconFor(card) {
@@ -873,6 +924,7 @@
             return daText('Level ', 'Niveau ') + card.level + '/5';
         }
         if (card.kind === 'appearance') {
+            if (card.theme === 'auto') return daText('Match device', 'Følg enheden');
             var th = THEMES.filter(function (t) { return t.id === (card.theme || currentTheme()); })[0];
             return th ? th.label : '';
         }
@@ -2052,13 +2104,12 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    // Appearance picker card: a grid of theme swatches; tap one to apply it live and
-    // save it. Each swatch mimics the theme (bg + a panel chip with accent dot + text bar,
-    // and its corner rounding), so you can see the look before committing.
+    // Appearance picker card: "Match my device" (light by day, dark at night) or one fixed look. Each swatch
+    // mimics its theme (bg + a panel chip with accent dot + text bar, and its corner rounding), so you can see
+    // the look before committing. With the switch on there are two pickers — the look for light mode and the
+    // look for dark mode; off, one picker with all six.
     function renderAppearance(card) {
         clearEmptyHint();
-        var cur = card.theme || currentTheme();
-
         var wrap = document.createElement('div');
         wrap.className = 'plan-card appearance-card';
 
@@ -2068,15 +2119,26 @@
             'Vælg et udseende — tryk for at anvende det med det samme.');
         wrap.appendChild(intro);
 
-        var grid = document.createElement('div');
-        grid.className = 'theme-grid';
-        THEMES.forEach(function (t) {
+        var box = document.createElement('div');
+        box.className = 'theme-box';
+        wrap.appendChild(box);
+
+        var pair = { dark: card.theme_dark || themePair().dark, light: card.theme_light || themePair().light };
+        var auto = (card.theme || themeChoice()) === 'auto';
+
+        function syncSub() {
+            card.theme = auto ? 'auto' : currentTheme();
+            card.theme_dark = pair.dark;
+            card.theme_light = pair.light;
+            if (cardPanelSub && panelKind === 'appearance') cardPanelSub.textContent = cardSubFor(card);
+        }
+
+        function swatch(t, on, onPick) {
             var b = document.createElement('button');
             b.type = 'button';
-            b.className = 'theme-opt' + (t.id === cur ? ' is-on' : '');
+            b.className = 'theme-opt' + (on ? ' is-on' : '');
             b.style.background = t.bg;
             b.style.borderRadius = Math.max(8, Math.min(t.radius, 16)) + 'px';
-
             var panel = document.createElement('span');
             panel.className = 'theme-pv-panel';
             panel.style.background = t.panel;
@@ -2090,23 +2152,89 @@
             panel.appendChild(dot);
             panel.appendChild(bar);
             b.appendChild(panel);
-
             var name = document.createElement('span');
             name.className = 'theme-name';
             name.style.color = t.text;
             name.textContent = t.label;
             b.appendChild(name);
+            b.addEventListener('click', onPick);
+            return b;
+        }
 
-            b.addEventListener('click', function () {
-                applyTheme(t.id, true);
-                card.theme = t.id;
-                Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove('is-on'); });
-                b.classList.add('is-on');
-                if (cardPanelSub && panelKind === 'appearance') cardPanelSub.textContent = t.label;
+        function group(headText, themes, selectedId, onPick) {
+            var head = document.createElement('div');
+            head.className = 'theme-group-head';
+            head.textContent = headText;
+            box.appendChild(head);
+            var grid = document.createElement('div');
+            grid.className = 'theme-grid';
+            themes.forEach(function (t) { grid.appendChild(swatch(t, t.id === selectedId, function () { onPick(t); })); });
+            box.appendChild(grid);
+        }
+
+        function build() {
+            box.innerHTML = '';
+
+            // The switch row.
+            var row = document.createElement('label');
+            row.className = 'theme-auto';
+            var text = document.createElement('span');
+            text.className = 'theme-auto-text';
+            var h = document.createElement('b');
+            h.textContent = daText('Match my device', 'Følg min enhed');
+            var sub = document.createElement('span');
+            sub.textContent = daText('Light by day, dark at night — follows your phone\'s appearance setting (on an iPhone: Settings › Display & Brightness › Automatic).',
+                'Lys om dagen, mørk om natten — følger din telefons udseende-indstilling (på iPhone: Indstillinger › Skærm og lysstyrke › Automatisk).');
+            text.appendChild(h);
+            text.appendChild(sub);
+            var sw = document.createElement('span');
+            sw.className = 'switch';
+            var input = document.createElement('input');
+            input.type = 'checkbox';
+            input.checked = auto;
+            var slider = document.createElement('span');
+            slider.className = 'slider';
+            sw.appendChild(input);
+            sw.appendChild(slider);
+            row.appendChild(text);
+            row.appendChild(sw);
+            input.addEventListener('change', function () {
+                auto = input.checked;
+                if (auto) {
+                    // The look in use becomes the look for its own kind of mode; save the pair, then follow the device.
+                    var cur = themeById(currentTheme());
+                    if (cur) { if (cur.dark) pair.dark = cur.id; else pair.light = cur.id; }
+                    setThemePair('dark', pair.dark, true);
+                    setThemePair('light', pair.light, true);
+                    applyTheme('auto', true);
+                } else {
+                    applyTheme(currentTheme(), true);   // freeze whatever the device mode gave us right now
+                }
+                syncSub();
+                build();
             });
-            grid.appendChild(b);
-        });
-        wrap.appendChild(grid);
+            box.appendChild(row);
+
+            if (auto) {
+                group(daText('Light look', 'Lyst udseende'), THEMES.filter(function (t) { return !t.dark; }), pair.light, function (t) {
+                    pair.light = t.id; setThemePair('light', t.id, true); syncSub(); build();
+                });
+                group(daText('Dark look', 'Mørkt udseende'), THEMES.filter(function (t) { return t.dark; }), pair.dark, function (t) {
+                    pair.dark = t.id; setThemePair('dark', t.id, true); syncSub(); build();
+                });
+                var now = document.createElement('div');
+                now.className = 'theme-now';
+                var inUse = themeById(currentTheme());
+                now.textContent = daText('Right now: ', 'Lige nu: ') + (systemDark() ? daText('dark', 'mørk') : daText('light', 'lys'))
+                    + (inUse ? ' · ' + inUse.label : '');
+                box.appendChild(now);
+            } else {
+                group(daText('Look', 'Udseende'), THEMES, currentTheme(), function (t) {
+                    applyTheme(t.id, true); syncSub(); build();
+                });
+            }
+        }
+        build();
 
         // Card text size — per device (a phone wants it smaller than a desktop), so it's
         // kept in localStorage, not the server. Default: Compact on phones, Normal on desktop.
@@ -6443,7 +6571,7 @@
                 attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
                 attachMessageMeta(bubble, { id: data.user_message_id });
                 speak(data.reply || '');
-                if (data.card) presentCard(data.card, data.card_mode);
+                if (data.card) { applyAppearanceFromCard(data.card); presentCard(data.card, data.card_mode); }
                 if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
                 if (wasNew && conversationId) {
                     fetch('/api/conversations.php', {
@@ -7767,7 +7895,7 @@
             attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
             attachMessageMeta(userRow, { id: data.user_message_id });
             speak(data.reply || '');
-            if (data.card) presentCard(data.card, data.card_mode);
+            if (data.card) { applyAppearanceFromCard(data.card); presentCard(data.card, data.card_mode); }
             if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
 
             // For a brand-new conversation, generate its history title in the
@@ -8595,14 +8723,18 @@
     (function initTheme() {
         // The inline <head> script already set data-theme from localStorage (no flash);
         // re-apply so the browser theme-colour meta matches too.
-        applyTheme(currentTheme(), false);
-        // Pull the account's saved theme (set on another device) and apply if different.
+        applyTheme(themeChoice(), false);
+        // Pull the account's saved choice and looks (set on another device) and apply if anything differs.
         fetch('/api/settings.php', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (j) {
-                if (j && j.values && j.values.theme && j.values.theme !== currentTheme()) {
-                    applyTheme(j.values.theme, false);
-                }
+                var v = j && j.values;
+                if (!v) return;
+                var changed = false;
+                if (v.theme_dark && v.theme_dark !== lsGet(THEME_DARK_KEY)) { lsSet(THEME_DARK_KEY, v.theme_dark); changed = true; }
+                if (v.theme_light && v.theme_light !== lsGet(THEME_LIGHT_KEY)) { lsSet(THEME_LIGHT_KEY, v.theme_light); changed = true; }
+                if (v.theme && v.theme !== lsGet(THEME_KEY)) changed = true;
+                if (changed) applyTheme(v.theme || themeChoice(), false);
             })
             .catch(function () { /* offline / not logged in — keep the local theme */ });
     })();

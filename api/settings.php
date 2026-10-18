@@ -61,8 +61,8 @@ if (!UserSettings::exists($key)) {
 // Canonicalise the values the cards drive.
 if ($key === 'personality') {
     $value = UserSettings::normalizePersonality($value);
-} elseif ($key === 'theme') {
-    $value = UserSettings::normalizeTheme($value);
+} elseif (in_array($key, ['theme', 'theme_dark', 'theme_light'], true)) {
+    $value = UserSettings::normalizeThemeFor($key, $value);   // theme may be "auto" (follow the device)
 }
 
 $settings = new UserSettings();
@@ -72,8 +72,8 @@ $saved = $settings->get($userId, $key) ?? '';
 $card = null;
 if ($key === 'personality') {
     $card = UserSettings::personalityCard($saved);
-} elseif ($key === 'theme') {
-    $card = UserSettings::appearanceCard($saved);
+} elseif (in_array($key, ['theme', 'theme_dark', 'theme_light'], true)) {
+    $card = $settings->appearance($userId);
 }
 
 out(200, ['ok' => true, 'key' => $key, 'value' => $saved, 'card' => $card]);

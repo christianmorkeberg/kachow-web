@@ -1014,6 +1014,13 @@ button.ghost {
 .theme-pv-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
 .theme-pv-bar { height: 5px; flex: 1; border-radius: 3px; opacity: .7; }
 .theme-name { font-size: 12px; font-weight: 600; }
+/* "Match my device" row and its two pickers. */
+.theme-box { display: flex; flex-direction: column; gap: 8px; }
+.theme-auto { display: flex; align-items: center; gap: 14px; padding: 11px 13px; cursor: pointer; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel-2); }
+.theme-auto-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.theme-auto-text > span { font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.theme-group-head { margin-top: 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.theme-now { font-size: 12.5px; color: var(--muted); }
 
 /* ---------- Receipt / expense card ---------- */
 .receipt-thumb {
