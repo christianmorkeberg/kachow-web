@@ -3,11 +3,12 @@
 declare(strict_types=1);
 
 /**
- * Rebuilds a work_hours card (authenticated session, JSON) for the exact view it showed —
- * used by the page to refresh an open card once a minute while a session is running, so
- * the clock keeps counting on desktop. Own data only; same shape as get_work_hours' card.
+ * Rebuilds the work_hours card (authenticated session, JSON) for a view — the once-a-minute refresh of an open
+ * card while a session is running, the card's own period toggle, and the lines for a tapped bar. Own data only;
+ * the same card get_work_hours / get_work_summary return (WorkEvents::overview).
  *
- *   POST { scope?, date?, to?, place? } → { card }   (dates YYYY-MM-DD)
+ *   POST { period?: today|week|4w|12w|year, scope?, date?, to?, place?, bucket? } → { card }   (dates YYYY-MM-DD)
+ *   POST { only:'sessions', date, to?, place? }                                   → { sessions, total, total_minutes }
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -50,9 +51,19 @@ $date  = static fn (string $k): ?string => isset($in[$k]) && is_string($in[$k])
 $place = isset($in['place']) && is_string($in['place']) && trim($in['place']) !== ''
     ? mb_substr(trim($in['place']), 0, 64) : null;
 
+$period = isset($in['period']) && in_array($in['period'], WorkEvents::OVERVIEW_PERIODS, true) ? (string) $in['period'] : null;
+$bucket = isset($in['bucket']) && in_array($in['bucket'], ['day', 'week', 'month'], true) ? (string) $in['bucket'] : null;
+
 try {
-    $summary = (new WorkEvents())->summary($userId, $scope, $date('date'), $place, $date('to'));
-    out(200, ['ok' => true, 'card' => $summary['card']]);
+    $events = new WorkEvents();
+    // Only the session lines for a stretch of days (a tapped bar whose lines the card does not carry).
+    if (($in['only'] ?? '') === 'sessions' && $date('date') !== null) {
+        $sum = $events->summary($userId, 'today', $date('date'), $place, $date('to') ?? $date('date'));
+        out(200, ['ok' => true, 'sessions' => $sum['card']['sessions'], 'total' => $sum['card']['total'], 'total_minutes' => $sum['card']['total_minutes']]);
+    }
+    out(200, ['ok' => true, 'card' => $events->overview($userId, [
+        'period' => $period, 'scope' => $scope, 'date' => $date('date'), 'to' => $date('to'), 'place' => $place, 'bucket' => $bucket,
+    ])]);
 } catch (\Throwable $e) {
     error_log('work-hours.php: ' . $e->getMessage());
     out(500, ['error' => 'Something went wrong.']);

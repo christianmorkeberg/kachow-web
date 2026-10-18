@@ -56,14 +56,14 @@ try {
             $card = (new CycleTracker())->card($userId);
             break;
         case 'work_hours':
-            $card = (new WorkEvents())->summary($userId, 'today')['card'];
+            $card = (new WorkEvents())->overview($userId, ['period' => 'today']);
             break;
         case 'work_yesterday':
             $yesterday = (new DateTimeImmutable('yesterday', new DateTimeZone('Europe/Copenhagen')))->format('Y-m-d');
-            $card = (new WorkEvents())->summary($userId, 'today', $yesterday)['card'];
+            $card = (new WorkEvents())->overview($userId, ['scope' => 'today', 'date' => $yesterday]);
             break;
         case 'work_week':
-            $card = (new WorkEvents())->summary($userId, 'lastweek')['card'];
+            $card = (new WorkEvents())->overview($userId, ['scope' => 'lastweek']);
             break;
         case 'work_log':
             $from = date('Y-m-d', strtotime('monday this week'));

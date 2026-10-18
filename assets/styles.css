@@ -1284,8 +1284,17 @@ button.ghost {
 .wk-col { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
 .wk-bar { display: block; border-radius: 6px 6px 3px 3px; background: var(--accent); }
 .wk-col.is-empty .wk-bar { background: var(--line); }
-.wk-col.is-live .wk-bar { background: var(--ok); }
+.wk-col.is-live .wk-bar:not(.stacked) { background: var(--ok); }
+/* The bars are buttons: tap one and the lines below narrow to it. */
+.wk-col { padding: 0; margin: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wk-col:hover .wk-bar { filter: brightness(1.12); }
+.wk-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.wk-bars.has-sel .wk-col:not(.is-sel) .wk-bar { opacity: .5; }
+.wk-col.is-sel .wk-lab { color: var(--accent); font-weight: 700; }
+.wk-bar.stacked { display: flex; flex-direction: column-reverse; overflow: hidden; background: none; }   /* per-workplace segments, first at the bottom */
+.wk-bpart { display: block; min-height: 1px; }
 .wk-bars.dense { gap: 2px; }
+
 .wk-bars.dense .wk-bar { border-radius: 3px 3px 2px 2px; }
 /* flex-centred so a label wider than its (thin) column spreads to both sides */
 .wk-lab { display: flex; justify-content: center; height: 11px; margin-top: 6px; font-size: 10.5px; line-height: 1; color: var(--muted); white-space: nowrap; }
@@ -1314,6 +1323,12 @@ button.ghost {
 .wk-alert-text b { display: block; font-weight: 600; color: var(--text-strong); }
 .wk-alert-text span { color: var(--muted); }
 
+/* Period toggle (Today / Week / …) and the loading state while a period is re-read. */
+.wk-modes { margin-top: 0; }
+.wk-modes .prog-seg { display: flex; width: 100%; }
+.wk-modes .prog-seg-btn { flex: 1 1 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+.work-card.loading { opacity: .55; pointer-events: none; transition: opacity .15s; }
+
 /* Sessions, grouped by day. */
 .work-sessions { list-style: none; margin: 0; padding: 4px 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
 .wk-day {
@@ -1323,7 +1338,18 @@ button.ghost {
 }
 .wk-day:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); }
 .wk-day-total { font-size: 12.5px; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.wk-selhead { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; }
+.wk-selname { flex: 1; min-width: 0; font-weight: 700; }
+.wk-seltotal { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.wk-selclear {
+    display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--muted); cursor: pointer;
+}
+.wk-selclear:hover { color: var(--text); border-color: var(--border-strong); }
+.wk-selhead + .wk-day { margin-top: 0; border-top: 0; }
+.wk-note { padding: 18px 14px; text-align: center; font-size: 14px; color: var(--muted); }
 .wk-sess { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; }
+
 .wk-sess .wk-when { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .wk-time { font-weight: 600; font-variant-numeric: tabular-nums; }
 .wk-where { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 12.5px; color: var(--muted); }
@@ -2446,8 +2472,12 @@ svg.cyc-emoji { overflow: visible; }
     /* ---- work hours: summary tile left, sessions tile right ---- */
     .work-card { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 14px 22px; align-items: start; }
     .work-card > .wk-head { grid-column: 1 / -1; }
-    .work-card > .work-side { grid-column: 1; }
-    .work-card > .work-sessions, .work-card > .wk-empty { grid-column: 2; grid-row: 2; }
+    .work-card > .wk-modes { grid-column: 1 / -1; }
+    .work-card > .work-side { grid-column: 1; grid-row: 3; }
+    .work-card > .work-sessions { grid-column: 2; grid-row: 3; }
+    .work-card.no-modes > .work-side, .work-card.no-modes > .work-sessions { grid-row: 2; }   /* a shared card has no toggle row */
+    .wk-modes .prog-seg { display: inline-flex; width: auto; }
+    .wk-modes .prog-seg-btn { flex: 0 0 auto; padding: 7px 16px; }
     .work-total { font-size: 58px; }
     .wk-sess { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 14px; padding-top: 10px; padding-bottom: 10px; }
     .wk-sess .wk-when { display: contents; }

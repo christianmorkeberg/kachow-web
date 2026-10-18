@@ -1023,7 +1023,8 @@
         if (card.kind === 'work_hours') {
             var q = card.query || {};
             url = '/api/work-hours.php';
-            body = { scope: q.scope || 'today', date: q.date || undefined, to: q.to || undefined, place: q.place || undefined };
+            body = { period: q.period || undefined, scope: q.scope || (q.period ? undefined : 'today'), date: q.date || undefined,
+                to: q.to || undefined, place: q.place || undefined, bucket: q.bucket || undefined };
         } else {
             var f = card.filter || {};
             url = '/api/work-summary.php';
@@ -1034,7 +1035,11 @@
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify(body)
-        }).then(function (r) { return r.ok ? r.json() : null; });
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+            // Keep the bar the user had tapped, so a refresh doesn't snap the lines back.
+            if (j && j.card && card._sel !== undefined) j.card._sel = card._sel;
+            return j;
+        });
     }
 
     // Redraw the panel's card without presentCard's side effects.
@@ -7020,15 +7025,18 @@
     }
 
     // ---- Work hours card ------------------------------------------------------------------
-    // A summary tile (the total as the hero, a timeline of the day or one bar per day, the split per
-    // workplace, a callout for a forgotten clock-out) and a sessions tile grouped by day. Colours come from
-    // theme tokens only, so every theme looks right. Cards stored before this design lack `date` / `from` /
-    // `to` — they still render (grouped by the day text, no empty days in the bars).
+    // ONE card for hours (it used to be a sessions card plus a separate bar chart): a summary tile with the
+    // total as the hero and, above the session lines, one bar per day/week/month — tap a bar and the lines
+    // narrow to it. A toggle (Today / Week / 4 wks / 12 wks / Year) re-reads the card in place. Colours come
+    // from theme tokens only. Cards stored before this lack some fields and still render: no `bars` → one bar
+    // per day is derived from `from`/`to` when the range is known; no `date` → grouped by the day text.
     var WK_WD  = { en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], da: ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'] };
     var WK_MON = {
         en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
         da: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
     };
+    var WK_MODES = [['today', 'Today', 'I dag'], ['week', 'Week', 'Uge'], ['4w', '4 wks', '4 uger'], ['12w', '12 wks', '12 uger'], ['year', 'Year', 'År']];
+    var WK_WORDS = { day: ['day', 'days', 'dag', 'dage'], week: ['week', 'weeks', 'uge', 'uger'], month: ['month', 'months', 'måned', 'måneder'] };
 
     function wkIsoToDate(iso) {
         var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
@@ -7048,6 +7056,10 @@
     function wkMinutes(hhmm) {
         var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
         return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    }
+    function wkWord(word, n) {
+        var w = WK_WORDS[word] || WK_WORDS.day;
+        return n === 1 ? daText(w[0], w[2]) : daText(w[1], w[3]);
     }
     function wkEl(tag, cls, text) {
         var e = document.createElement(tag);
@@ -7096,7 +7108,7 @@
         var ticks = wkEl('div', 'wk-ticks');
         var step = Math.ceil(span / 4 / 60) * 60;
         for (var t = start; t <= end; t += step) {
-            var lab = wkEl('span', 'wk-tick' + (t === start ? ' first' : '') + (t === end ? ' last' : ''), (t / 60 < 10 ? '0' : '') + (t / 60 % 24) + ':00');
+            var lab = wkEl('span', 'wk-tick' + (t === start ? ' first' : '') + (t === end ? ' last' : ''), ((t / 60) % 24 < 10 ? '0' : '') + ((t / 60) % 24) + ':00');
             lab.style.left = (100 * (t - start) / span) + '%';
             ticks.appendChild(lab);
         }
@@ -7104,49 +7116,101 @@
         return box;
     }
 
-    // One column per day of the range (empty days included when the card knows the range).
-    function wkDayBars(card, groups, keys) {
-        var cols = [], i, d;
+    // The bars the card shows: the server's (one per day / week / month), or — for a card without them whose
+    // range is known — one per day worked out from its sessions.
+    function wkBars(card, sessions) {
+        if (card.bars && card.bars.length > 1) return card.bars;
         var a = wkIsoToDate(card.from), b = wkIsoToDate(card.to);
-        if (a && b) {
-            var n = Math.round((b - a) / 86400000) + 1;
-            if (n >= 2 && n <= 62) {
-                for (i = 0; i < n; i++) {
-                    d = new Date(a.getFullYear(), a.getMonth(), a.getDate() + i);
-                    cols.push({ d: d, g: groups[wkDateToIso(d)] || null });
-                }
-            }
-        } else if (keys.length > 1 && keys.every(function (k) { return wkIsoToDate(k); })) {
-            keys.forEach(function (k) { cols.push({ d: wkIsoToDate(k), g: groups[k] }); });
-        }
-        if (cols.length < 2) return null;
-
-        var H = 56;
-        var max = Math.max.apply(null, cols.map(function (c) { return c.g ? c.g.minutes : 0; }).concat([1]));
-        var today = wkDateToIso(new Date());
-        var lang = daText('en', 'da');
-        var box = wkEl('div', 'wk-viz');
-        var grid = wkEl('div', 'wk-bars' + (cols.length > 16 ? ' dense' : ''));
-        cols.forEach(function (c, idx) {
-            var mins = c.g ? c.g.minutes : 0;
-            var col = wkEl('div', 'wk-col' + (mins === 0 ? ' is-empty' : '') + (c.g && c.g.live ? ' is-live' : '') + (wkDateToIso(c.d) === today ? ' is-today' : ''));
-            var bar = wkEl('span', 'wk-bar');
-            bar.style.height = (mins > 0 ? Math.max(5, Math.round(H * mins / max)) : 3) + 'px';
-            var label;
-            if (cols.length <= 8) label = WK_WD[lang][c.d.getDay()];
-            else if (idx === 0 || idx === cols.length - 1 || idx % 5 === 0) label = String(c.d.getDate());
-            else label = '';
-            col.title = wkDayLabel(wkDateToIso(c.d), '') + ' · ' + (mins ? wchFmtMin(mins) : '–');
-            col.appendChild(bar);
-            col.appendChild(wkEl('span', 'wk-lab', label));
-            grid.appendChild(col);
+        if (!a || !b) return [];
+        var n = Math.round((b - a) / 86400000) + 1;
+        if (n < 2 || n > 62) return [];
+        var perDay = {};
+        sessions.forEach(function (x) {
+            if (!x.date) return;
+            var g = perDay[x.date] || (perDay[x.date] = { minutes: 0, ongoing: false });
+            g.minutes += x.minutes || 0;
+            g.ongoing = g.ongoing || !!x.ongoing;
         });
-        box.appendChild(grid);
-        return box;
+        var lang = daText('en', 'da'), out = [];
+        for (var i = 0; i < n; i++) {
+            var d = new Date(a.getFullYear(), a.getMonth(), a.getDate() + i), iso = wkDateToIso(d), g = perDay[iso];
+            out.push({
+                label: n <= 8 ? WK_WD[lang][d.getDay()] : String(d.getDate()), sub: wkDayLabel(iso, ''), from: iso, to: iso,
+                minutes: g ? g.minutes : 0, total: g ? wchFmtMin(g.minutes) : '0m', ongoing: g ? g.ongoing : false
+            });
+        }
+        return out;
+    }
+
+    // A readable name for one bar ("Tue 13 Oct", "Week of 12 Oct", "Oct 2026").
+    function wkBarTitle(card, b) {
+        if (b.from && b.from === b.to) return wkDayLabel(b.from, b.sub || b.label);
+        if (card.bucket_word === 'month') return b.label + ' ' + b.sub;
+        return daText('Week of ', 'Uge fra ') + (b.from ? wkDayLabel(b.from, b.sub) : b.sub);
+    }
+
+    function wkGroupByDay(sessions) {
+        var keys = [], groups = {};
+        sessions.forEach(function (x) {
+            var k = x.date || x.day;
+            if (!groups[k]) { groups[k] = { label: wkDayLabel(x.date, x.day), items: [], minutes: 0 }; keys.push(k); }
+            groups[k].items.push(x);
+            groups[k].minutes += x.minutes || 0;
+        });
+        return { keys: keys, groups: groups };
+    }
+
+    // Lines for a stretch of days the card doesn't carry (a tapped bar of a long range): one small request, cached.
+    function wkFetchSessions(card, b) {
+        if (card.person) return Promise.reject(new Error('shared card'));   // never ask for OUR hours under someone else's name
+        var key = b.from + '|' + b.to;
+        card._cache = card._cache || {};
+        if (card._cache[key]) return Promise.resolve(card._cache[key]);
+        var q = card.query || {};
+        return fetch('/api/work-hours.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify({ only: 'sessions', date: b.from, to: b.to, place: q.place || undefined })
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+            if (!j || !j.sessions) throw new Error('no sessions');
+            card._cache[key] = j.sessions;
+            return j.sessions;
+        });
+    }
+
+    // Switch the period (Today / Week / …): the same card, re-read in place.
+    function wkSwitchPeriod(wrap, card, key) {
+        wrap.classList.add('loading');
+        var q = card.query || {};
+        fetch('/api/work-hours.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify({ period: key, place: q.place || undefined })
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (res) {
+            wrap.classList.remove('loading');
+            if (res && res.card) {
+                buildWorkHours(wrap, res.card);
+                // Keep the once-a-minute refresh on the view just switched to.
+                if (panelKind === 'work_hours' && cardPanelBody.contains(wrap)) panelCard = res.card;
+            } else {
+                toast(daText('Could not load that period.', 'Kunne ikke hente den periode.'));
+            }
+        }).catch(function () {
+            wrap.classList.remove('loading');
+            toast(daText('Could not load that period.', 'Kunne ikke hente den periode.'));
+        });
     }
 
     function renderWorkHours(card) {
         clearEmptyHint();
+        var wrap = wkEl('div', 'plan-card work-card');
+        buildWorkHours(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function buildWorkHours(wrap, card) {
+        wrap.innerHTML = '';
+        var shared = !!card.person;   // someone else's hours: look only — nothing here may fetch or act on OUR data
+        wrap.classList.toggle('no-modes', shared || !card.query);
         var sessions = (card.sessions || []).slice();
         if (sessions.length > 1 && sessions.every(function (x) { return x.date; })) {
             sessions.sort(function (p, q) { return p.date === q.date ? (p.in < q.in ? -1 : p.in > q.in ? 1 : 0) : (p.date < q.date ? -1 : 1); });
@@ -7157,20 +7221,23 @@
         places.forEach(function (p, i) { placeIdx[p.place || ''] = i; });
         function colorOf(name) { return multi ? seriesColor(placeIdx.hasOwnProperty(name) ? placeIdx[name] : 5) : 'var(--accent)'; }
 
-        // Group the sessions by day.
-        var keys = [], groups = {};
-        sessions.forEach(function (x) {
-            var k = x.date || x.day;
-            if (!groups[k]) { groups[k] = { label: wkDayLabel(x.date, x.day), items: [], minutes: 0, live: false }; keys.push(k); }
-            groups[k].items.push(x);
-            groups[k].minutes += x.minutes || 0;
-            groups[k].live = groups[k].live || !!x.ongoing;
-        });
-        var multiDay = (card.from && card.to && card.from !== card.to) || keys.length > 1;
+        var bars = wkBars(card, sessions);
+        var multiDay = bars.length > 1 || (card.from && card.to && card.from !== card.to) || wkGroupByDay(sessions).keys.length > 1;
+        // Do the carried sessions cover the whole range? (A long range carries only its latest bar's.)
+        var sc = card.sessions_scope;
+        var complete = !sc || !card.from || (sc.from <= card.from && sc.to >= card.to);
 
-        var wrap = wkEl('div', 'plan-card work-card');
+        // Which bar is selected: null = the whole range. Kept on the card so a refresh doesn't lose it.
+        var sel = card._sel;
+        if (sel === undefined || (sel !== null && !bars[sel])) {
+            sel = null;
+            if (bars.length && !complete) {
+                for (var i = bars.length - 1; i >= 0; i--) { if (bars[i].minutes > 0) { sel = i; break; } }
+            }
+        }
+        card._sel = sel;
 
-        // Header: what period, and its dates.
+        // ---- header + period toggle ----
         var head = wkEl('div', 'wk-head');
         var title = wkEl('div', 'wk-title');
         setIconText(title, 'clock', card.title || 'Work');
@@ -7178,7 +7245,20 @@
         if (card.range && card.range !== card.title) head.appendChild(wkEl('div', 'wk-range', card.range));
         wrap.appendChild(head);
 
-        // Summary tile.
+        if (!shared && card.query) {
+            var ctl = wkEl('div', 'prog-controls wk-modes');
+            var seg = wkEl('div', 'prog-seg');
+            WK_MODES.forEach(function (m) {
+                var btn = wkEl('button', 'prog-seg-btn' + (m[0] === card.mode ? ' on' : ''), daText(m[1], m[2]));
+                btn.type = 'button';
+                btn.addEventListener('click', function () { if (m[0] !== card.mode) wkSwitchPeriod(wrap, card, m[0]); });
+                seg.appendChild(btn);
+            });
+            ctl.appendChild(seg);
+            wrap.appendChild(ctl);
+        }
+
+        // ---- summary tile ----
         var side = wkEl('div', 'work-side');
         var hero = wkEl('div', 'wk-hero');
         var total = wkEl('div', 'work-total');
@@ -7194,23 +7274,65 @@
         }
         side.appendChild(hero);
 
-        // The one-line summary under the number.
         var meta = null;
-        if (sessions.length && multiDay) {
-            var nDays = keys.length;
-            meta = nDays + ' ' + daText(nDays === 1 ? 'day' : 'days', nDays === 1 ? 'dag' : 'dage') + ' · ' + sessions.length + ' '
-                + daText(sessions.length === 1 ? 'session' : 'sessions', sessions.length === 1 ? 'session' : 'sessioner')
-                + (card.total_minutes ? ' · ' + daText('avg ', 'gns. ') + wchFmtMin(Math.round(card.total_minutes / nDays)) + daText(' / day', ' / dag') : '');
-        } else if (sessions.length) {
+        if (bars.length > 1) {
+            var active = bars.filter(function (b) { return b.minutes > 0; }).length;
+            var word = card.bucket_word || 'day';
+            var avgMin = active ? Math.round((card.total_minutes || 0) / active) : 0;
+            meta = active + ' ' + wkWord(word, active) + ' · ' + daText('avg ', 'gns. ') + (card.avg || wchFmtMin(avgMin)) + ' / ' + wkWord(word, 1)
+                + (complete && sessions.length ? ' · ' + sessions.length + ' ' + daText(sessions.length === 1 ? 'session' : 'sessions', sessions.length === 1 ? 'session' : 'sessioner') : '');
+        } else if (sessions.length && !multiDay) {
             var lastS = sessions[sessions.length - 1];
             meta = sessions.length + ' ' + daText(sessions.length === 1 ? 'session' : 'sessions', sessions.length === 1 ? 'session' : 'sessioner')
                 + ' · ' + sessions[0].in + ' – ' + (lastS.out || daText('now', 'nu'));
         }
         if (meta) side.appendChild(wkEl('div', 'work-stats', meta));
 
-        // When in the day (one day) / how the days compare (several).
-        var viz = sessions.length ? (multiDay ? wkDayBars(card, groups, keys) : wkTimeline(sessions, colorOf)) : null;
-        if (viz) side.appendChild(viz);
+        // Bars (several days) or the day's timeline.
+        var barsBox = null, cols = [];
+        function paintSel() {
+            if (!barsBox) return;
+            barsBox.classList.toggle('has-sel', sel !== null);
+            cols.forEach(function (c, i) {
+                c.classList.toggle('is-sel', i === sel);
+                c.setAttribute('aria-pressed', i === sel ? 'true' : 'false');
+            });
+        }
+        if (bars.length > 1) {
+            var todayIso = wkDateToIso(new Date());
+            var H = 56, max = Math.max.apply(null, bars.map(function (b) { return b.minutes; }).concat([1]));
+            var every = bars.length <= 12 ? 1 : Math.ceil(bars.length / 8);
+            barsBox = wkEl('div', 'wk-viz');
+            var grid = wkEl('div', 'wk-bars' + (bars.length > 16 ? ' dense' : ''));
+            bars.forEach(function (b, idx) {
+                var col = wkEl('button', 'wk-col' + (b.minutes === 0 ? ' is-empty' : '') + (b.ongoing ? ' is-live' : '')
+                    + (b.from && b.from <= todayIso && todayIso <= (b.to || b.from) ? ' is-today' : ''));
+                col.type = 'button';
+                col.title = wkBarTitle(card, b) + ' · ' + (b.minutes ? wchFmtMin(b.minutes) : '–');
+                var bar = wkEl('span', 'wk-bar');
+                bar.style.height = (b.minutes > 0 ? Math.max(5, Math.round(H * b.minutes / max)) : 3) + 'px';
+                if (card.stacked && b.split) {
+                    bar.classList.add('stacked');
+                    b.split.forEach(function (m, si) {
+                        if (!m) return;
+                        var part = wkEl('i', 'wk-bpart');
+                        part.style.flex = m + ' 1 0';
+                        part.style.background = seriesColor(si);
+                        bar.appendChild(part);
+                    });
+                }
+                col.appendChild(bar);
+                col.appendChild(wkEl('span', 'wk-lab', (idx % every === 0 || idx === bars.length - 1) ? String(b.label) : ''));
+                col.addEventListener('click', function () { choose(idx === sel && complete ? null : idx); });
+                cols.push(col);
+                grid.appendChild(col);
+            });
+            barsBox.appendChild(grid);
+            side.appendChild(barsBox);
+        } else if (sessions.length && !multiDay) {
+            var tl = wkTimeline(sessions, colorOf);
+            if (tl) side.appendChild(tl);
+        }
 
         // Split per workplace (only when there are several).
         if (multi) {
@@ -7219,11 +7341,11 @@
             var stack = wkEl('div', 'wk-stack');
             var legend = wkEl('ul', 'wk-legend');
             places.forEach(function (p, i) {
-                var seg = wkEl('span');
-                seg.style.flexGrow = String(Math.max(1, p.minutes || 0));
-                seg.style.background = seriesColor(i);
-                seg.title = (p.place || '—') + ' · ' + p.total;
-                stack.appendChild(seg);
+                var seg2 = wkEl('span');
+                seg2.style.flexGrow = String(Math.max(1, p.minutes || 0));
+                seg2.style.background = seriesColor(i);
+                seg2.title = (p.place || '—') + ' · ' + p.total;
+                stack.appendChild(seg2);
                 var li = wkEl('li');
                 var sw = wkEl('i', 'wk-sw');
                 sw.style.background = seriesColor(i);
@@ -7252,18 +7374,57 @@
         }
         wrap.appendChild(side);
 
-        // Sessions tile, grouped by day when the range spans several.
-        if (sessions.length) {
-            var list = wkEl('ul', 'work-sessions');
-            keys.forEach(function (k) {
-                var g = groups[k];
-                if (multiDay) {
-                    var dh = wkEl('li', 'wk-day');
-                    dh.appendChild(wkEl('span', null, g.label));
-                    if (g.items.length > 1) dh.appendChild(wkEl('span', 'wk-day-total', wchFmtMin(g.minutes)));   // one session: its own row says it
-                    list.appendChild(dh);
+        // ---- the lines: the whole range, or the bar you tapped ----
+        var tile = null;
+        function inScope(b) { return !sc || (sc.from <= b.from && b.to <= sc.to); }
+        function sessionsFor(b) {
+            if (inScope(b)) return sessions.filter(function (x) { return !x.date || (x.date >= b.from && x.date <= b.to); });
+            var cached = card._cache && card._cache[b.from + '|' + b.to];
+            return cached ? cached.slice() : null;   // null = not loaded yet
+        }
+        function buildTile() {
+            var ul = wkEl('ul', 'work-sessions');
+            var b = sel !== null ? bars[sel] : null;
+            var list = b ? sessionsFor(b) : sessions;
+
+            if (b) {
+                var hd = wkEl('li', 'wk-selhead');
+                hd.appendChild(wkEl('span', 'wk-selname', wkBarTitle(card, b)));
+                hd.appendChild(wkEl('span', 'wk-seltotal', b.minutes ? wchFmtMin(b.minutes) : '–'));
+                if (complete) {
+                    var clear = wkEl('button', 'wk-selclear');
+                    clear.type = 'button';
+                    clear.setAttribute('aria-label', daText('Show the whole period', 'Vis hele perioden'));
+                    clear.appendChild(iconEl('x', 'ic-lead'));
+                    clear.addEventListener('click', function () { choose(null); });
+                    hd.appendChild(clear);
                 }
-                g.items.forEach(function (x) {
+                ul.appendChild(hd);
+            }
+            if (list === null) {
+                ul.appendChild(wkEl('li', 'wk-note', daText('Loading…', 'Henter…')));
+                wkFetchSessions(card, b).then(function () {
+                    if (sel !== null && bars[sel] === b) swapTile();
+                }).catch(function () {
+                    if (sel !== null && bars[sel] === b) { ul.lastChild.textContent = daText("Couldn't load these.", 'Kunne ikke hente dem.'); }
+                });
+                return ul;
+            }
+            if (!list.length) {
+                ul.appendChild(wkEl('li', 'wk-note', b ? daText('Nothing logged here.', 'Intet registreret her.') : daText('No time logged yet.', 'Ingen tid registreret endnu.')));
+                return ul;
+            }
+            var g = wkGroupByDay(list);
+            var byDay = g.keys.length > 1 || (b && b.from !== b.to);
+            g.keys.forEach(function (k) {
+                var grp = g.groups[k];
+                if (byDay) {
+                    var dh = wkEl('li', 'wk-day');
+                    dh.appendChild(wkEl('span', null, grp.label));
+                    if (grp.items.length > 1) dh.appendChild(wkEl('span', 'wk-day-total', wchFmtMin(grp.minutes)));   // one session: its own row says it
+                    ul.appendChild(dh);
+                }
+                grp.items.forEach(function (x) {
                     var li = wkEl('li', 'wk-sess' + (x.ongoing ? ' is-live' : ''));
                     var when = wkEl('span', 'wk-when');
                     when.appendChild(wkEl('span', 'wk-time', x.in + ' – ' + (x.out || (x.ongoing ? daText('now', 'nu') : '?'))));
@@ -7277,19 +7438,26 @@
                     when.appendChild(where);
                     li.appendChild(when);
                     li.appendChild(wkEl('span', 'wk-dur', x.duration));
-                    list.appendChild(li);
+                    ul.appendChild(li);
                 });
             });
-            wrap.appendChild(list);
-        } else {
-            var empty = wkEl('div', 'wk-empty');
-            empty.appendChild(iconEl('clock', 'ic-lead'));
-            empty.appendChild(wkEl('span', null, daText('No time logged yet.', 'Ingen tid registreret endnu.')));
-            wrap.appendChild(empty);
+            return ul;
+        }
+        function swapTile() {
+            var next = buildTile();
+            if (tile && tile.parentNode === wrap) wrap.replaceChild(next, tile);
+            tile = next;
+        }
+        function choose(i) {
+            sel = i;
+            card._sel = i;
+            paintSel();
+            swapTile();
         }
 
-        messages.appendChild(wrap);
-        messages.scrollTop = messages.scrollHeight;
+        tile = buildTile();
+        wrap.appendChild(tile);
+        paintSel();
     }
 
     // Pick a weather glyph + animation class from cloud cover, rain, and day/night.
