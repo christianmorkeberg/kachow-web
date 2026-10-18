@@ -7019,105 +7019,272 @@
         }).catch(function () { mapEl.textContent = daText('The map could not load.', 'Kortet kunne ikke indlæses.'); });
     }
 
+    // ---- Work hours card ------------------------------------------------------------------
+    // A summary tile (the total as the hero, a timeline of the day or one bar per day, the split per
+    // workplace, a callout for a forgotten clock-out) and a sessions tile grouped by day. Colours come from
+    // theme tokens only, so every theme looks right. Cards stored before this design lack `date` / `from` /
+    // `to` — they still render (grouped by the day text, no empty days in the bars).
+    var WK_WD  = { en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], da: ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'] };
+    var WK_MON = {
+        en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        da: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
+    };
+
+    function wkIsoToDate(iso) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+        return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+    }
+    function wkDateToIso(d) {
+        function p(n) { return (n < 10 ? '0' : '') + n; }
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+    // "Sat 17 Oct" / "lør 17 okt" from an ISO date (falls back to the server's own text).
+    function wkDayLabel(iso, fallback) {
+        var d = wkIsoToDate(iso);
+        if (!d) return fallback || '';
+        var l = daText('en', 'da');
+        return WK_WD[l][d.getDay()] + ' ' + d.getDate() + ' ' + WK_MON[l][d.getMonth()];
+    }
+    function wkMinutes(hhmm) {
+        var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    }
+    function wkEl(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+    }
+    // 460 → <span class="wk-n">7</span><span class="wk-unit">h</span><span class="wk-n">40</span><span class="wk-unit">m</span>
+    function wkTotalHtml(min, fallback) {
+        if (typeof min !== 'number' || isNaN(min)) return progEsc(fallback || '0m');
+        var h = Math.floor(min / 60), m = min % 60, out = '';
+        if (h > 0) out += '<span class="wk-n">' + h + '</span><span class="wk-unit">h</span>';
+        if (m > 0 || h === 0) out += '<span class="wk-n">' + m + '</span><span class="wk-unit">m</span>';
+        return out;
+    }
+
+    // One bar for a single day: where in the day the sessions sit.
+    function wkTimeline(sessions, colorOf) {
+        var segs = [];
+        sessions.forEach(function (x) {
+            var s = wkMinutes(x.in);
+            if (s != null) segs.push({ s: s, e: Math.min(1440, s + Math.max(1, x.minutes || 0)), x: x });
+        });
+        if (!segs.length) return null;
+        var lo = Math.min.apply(null, segs.map(function (g) { return g.s; }));
+        var hi = Math.max.apply(null, segs.map(function (g) { return g.e; }));
+        var start = Math.max(0, Math.floor((lo - 30) / 60) * 60);
+        var end = Math.min(1440, Math.ceil((hi + 30) / 60) * 60);
+        while (end - start < 480 && !(start === 0 && end === 1440)) {   // never narrower than 8 hours
+            if (start > 0) start -= 60;
+            if (end - start < 480 && end < 1440) end += 60;
+        }
+        var span = end - start;
+
+        var box = wkEl('div', 'wk-viz');
+        var track = wkEl('div', 'wk-tl');
+        segs.forEach(function (g) {
+            var seg = wkEl('span', 'wk-seg' + (g.x.ongoing ? ' is-live' : ''));
+            seg.style.left = (100 * (g.s - start) / span) + '%';
+            seg.style.width = Math.max(1.5, 100 * (g.e - g.s) / span) + '%';
+            if (!g.x.ongoing) seg.style.background = colorOf(g.x.place || '');
+            seg.title = g.x.in + ' – ' + (g.x.out || daText('now', 'nu')) + (g.x.place ? ' · ' + g.x.place : '') + ' · ' + g.x.duration;
+            track.appendChild(seg);
+        });
+        box.appendChild(track);
+        var ticks = wkEl('div', 'wk-ticks');
+        var step = Math.ceil(span / 4 / 60) * 60;
+        for (var t = start; t <= end; t += step) {
+            var lab = wkEl('span', 'wk-tick' + (t === start ? ' first' : '') + (t === end ? ' last' : ''), (t / 60 < 10 ? '0' : '') + (t / 60 % 24) + ':00');
+            lab.style.left = (100 * (t - start) / span) + '%';
+            ticks.appendChild(lab);
+        }
+        box.appendChild(ticks);
+        return box;
+    }
+
+    // One column per day of the range (empty days included when the card knows the range).
+    function wkDayBars(card, groups, keys) {
+        var cols = [], i, d;
+        var a = wkIsoToDate(card.from), b = wkIsoToDate(card.to);
+        if (a && b) {
+            var n = Math.round((b - a) / 86400000) + 1;
+            if (n >= 2 && n <= 62) {
+                for (i = 0; i < n; i++) {
+                    d = new Date(a.getFullYear(), a.getMonth(), a.getDate() + i);
+                    cols.push({ d: d, g: groups[wkDateToIso(d)] || null });
+                }
+            }
+        } else if (keys.length > 1 && keys.every(function (k) { return wkIsoToDate(k); })) {
+            keys.forEach(function (k) { cols.push({ d: wkIsoToDate(k), g: groups[k] }); });
+        }
+        if (cols.length < 2) return null;
+
+        var H = 56;
+        var max = Math.max.apply(null, cols.map(function (c) { return c.g ? c.g.minutes : 0; }).concat([1]));
+        var today = wkDateToIso(new Date());
+        var lang = daText('en', 'da');
+        var box = wkEl('div', 'wk-viz');
+        var grid = wkEl('div', 'wk-bars' + (cols.length > 16 ? ' dense' : ''));
+        cols.forEach(function (c, idx) {
+            var mins = c.g ? c.g.minutes : 0;
+            var col = wkEl('div', 'wk-col' + (mins === 0 ? ' is-empty' : '') + (c.g && c.g.live ? ' is-live' : '') + (wkDateToIso(c.d) === today ? ' is-today' : ''));
+            var bar = wkEl('span', 'wk-bar');
+            bar.style.height = (mins > 0 ? Math.max(5, Math.round(H * mins / max)) : 3) + 'px';
+            var label;
+            if (cols.length <= 8) label = WK_WD[lang][c.d.getDay()];
+            else if (idx === 0 || idx === cols.length - 1 || idx % 5 === 0) label = String(c.d.getDate());
+            else label = '';
+            col.title = wkDayLabel(wkDateToIso(c.d), '') + ' · ' + (mins ? wchFmtMin(mins) : '–');
+            col.appendChild(bar);
+            col.appendChild(wkEl('span', 'wk-lab', label));
+            grid.appendChild(col);
+        });
+        box.appendChild(grid);
+        return box;
+    }
+
     function renderWorkHours(card) {
         clearEmptyHint();
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card work-card';
+        var sessions = (card.sessions || []).slice();
+        if (sessions.length > 1 && sessions.every(function (x) { return x.date; })) {
+            sessions.sort(function (p, q) { return p.date === q.date ? (p.in < q.in ? -1 : p.in > q.in ? 1 : 0) : (p.date < q.date ? -1 : 1); });
+        }
+        var places = card.places || [];
+        var multi = places.length > 1;
+        var placeIdx = {};
+        places.forEach(function (p, i) { placeIdx[p.place || ''] = i; });
+        function colorOf(name) { return multi ? seriesColor(placeIdx.hasOwnProperty(name) ? placeIdx[name] : 5) : 'var(--accent)'; }
 
-        var head = document.createElement('div');
-        head.className = 'plan-card-title';
-        head.textContent = (card.title || 'Work') + (card.range && card.range !== card.title ? ' · ' + card.range : '');
+        // Group the sessions by day.
+        var keys = [], groups = {};
+        sessions.forEach(function (x) {
+            var k = x.date || x.day;
+            if (!groups[k]) { groups[k] = { label: wkDayLabel(x.date, x.day), items: [], minutes: 0, live: false }; keys.push(k); }
+            groups[k].items.push(x);
+            groups[k].minutes += x.minutes || 0;
+            groups[k].live = groups[k].live || !!x.ongoing;
+        });
+        var multiDay = (card.from && card.to && card.from !== card.to) || keys.length > 1;
+
+        var wrap = wkEl('div', 'plan-card work-card');
+
+        // Header: what period, and its dates.
+        var head = wkEl('div', 'wk-head');
+        var title = wkEl('div', 'wk-title');
+        setIconText(title, 'clock', card.title || 'Work');
+        head.appendChild(title);
+        if (card.range && card.range !== card.title) head.appendChild(wkEl('div', 'wk-range', card.range));
         wrap.appendChild(head);
 
-        // Summary block (left column on desktop): total, stats, per-workplace split.
-        var side = document.createElement('div');
-        side.className = 'work-side';
-        var total = document.createElement('div');
-        total.className = 'work-total';
-        total.textContent = card.total || '0m';
+        // Summary tile.
+        var side = wkEl('div', 'work-side');
+        var hero = wkEl('div', 'wk-hero');
+        var total = wkEl('div', 'work-total');
+        total.innerHTML = wkTotalHtml(card.total_minutes, card.total);
+        total.setAttribute('aria-label', card.total || '');
+        hero.appendChild(total);
         if (card.ongoing) {
-            var live = document.createElement('span');
-            live.className = 'work-live';
-            live.textContent = 'on the clock';
-            total.appendChild(live);
+            var liveSince = sessions.filter(function (x) { return x.ongoing; })[0];
+            var live = wkEl('span', 'work-live');
+            live.appendChild(wkEl('i', 'wk-dot'));
+            live.appendChild(document.createTextNode(daText('On the clock', 'Stemplet ind') + (liveSince ? ' · ' + daText('since ', 'siden ') + liveSince.in : '')));
+            hero.appendChild(live);
         }
-        side.appendChild(total);
+        side.appendChild(hero);
 
-        var sessions = card.sessions || [];
-        // Days worked + average per day (from the sessions shown).
-        var days = {};
-        sessions.forEach(function (x) { days[x.day] = true; });
-        var nDays = Object.keys(days).length;
-        if (nDays > 1 && card.total_minutes) {
-            var stats = document.createElement('div');
-            stats.className = 'work-stats';
-            stats.textContent = nDays + ' ' + daText('days', 'dage') + ' · ' + sessions.length + ' '
-                + daText('sessions', 'sessioner') + ' · ' + daText('avg ', 'gns. ')
-                + wchFmtMin(Math.round(card.total_minutes / nDays)) + daText(' / day', ' / dag');
-            side.appendChild(stats);
+        // The one-line summary under the number.
+        var meta = null;
+        if (sessions.length && multiDay) {
+            var nDays = keys.length;
+            meta = nDays + ' ' + daText(nDays === 1 ? 'day' : 'days', nDays === 1 ? 'dag' : 'dage') + ' · ' + sessions.length + ' '
+                + daText(sessions.length === 1 ? 'session' : 'sessions', sessions.length === 1 ? 'session' : 'sessioner')
+                + (card.total_minutes ? ' · ' + daText('avg ', 'gns. ') + wchFmtMin(Math.round(card.total_minutes / nDays)) + daText(' / day', ' / dag') : '');
+        } else if (sessions.length) {
+            var lastS = sessions[sessions.length - 1];
+            meta = sessions.length + ' ' + daText(sessions.length === 1 ? 'session' : 'sessions', sessions.length === 1 ? 'session' : 'sessioner')
+                + ' · ' + sessions[0].in + ' – ' + (lastS.out || daText('now', 'nu'));
         }
+        if (meta) side.appendChild(wkEl('div', 'work-stats', meta));
 
-        // Per-workplace breakdown (only present when >1 labelled place): chips on a
-        // phone, proportional bars on desktop (CSS picks which shows).
-        if ((card.places || []).length) {
-            var bd = document.createElement('div');
-            bd.className = 'work-breakdown';
-            var bars = document.createElement('div');
-            bars.className = 'work-place-bars';
-            var maxMin = Math.max.apply(null, card.places.map(function (p) { return p.minutes || 0; }).concat([1]));
-            card.places.forEach(function (p, pi) {
-                var chip = document.createElement('span');
-                chip.className = 'work-place-total';
-                chip.textContent = (p.place || '—') + ' ' + p.total;
-                bd.appendChild(chip);
-                var row = document.createElement('div');
-                row.className = 'wpb-row';
-                row.innerHTML = '<span class="wpb-name">' + progEsc(p.place || '—') + '</span>'
-                    + '<span class="wpb-track"><span class="wpb-fill" style="width:' + Math.round(100 * (p.minutes || 0) / maxMin)
-                    + '%;background:' + seriesColor(pi) + '"></span></span>'
-                    + '<span class="wpb-val">' + progEsc(p.total) + '</span>';
-                bars.appendChild(row);
+        // When in the day (one day) / how the days compare (several).
+        var viz = sessions.length ? (multiDay ? wkDayBars(card, groups, keys) : wkTimeline(sessions, colorOf)) : null;
+        if (viz) side.appendChild(viz);
+
+        // Split per workplace (only when there are several).
+        if (multi) {
+            var sum = places.reduce(function (s, p) { return s + (p.minutes || 0); }, 0) || 1;
+            var br = wkEl('div', 'wk-places');
+            var stack = wkEl('div', 'wk-stack');
+            var legend = wkEl('ul', 'wk-legend');
+            places.forEach(function (p, i) {
+                var seg = wkEl('span');
+                seg.style.flexGrow = String(Math.max(1, p.minutes || 0));
+                seg.style.background = seriesColor(i);
+                seg.title = (p.place || '—') + ' · ' + p.total;
+                stack.appendChild(seg);
+                var li = wkEl('li');
+                var sw = wkEl('i', 'wk-sw');
+                sw.style.background = seriesColor(i);
+                li.appendChild(sw);
+                li.appendChild(wkEl('span', 'wk-name', p.place || '—'));
+                li.appendChild(wkEl('span', 'wk-pct', Math.round(100 * (p.minutes || 0) / sum) + '%'));
+                li.appendChild(wkEl('span', 'wk-val', p.total));
+                legend.appendChild(li);
             });
-            side.appendChild(bd);
-            side.appendChild(bars);
+            br.appendChild(stack);
+            br.appendChild(legend);
+            side.appendChild(br);
         }
 
+        // A forgotten clock-out.
         if ((card.needs_fix || []).length) {
-            var warn = document.createElement('div');
-            warn.className = 'work-warn';
-            var f = card.needs_fix[0];
-            warn.textContent = 'No clock-out for ' + f.day + (f.place ? ' @ ' + f.place : '')
-                + ' (in at ' + f.in + '). Tell me when you left.';
-            warn.insertBefore(iconEl('triangle-alert', 'ic-lead'), warn.firstChild);
+            var f = card.needs_fix[0], more = card.needs_fix.length - 1;
+            var warn = wkEl('div', 'wk-alert');
+            warn.appendChild(iconEl('triangle-alert', 'ic-lead'));
+            var wt = wkEl('div', 'wk-alert-text');
+            wt.appendChild(wkEl('b', null, daText('Missing clock-out', 'Mangler stempling ud')));
+            wt.appendChild(wkEl('span', null, f.day + (f.place ? ' · ' + f.place : '') + ' · ' + daText('in at ', 'ind kl. ') + f.in
+                + (more > 0 ? ' (+' + more + ')' : '') + '. ' + daText("Tell me when you left and I'll fix it.", 'Sig hvornår du gik, så retter jeg det.')));
+            warn.appendChild(wt);
             side.appendChild(warn);
         }
         wrap.appendChild(side);
 
-        // Sessions (right column on desktop, as an aligned table). Separate day / time /
-        // place / duration parts: inline on a phone, columns on desktop.
+        // Sessions tile, grouped by day when the range spans several.
         if (sessions.length) {
-            var list = document.createElement('ul');
-            list.className = 'work-sessions';
-            sessions.forEach(function (x) {
-                var li = document.createElement('li');
-                if (x.ongoing) li.className = 'is-live';
-                var when = document.createElement('span');
-                when.className = 'work-when';
-                when.innerHTML = '<span class="ws-day">' + progEsc(x.day) + '</span>'
-                    + '<span class="ws-time">' + progEsc(x.in + ' – ' + (x.out || (x.ongoing ? 'now' : '?'))) + '</span>'
-                    + (x.place ? '<span class="work-place">' + progEsc(x.place) + '</span>' : '<span class="work-place is-none"></span>');
-                var dur = document.createElement('span');
-                dur.className = 'work-dur';
-                dur.textContent = x.duration;
-                li.appendChild(when);
-                li.appendChild(dur);
-                list.appendChild(li);
+            var list = wkEl('ul', 'work-sessions');
+            keys.forEach(function (k) {
+                var g = groups[k];
+                if (multiDay) {
+                    var dh = wkEl('li', 'wk-day');
+                    dh.appendChild(wkEl('span', null, g.label));
+                    if (g.items.length > 1) dh.appendChild(wkEl('span', 'wk-day-total', wchFmtMin(g.minutes)));   // one session: its own row says it
+                    list.appendChild(dh);
+                }
+                g.items.forEach(function (x) {
+                    var li = wkEl('li', 'wk-sess' + (x.ongoing ? ' is-live' : ''));
+                    var when = wkEl('span', 'wk-when');
+                    when.appendChild(wkEl('span', 'wk-time', x.in + ' – ' + (x.out || (x.ongoing ? daText('now', 'nu') : '?'))));
+                    var where = wkEl('span', 'wk-where' + (x.place ? '' : ' is-none'));
+                    if (x.place) {
+                        var dot = wkEl('i', 'wk-sw');
+                        dot.style.background = colorOf(x.place);
+                        where.appendChild(dot);
+                        where.appendChild(document.createTextNode(x.place));
+                    }
+                    when.appendChild(where);
+                    li.appendChild(when);
+                    li.appendChild(wkEl('span', 'wk-dur', x.duration));
+                    list.appendChild(li);
+                });
             });
             wrap.appendChild(list);
         } else {
-            var empty = document.createElement('div');
-            empty.className = 'plan-empty';
-            empty.textContent = 'No time logged yet.';
+            var empty = wkEl('div', 'wk-empty');
+            empty.appendChild(iconEl('clock', 'ic-lead'));
+            empty.appendChild(wkEl('span', null, daText('No time logged yet.', 'Ingen tid registreret endnu.')));
             wrap.appendChild(empty);
         }
 

@@ -16,17 +16,17 @@
     --text-strong: #ffffff;
     --muted: #93a3bd;
     /* Lines & borders */
-    --border: var(--border);
-    --border-strong: var(--border-strong);
-    --line: var(--line);
+    --border: #26375c;
+    --border-strong: #3a4d75;
+    --line: #1e2d4d;
     /* Accent */
     --accent: #38bdf8;
     /* categorical series palette (stacked/multi-series charts); series-1 follows the accent */
     --series-1: var(--accent); --series-2: #f59e0b; --series-3: #10b981;
     --series-4: #a78bfa; --series-5: #f43f5e; --series-6: #94a3b8;
     --accent-ink: #05263a;
-    --accent-soft: var(--accent-soft);
-    --accent-line: var(--accent-line);
+    --accent-soft: rgba(56, 189, 248, .12);
+    --accent-line: #1e4a63;
     /* Other */
     --user: #2563eb;
     --error: #f87171;
@@ -1234,32 +1234,120 @@ button.ghost {
 .switch input:checked + .slider::before { transform: translateX(20px); }
 .switch input:disabled + .slider { opacity: .5; cursor: default; }
 
-/* ---------- Work-hours card ---------- */
-.work-total { font-size: 30px; font-weight: 700; margin: 2px 0 8px; display: flex; align-items: baseline; gap: 10px; }
-.work-live {
-    font-size: 12px; font-weight: 600;
-    color: var(--ok);
-    border: 1px solid #1f5a44; border-radius: 999px;
-    padding: 2px 9px;
-    animation: wx-glow 2.4s ease-in-out infinite;
+/* ---------- Work-hours card ----------
+   A summary tile (hero total, the day as a timeline or one bar per day, the split per workplace) and a
+   sessions tile grouped by day. Only theme tokens (plus the fixed ok/warn colours), so every theme works. */
+.work-card { display: flex; flex-direction: column; gap: 12px; }
+.wk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wk-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.wk-title .ic { color: var(--accent); }
+.wk-range { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.work-side {
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: linear-gradient(155deg, var(--accent-soft), transparent 62%), var(--panel);
 }
+.wk-hero { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.work-total {
+    display: flex; align-items: baseline;
+    font-size: 46px; font-weight: 700; line-height: 1;
+    letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--text-strong);
+}
+.work-total .wk-unit { font-size: .4em; font-weight: 600; letter-spacing: 0; color: var(--muted); margin: 0 .42em 0 .1em; }
+.work-total .wk-unit:last-child { margin-right: 0; }
+.work-live {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 11px 4px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; color: var(--text);
+    border: 1px solid rgba(52, 211, 153, .35);
+    background: rgba(52, 211, 153, .12);
+    background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.wk-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: wk-ping 1.9s ease-out infinite; }
+@keyframes wk-ping { 0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .55); } 75%, 100% { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); } }
+@keyframes wk-breathe { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .wk-dot, .wk-seg.is-live { animation: none; } }
+.work-stats { margin: -6px 0 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* The day as a timeline… */
+.wk-tl { position: relative; height: 14px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+.wk-seg { position: absolute; top: 2px; bottom: 2px; min-width: 6px; border-radius: 999px; background: var(--accent); }
+.wk-seg.is-live { background: var(--ok); animation: wk-breathe 2.4s ease-in-out infinite; }
+.wk-ticks { position: relative; height: 16px; margin-top: 6px; }
+.wk-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wk-tick.first { transform: none; }
+.wk-tick.last { transform: translateX(-100%); }
+/* …or one bar per day. */
+.wk-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 5px; align-items: end; }
+.wk-col { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+.wk-bar { display: block; border-radius: 6px 6px 3px 3px; background: var(--accent); }
+.wk-col.is-empty .wk-bar { background: var(--line); }
+.wk-col.is-live .wk-bar { background: var(--ok); }
+.wk-bars.dense { gap: 2px; }
+.wk-bars.dense .wk-bar { border-radius: 3px 3px 2px 2px; }
+/* flex-centred so a label wider than its (thin) column spreads to both sides */
+.wk-lab { display: flex; justify-content: center; height: 11px; margin-top: 6px; font-size: 10.5px; line-height: 1; color: var(--muted); white-space: nowrap; }
+.wk-col.is-today .wk-lab { color: var(--text-strong); font-weight: 700; }
+
+/* Split per workplace. */
+.wk-stack { display: flex; gap: 3px; height: 8px; border-radius: 999px; overflow: hidden; }
+.wk-stack > span { display: block; flex-basis: 0; min-width: 4px; }
+.wk-legend { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 7px; }
+.wk-legend li { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
+.wk-sw { display: inline-block; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 3px; }
+.wk-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-pct { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.wk-val { min-width: 4.2em; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* A forgotten clock-out. */
+.wk-alert {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; font-size: 13px; line-height: 1.4;
+    border: 1px solid rgba(251, 191, 36, .30); border-left: 3px solid var(--warn); border-radius: var(--radius-md);
+    border-color: color-mix(in srgb, var(--warn) 32%, var(--line)); border-left-color: var(--warn);
+    background: rgba(251, 191, 36, .15);
+    background: color-mix(in srgb, var(--warn) 17%, transparent);
+}
+.wk-alert .ic { flex: 0 0 auto; margin-top: 1px; color: var(--warn); }
+.wk-alert-text b { display: block; font-weight: 600; color: var(--text-strong); }
+.wk-alert-text span { color: var(--muted); }
+
+/* Sessions, grouped by day. */
+.work-sessions { list-style: none; margin: 0; padding: 4px 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.wk-day {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 12px 14px 5px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted);
+}
+.wk-day:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); }
+.wk-day-total { font-size: 12.5px; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.wk-sess { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; }
+.wk-sess .wk-when { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wk-time { font-weight: 600; font-variant-numeric: tabular-nums; }
+.wk-where { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.wk-where.is-none { display: none; }
+.wk-dur { flex: 0 0 auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wk-sess.is-live {
+    box-shadow: inset 3px 0 0 var(--ok);
+    background: rgba(52, 211, 153, .09);
+    background: color-mix(in srgb, var(--ok) 11%, transparent);
+}
+.wk-empty {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 26px 14px; font-size: 14px; color: var(--muted);
+    border: 1px dashed var(--border); border-radius: var(--radius);
+}
+
+/* Legend chips on the work-hours CHART card. */
 .work-breakdown { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
 .work-place-total {
     font-size: 12px; color: var(--text);
     background: var(--panel-2); border: 1px solid var(--border);
     border-radius: 999px; padding: 3px 10px;
 }
-.work-place {
-    font-size: 11px; color: var(--muted);
-    border: 1px solid var(--border); border-radius: 999px;
-    padding: 1px 7px; margin-left: 2px;
-}
-.work-sessions { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
-.work-sessions li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
-.work-sessions li + li { border-top: 1px solid var(--line); }
-.work-when { color: var(--text); font-variant-numeric: tabular-nums; }
-.work-dur { color: var(--muted); flex: 0 0 auto; }
-.work-warn { margin-top: 8px; font-size: 13px; color: var(--warn); }
+
 
 /* Playful "waiting for the weather API" animation in the thinking bubble. */
 .wx-wait { display: inline-flex; gap: 5px; font-style: normal; }
@@ -2327,11 +2415,7 @@ svg.cyc-emoji { overflow: visible; }
 
 /* Bits that exist on every width (phone look unchanged). */
 .row-date { margin-right: .6em; font-variant-numeric: tabular-nums; }
-.ws-day { margin-right: .5em; }
-.ws-time { margin-right: .4em; font-variant-numeric: tabular-nums; }
-.work-place.is-none { display: none; }
-.work-stats { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
-.work-place-bars, .pl-side { display: none; }
+.pl-side { display: none; }
 .wpb-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: 10px; font-size: 13px; padding: 4px 0; }
 .wpb-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wpb-track { height: 8px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; }
@@ -2340,38 +2424,35 @@ svg.cyc-emoji { overflow: visible; }
 
 @container cardpanel (min-width: 720px) {
     /* ---- shared: two-column "summary | detail" layout ---- */
-    .work-card, .expenses-card, .moms-card, .mileage-card, .pl-card, .cycle-card {
+    .expenses-card, .moms-card, .mileage-card, .pl-card, .cycle-card {
         display: grid;
         grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
         column-gap: 32px;
         align-items: start;
     }
-    .work-card > .plan-card-title, .expenses-card > .plan-card-title,
+    .expenses-card > .plan-card-title,
     .moms-card > .books-head, .mileage-card > .books-head, .pl-card > .books-head,
     .cycle-card > .plan-card-title,
     .moms-card > .moms-foot, .mileage-card > .moms-foot, .pl-card > .moms-foot, .pl-card > .pl-note {
         grid-column: 1 / -1;
     }
     /* Table-style rows for every list: hover, aligned columns, dates in a fixed column. */
-    .exp-list li, .work-sessions li, .books-list .books-row {
+    .exp-list li, .books-list .books-row {
         border-radius: 8px; padding-left: 8px; padding-right: 8px;
     }
-    .exp-list li:hover, .work-sessions li:hover, .books-list .books-row:hover { background: var(--accent-soft); }
+    .exp-list li:hover, .books-list .books-row:hover { background: var(--accent-soft); }
     .row-date { display: inline-block; min-width: 7.2em; color: var(--muted); }
 
-    /* ---- work hours: summary left, sessions table right ---- */
+    /* ---- work hours: summary tile left, sessions tile right ---- */
+    .work-card { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 14px 22px; align-items: start; }
+    .work-card > .wk-head { grid-column: 1 / -1; }
     .work-card > .work-side { grid-column: 1; }
-    .work-card > .work-sessions, .work-card > .plan-empty { grid-column: 2; grid-row: 2 / span 20; }
-    .work-card .work-total { font-size: 40px; }
-    .work-card .work-breakdown { display: none; }
-    .work-card .work-place-bars { display: block; margin-top: 6px; }
-    .work-sessions { border-top: 0; }
-    .work-sessions li { display: grid; grid-template-columns: 130px 120px minmax(0, 1fr) auto; align-items: center; padding-top: 8px; padding-bottom: 8px; }
-    .work-sessions .work-when { display: contents; }
-    .work-sessions .work-place { justify-self: start; }
-    .work-sessions .work-place.is-none { display: block; }
-    .work-sessions li.is-live .work-dur { color: #34d399; font-weight: 600; }
-    .work-sessions .work-dur { color: var(--text); font-variant-numeric: tabular-nums; }
+    .work-card > .work-sessions, .work-card > .wk-empty { grid-column: 2; grid-row: 2; }
+    .work-total { font-size: 58px; }
+    .wk-sess { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 14px; padding-top: 10px; padding-bottom: 10px; }
+    .wk-sess .wk-when { display: contents; }
+    .wk-sess .wk-where.is-none { display: block; }   /* keep the column */
+    .wk-sess:hover { background: var(--accent-soft); }
 
     /* ---- income / expenses / owner draws: totals + categories left, table right ---- */
     .expenses-card > .exp-totals, .expenses-card > .income-outstanding, .expenses-card > .exp-breakdown { grid-column: 1; }
@@ -2473,7 +2554,8 @@ svg.cyc-emoji { overflow: visible; }
 
 /* Very wide (⤢ full width): three-column KPI-ish layouts get more room. */
 @container cardpanel (min-width: 1200px) {
-    .work-card, .expenses-card, .moms-card, .mileage-card, .cycle-card { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); column-gap: 48px; }
+    .expenses-card, .moms-card, .mileage-card, .cycle-card { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); column-gap: 48px; }
+    .work-card { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); column-gap: 34px; }
     .receipt-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
