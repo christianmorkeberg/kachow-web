@@ -89,7 +89,9 @@ try {
         $toolMode,
         $memories->all($userId),
         $instructions->all($userId),
-        $agenda
+        $agenda,
+        null,
+        (string) $settings->get($userId, 'voice_language')
     );
 
     $apiKey = (string) ($_ENV['GEMINI_API_KEY'] ?? '');
