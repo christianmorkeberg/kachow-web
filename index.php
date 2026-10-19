@@ -225,7 +225,8 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <div class="tm-head">Email</div>
                         <?php foreach ($emailAccounts as $acc): ?>
                             <div class="tm-acc" title="<?= $e($acc['provider']) ?>">
-                                <span class="email-menu-dot email-menu-<?= $e($acc['provider']) ?>"></span><?= $e($acc['email']) ?>
+                                <span class="email-menu-dot email-menu-<?= $e($acc['provider']) ?>"></span><span class="tm-acc-name"><?= $e($acc['email']) ?></span>
+                                <button type="button" class="tm-acc-x" data-email-disconnect="<?= (int) $acc['id'] ?>" data-email="<?= $e($acc['email']) ?>" aria-label="Disconnect <?= $e($acc['email']) ?>" title="Disconnect this mailbox">&times;</button>
                             </div>
                         <?php endforeach; ?>
                         <a class="tm-item" data-icon="plus" href="index.php?action=connect_gmail">Gmail</a>

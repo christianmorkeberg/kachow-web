@@ -9149,6 +9149,32 @@
         }
     })();
 
+    // ---------- Disconnect a mailbox (the × next to it in the menu) ----------
+    document.querySelectorAll('[data-email-disconnect]').forEach(function (btn) {
+        btn.addEventListener('click', function (ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            var email = btn.getAttribute('data-email') || 'this mailbox';
+            if (!window.confirm(daText('Disconnect ' + email + '? Kachow will no longer read or send from it.', 'Frakobl ' + email + '? Kachow læser og sender ikke længere fra den.'))) return;
+            btn.disabled = true;
+            fetch('/api/email-disconnect.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                body: JSON.stringify({ id: Number(btn.getAttribute('data-email-disconnect')) })
+            })
+                .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (r) {
+                    if (r.ok && r.j && r.j.ok) {
+                        var row = btn.closest('.tm-acc');
+                        if (row) row.remove();
+                        toast(daText('Disconnected.', 'Frakoblet.'));
+                    } else {
+                        btn.disabled = false;
+                        toast((r.j && r.j.error) || daText('Could not disconnect.', 'Kunne ikke frakoble.'));
+                    }
+                })
+                .catch(function () { btn.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
+        });
+    });
+
     // ---------- Notification history (the bell) ----------
     // Every push the app sends is kept server-side (api/notifications.php), so one that was missed or
     // dismissed can still be read and opened. Tapping an entry opens what the push opens; the badge
@@ -9167,7 +9193,7 @@
         var TYPE_ICONS = {
             checkout_nudge: 'clock', weekly_summary: 'chart-column', work_log_nudge: 'notebook-pen',
             cycle_upcoming: 'moon', moms_deadline: 'percent', reminder: 'alarm-clock', wfh_prompt: 'clock',
-            tracking_silent: 'map-pin', scheduled_task: 'sparkles', work_clock_gap: 'clock', feedback_report: 'flag', test: 'bell'
+            tracking_silent: 'map-pin', scheduled_task: 'sparkles', work_clock_gap: 'clock', feedback_report: 'flag', important_email: 'mail', test: 'bell'
         };
         var oldest = null;     // smallest id shown, for "Show older"
 
