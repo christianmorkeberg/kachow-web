@@ -87,16 +87,20 @@
             .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); });
     }
 
+    var LOW_SECONDS = 120;          // the countdown appears when this little of today's voice time is left
+    var MIC_KEEP_MS = 180000;       // how long the mic stays open after a session ends, so the next one needn't ask again
+    var keptStream = null, keptTimer = null;
+
     // ---------- the dock (state, live lines, mute / end, type-to-test) ----------
     function buildDock() {
         var d = document.createElement('div');
         d.id = 'voiceDock';
         d.className = 'voice-dock';
         d.innerHTML =
+            '<div class="vd-time" hidden></div>' +
             '<div class="vd-row">' +
             '<span class="vd-orb" data-state="connecting"></span>' +
             '<span class="vd-status">Connecting…</span>' +
-            '<span class="vd-time"></span>' +
             '<button type="button" class="vd-btn vd-stop" hidden>Stop talking</button>' +
             '<button type="button" class="vd-btn vd-out" title="Speaker: the microphone stays closed while the assistant talks, so it cannot hear itself. Headphones: you can interrupt by speaking.">Speaker</button>' +
             '<button type="button" class="vd-btn vd-mute" aria-pressed="false">Mute</button>' +
@@ -128,7 +132,11 @@
     function tickClock() {
         if (!S) return;
         var left = Math.max(0, S.remaining - Math.round((Date.now() - S.startedAt) / 1000));
-        S.dock.querySelector('.vd-time').textContent = Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' left today';
+        // Only shown when it is nearly used up; a line of its own above the buttons, so a phone's narrow row can't hide it.
+        var t = S.dock.querySelector('.vd-time');
+        t.hidden = left > LOW_SECONDS;
+        t.classList.toggle('vd-time-urgent', left <= 30);
+        t.textContent = Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' of voice time left today';
         return left;
     }
 
@@ -360,9 +368,34 @@
     }
 
     // ---------- the microphone ----------
+    // Phones (iOS especially) ask for the microphone on every getUserMedia, so after a session the stream is kept
+    // (silenced) for a few minutes and handed to the next one; then it is released and the mic indicator goes off.
+    function getMic() {
+        if (keptTimer) { clearTimeout(keptTimer); keptTimer = null; }
+        if (keptStream && keptStream.getAudioTracks().some(function (t) { return t.readyState === 'live'; })) {
+            var st = keptStream; keptStream = null;
+            st.getAudioTracks().forEach(function (t) { t.enabled = true; });
+            return Promise.resolve(st);
+        }
+        keptStream = null;
+        return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    }
+    function releaseMic() {
+        if (keptTimer) { clearTimeout(keptTimer); keptTimer = null; }
+        if (keptStream) { try { keptStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* ignore */ } keptStream = null; }
+    }
+    function keepMic(stream) {
+        if (!stream) return;
+        releaseMic();
+        stream.getAudioTracks().forEach(function (t) { t.enabled = false; });
+        keptStream = stream;
+        keptTimer = setTimeout(releaseMic, MIC_KEEP_MS);
+    }
+    window.addEventListener('pagehide', releaseMic);
+
     function startMic() {
-        navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }).then(function (stream) {
-            if (!S) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        getMic().then(function (stream) {
+            if (!S) { keepMic(stream); return; }
             S.stream = stream;
             S.src = S.ctx.createMediaStreamSource(stream);
             S.node = new AudioWorkletNode(S.ctx, 'kachow-cap');
@@ -486,7 +519,7 @@
         Object.keys(s.pending).forEach(function (id) { try { s.pending[id].abort.abort(); } catch (e) { /* ignore */ } });
         s.pending = {};
         try { s.node && s.node.disconnect(); s.src && s.src.disconnect(); s.play && s.play.disconnect(); } catch (e) { /* ignore */ }
-        try { s.stream && s.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* ignore */ }
+        keepMic(s.stream);
         try { s.ws && s.ws.readyState < 2 && s.ws.close(); } catch (e) { /* ignore */ }
         try { s.ctx && s.ctx.close(); } catch (e) { /* ignore */ }
         if (s.wake) { try { s.wake.release(); } catch (e) { /* ignore */ } }
