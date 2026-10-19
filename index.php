@@ -239,6 +239,10 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false" data-icon="wrench">Developer mode</button>
                         <button type="button" id="insightsBtn" class="tm-item" data-icon="chart-column">Insights</button>
                         <a class="tm-item" data-icon="log-out" href="index.php?action=logout">Log out</a>
+<?php $version = \App\Support\Version::summary(__DIR__, $appPath); ?>
+<?php if ($version !== null): ?>
+                        <div class="tm-version" id="appVersion" title="The commits this server is running (web, app) and when HEAD last moved — i.e. the last deploy"><?= $e($version) ?></div>
+<?php endif; ?>
                     </div>
                 </details>
             </div>
