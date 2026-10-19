@@ -55,6 +55,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
 
 try {
     $in       = json_decode((string) file_get_contents('php://input'), true);
+    $hint     = is_array($in) ? mb_substr((string) ($in['lang_hint'] ?? ''), 0, 16) : '';
     $toolMode = is_array($in) && in_array($in['tool_mode'] ?? '', ['auto', 'nonblocking', 'blocking'], true) ? (string) $in['tool_mode'] : 'auto';
 
     $settings = new UserSettings();
@@ -63,6 +64,13 @@ try {
     $left     = $limits['daily_seconds'] - $log->usedSecondsToday($userId);
     if ($left < 10) {
         out(429, ['error' => 'The voice limit for today is used up (' . intdiv($limits['daily_seconds'], 60) . ' min). It resets at midnight.', 'remaining_seconds' => 0]);
+    }
+
+    // The EN | DA switch's saved choice; until one is made, the browser language decides (and is saved, so it stays).
+    $storedLang = (string) $settings->get($userId, 'voice_language');
+    $language   = VoiceSession::resolveLanguage($storedLang, $hint);
+    if (VoiceSession::language($storedLang) === 'auto') {
+        $settings->set($userId, 'voice_language', $language);
     }
 
     $memories     = new Memories();
@@ -91,7 +99,7 @@ try {
         $instructions->all($userId),
         $agenda,
         null,
-        (string) $settings->get($userId, 'voice_language')
+        $language
     );
 
     $apiKey = (string) ($_ENV['GEMINI_API_KEY'] ?? '');
@@ -122,6 +130,7 @@ try {
         'remaining_seconds' => $left,
         'idle_seconds'      => $limits['idle_seconds'],
         'tool_mode'         => $toolMode,
+        'language'          => $language,
         'slow_tools'        => \App\Voice\VoiceTools::SLOW,
     ]);
 } catch (\Throwable $e) {

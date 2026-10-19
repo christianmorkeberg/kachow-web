@@ -107,6 +107,7 @@
             '</div>' +
             '<div class="vd-row">' +
             '<button type="button" class="vd-btn vd-stop" hidden>Stop talking</button>' +
+            '<button type="button" class="vd-lang" aria-label="Language" title="Voice language — tap to switch"><span data-l="en">EN</span><span data-l="da">DA</span></button>' +
             '<button type="button" class="vd-btn vd-out" title="Speaker: the microphone stays closed while the assistant talks, so it cannot hear itself. Headphones: you can interrupt by speaking.">Speaker</button>' +
             '<button type="button" class="vd-btn vd-mute" aria-pressed="false">Mute</button>' +
             '<button type="button" class="vd-btn vd-end">End</button>' +
@@ -446,11 +447,13 @@
         try { S.outMode = localStorage.getItem('kachow.voice.output') === 'headphones' ? 'headphones' : 'speaker'; } catch (e) { /* default */ }
         setOutLabel();
 
-        return post('/api/live-token.php', { tool_mode: toolMode }).then(function (r) {
+        return post('/api/live-token.php', { tool_mode: toolMode, lang_hint: navigator.language || '' }).then(function (r) {
             if (!S) return false;
             var b = r.body || {};
             if (r.status >= 400 || !b.token) throw new Error(b.error || ('Could not start voice (HTTP ' + r.status + ').'));
             S.sessionId = b.session_id; S.remaining = b.remaining_seconds; S.idle = b.idle_seconds; S.slowTools = b.slow_tools || [];
+            S.lang = b.language === 'da' ? 'da' : 'en';
+            setLangLabel();
             S.startedAt = Date.now();
             if (hooks.begin) hooks.begin(b.conversation_id);
             if (navigator.wakeLock && navigator.wakeLock.request) navigator.wakeLock.request('screen').then(function (w) { if (S) S.wake = w; else w.release(); }).catch(function () { /* optional */ });
@@ -573,11 +576,34 @@
         setOutLabel();
     }
 
+    // EN | DA switch. The choice is saved for the user (all devices); the NEXT session starts in it. In a running session the
+    // model is told to switch right now (the language setting itself is fixed when a session opens).
+    function setLangLabel() {
+        if (!S) return;
+        var b = S.dock.querySelector('.vd-lang');
+        if (!b) return;
+        b.setAttribute('data-lang', S.lang || 'en');
+        b.setAttribute('aria-label', 'Language: ' + (S.lang === 'da' ? 'Danish' : 'English') + ' — tap to switch');
+    }
+    function toggleLang() {
+        if (!S) return;
+        var next = S.lang === 'da' ? 'en' : 'da';
+        S.lang = next;
+        setLangLabel();
+        post('/api/live-language.php', { language: next }).catch(function () { /* the running session still switches */ });
+        if (S.ready) {
+            send({ realtimeInput: { text: next === 'da'
+                ? '[From now on speak ONLY Danish (dansk). Answer with a very short confirmation in Danish, like "Okay, dansk.", and do not mention this note.]'
+                : '[From now on speak ONLY English. Answer with a very short confirmation in English, like "Okay, English.", and do not mention this note.]' } });
+            S.lastActivity = Date.now();
+        }
+    }
+
     // The assistant speaks first, so it is clear it is ready: a short relaxed line, in the language it is set to speak.
     function greet() {
         if (!S || !S.ready) return;
-        send({ realtimeInput: { text: '[The voice session has just started. Greet the user with ONE short, relaxed line, like "Hey, what\'s up?" '
-            + '(in Danish: "Hej, hvad så?"). Say nothing else and do not mention this note.]' } });
+        send({ realtimeInput: { text: '[The voice session has just started. Greet the user with ONE short, relaxed line, like '
+            + (S.lang === 'da' ? '"Hej, hvad så?" (in Danish)' : '"Hey, what\'s up?" (in English)') + '. Say nothing else and do not mention this note.]' } });
         S.lastActivity = Date.now();
     }
 
@@ -598,6 +624,7 @@
         if (e.target.closest('#voiceDock .vd-end')) stop();
         else if (e.target.closest('#voiceDock .vd-mute')) toggleMute();
         else if (e.target.closest('#voiceDock .vd-out')) toggleOutMode();
+        else if (e.target.closest('#voiceDock .vd-lang')) toggleLang();
         else if (e.target.closest('#voiceDock .vd-stop')) { if (S) { flushPlayback(); S.micHoldUntil = 0; } }
     });
     document.addEventListener('submit', function (e) {
