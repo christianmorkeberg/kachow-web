@@ -2816,3 +2816,9 @@ body.voice-on .voice-dock .vd-orb[data-state="listening"], body.voice-on .voice-
 .tm-acc-name { flex: 1; min-width: 0; word-break: break-all; }
 .tm-acc-x { flex: none; border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); }
 .tm-acc-x:hover { color: var(--error); background: var(--accent-soft); }
+
+/* Voice language switch: EN | DA, the active side filled */
+.vd-lang { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; background: transparent; padding: 2px; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); }
+.vd-lang span { padding: 3px 10px; border-radius: 999px; }
+.vd-lang[data-lang="en"] span[data-l="en"], .vd-lang[data-lang="da"] span[data-l="da"] { background: var(--accent); color: #fff; }
+body.voice-on .vd-lang { font-size: 13px; }
