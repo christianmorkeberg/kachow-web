@@ -88,7 +88,7 @@
     }
 
     var LOW_SECONDS = 120;          // the countdown appears when this little of today's voice time is left
-    var MIC_KEEP_MS = 180000;       // how long the mic stays open after a session ends, so the next one needn't ask again
+    var MIC_KEEP_MS = 900000;       // how long the mic stays open after a session ends, so the next one needn't ask again
     var keptStream = null, keptTimer = null;
 
     // ---------- the dock (state, live lines, mute / end, type-to-test) ----------
@@ -266,6 +266,7 @@
             logEvent('setup_complete', { ms: Date.now() - S.startedAt });
             setState('listening');
             startMic();
+            greet();
             return;
         }
         if (msg.serverContent) handleContent(msg.serverContent);
@@ -570,6 +571,14 @@
         S.outMode = S.outMode === 'speaker' ? 'headphones' : 'speaker';
         try { localStorage.setItem('kachow.voice.output', S.outMode); } catch (e) { /* ignore */ }
         setOutLabel();
+    }
+
+    // The assistant speaks first, so it is clear it is ready: a short relaxed line, in the language it is set to speak.
+    function greet() {
+        if (!S || !S.ready) return;
+        send({ realtimeInput: { text: '[The voice session has just started. Greet the user with ONE short, relaxed line, like "Hey, what\'s up?" '
+            + '(in Danish: "Hej, hvad så?"). Say nothing else and do not mention this note.]' } });
+        S.lastActivity = Date.now();
     }
 
     function sendText(text) {
