@@ -55,7 +55,7 @@ try {
         out(200, [
             'supported'  => WebPush::isConfigured(),
             'public_key' => WebPush::publicKey(),
-            'types'      => $prefs->forUser($userId),
+            'types'      => $prefs->forUser($userId, (new Users())->isAdmin($userId)),
         ]);
     }
 

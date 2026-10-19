@@ -673,7 +673,7 @@
         var wrap = document.createElement('details');
         wrap.className = 'msg-diag';
         var sum = document.createElement('summary');
-        sum.textContent = 'diagnostics';
+        setIconText(sum, 'settings', 'diagnostics');   // flat line icon, not the ⚙ emoji
         wrap.appendChild(sum);
 
         var parts = [];
@@ -1971,21 +1971,6 @@
         // e.g. Danish "regn" (rain) must not fire on "afregning" (billing), nor "rain"
         // on "training", nor "storm" on "brainstorm".
         return /(?:\bweather|\bforecast|\btemperature|\brain|\bsnow|\bsunny|\bsun\b|\bwindy|\bcloud|\bstorm|\bdegrees|\bumbrella|\bvejr|\bregn|\bsne|\bsolen|\bsolskin|\btemperatur|\bvind|\bblæs|\bskyet|\bgrader|\bparaply|\bbyge)/i.test(String(text || ''));
-    }
-
-    // Replace the "…" thinking bubble with a row of bobbing sky glyphs.
-    function showWeatherWait(row) {
-        var bubble = row.querySelector('.msg');
-        if (!bubble) return;
-        bubble.classList.add('wx-wait');
-        bubble.textContent = '';
-        [['sun', 'sun'], ['cloud-sun', 'sun'], ['cloud-rain', 'rain'], ['moon', 'night'], ['star', 'sun']].forEach(function (g, i) {
-            var s = document.createElement('span');
-            s.className = 'wx-wait-glyph wx-tone-' + g[1];
-            s.innerHTML = icon(g[0]);
-            s.style.animationDelay = (i * 0.16) + 's';
-            bubble.appendChild(s);
-        });
     }
 
     // List rows: date and name as separate parts — read as "date  name" on a phone, and
@@ -4045,22 +4030,56 @@
         var title = document.createElement('div');
         title.className = 'plan-card-title';
         var n = (card.reports || []).length;
-        title.textContent = 'Feedback · ' + (card.status || 'new') + ' (' + n + ')';
+        var status = card.status || 'open';
+        title.textContent = 'Feedback · ' + status + ' (' + n + ')';
         wrap.appendChild(title);
+
+        // Filter chips — unresolved reports first in every view; a chip re-reads the list with that filter.
+        var counts = card.counts || {};
+        var chips = document.createElement('div');
+        chips.className = 'di-chips';
+        function drawChips() {
+            var c = card.counts || {};
+            chips.innerHTML = '';
+            [['open', 'Open', c.open], ['resolved', 'Resolved', c.resolved], ['all', 'All', c.all]].forEach(function (f) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'di-chip' + (status === f[0] ? ' on' : '');
+                b.textContent = f[1] + (f[2] != null ? ' ' + f[2] : '');
+                b.addEventListener('click', function () {
+                    if (status === f[0]) return;
+                    b.disabled = true;
+                    fetch('/api/feedback.php?status=' + encodeURIComponent(f[0]) + (card.limit ? '&limit=' + encodeURIComponent(card.limit) : ''), { credentials: 'same-origin' })
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (j) {
+                            if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+                            else if (!j) { b.disabled = false; toast('Could not load the reports.'); }
+                        })
+                        .catch(function () { b.disabled = false; toast('Could not load the reports.'); });
+                });
+                chips.appendChild(b);
+            });
+        }
+        if (counts.all != null) { drawChips(); wrap.appendChild(chips); }
 
         if (!n) {
             var empty = document.createElement('div');
             empty.className = 'prog-empty';
-            empty.textContent = 'No reports.';
+            empty.textContent = status === 'open' ? 'No open reports. 🎉' : 'No reports.';
             wrap.appendChild(empty);
         } else {
-            card.reports.forEach(function (r) { wrap.appendChild(fbReport(r)); });
+            card.reports.forEach(function (r) {
+                wrap.appendChild(fbReport(r, function () {
+                    // A report was resolved from the card: keep the chip numbers right.
+                    if (card.counts) { card.counts.open = Math.max(0, card.counts.open - 1); card.counts.resolved++; drawChips(); }
+                }));
+            });
         }
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
 
-    function fbReport(r) {
+    function fbReport(r, onResolved) {
         var box = document.createElement('div');
         box.className = 'fb-report';
 
@@ -4117,7 +4136,7 @@
         var det = document.createElement('details');
         det.className = 'fb-diag';
         var sum = document.createElement('summary');
-        sum.textContent = 'diagnostics';
+        setIconText(sum, 'settings', 'diagnostics');
         det.appendChild(sum);
         var db = document.createElement('div');
         db.className = 'fb-diag-body';
@@ -4169,6 +4188,7 @@
                         var pill = head.querySelector('.fb-status');
                         if (pill) { pill.className = 'fb-status resolved'; pill.textContent = 'resolved'; }
                         btn.remove();   // keep the download button available after resolving
+                        if (onResolved) onResolved();
                     } else {
                         btn.disabled = false;
                         btn.textContent = 'Mark resolved';
@@ -7861,9 +7881,6 @@
         // Flap the wings only while thinking — swap the still frame for the GIF.
         const typingAvatar = typing.querySelector('.avatar');
         if (typingAvatar) typingAvatar.src = AVATAR_FLYING;
-        // Weather questions can be slow (DMI retries), so show a playful sky
-        // animation in the thinking bubble instead of the plain "…".
-        if (looksLikeWeather(text)) showWeatherWait(typing);
 
         // Only fetch/attach location when the message actually calls for it.
         const location = needsLocation(text) ? await getLocation() : null;
@@ -9043,7 +9060,7 @@
         var TYPE_ICONS = {
             checkout_nudge: 'clock', weekly_summary: 'chart-column', work_log_nudge: 'notebook-pen',
             cycle_upcoming: 'moon', moms_deadline: 'percent', reminder: 'alarm-clock', wfh_prompt: 'clock',
-            tracking_silent: 'map-pin', scheduled_task: 'sparkles', work_clock_gap: 'clock', test: 'bell'
+            tracking_silent: 'map-pin', scheduled_task: 'sparkles', work_clock_gap: 'clock', feedback_report: 'flag', test: 'bell'
         };
         var oldest = null;     // smallest id shown, for "Show older"
 

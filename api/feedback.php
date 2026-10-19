@@ -7,7 +7,7 @@ declare(strict_types=1);
  * on the feedback card, and the card's refresh.
  *
  *   POST { action:'resolve'|'seen'|'new', id:int } → { ok:true, status:string }
- *   GET  ?status=new|seen|resolved|all[&limit=N]   → { ok:true, card }   (the list as it is now)
+ *   GET  ?status=open|new|seen|resolved|all[&limit=N]   → { ok:true, card }   (the list as it is now)
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -50,7 +50,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     try {
         $built = ListFeedback::build(
             new FeedbackReports(),
-            (string) ($_GET['status'] ?? 'new'),
+            (string) ($_GET['status'] ?? 'open'),
             isset($_GET['limit']) ? max(1, (int) $_GET['limit']) : 20
         );
         out(200, ['ok' => true, 'card' => $built['card']]);
