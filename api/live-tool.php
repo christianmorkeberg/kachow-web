@@ -26,6 +26,7 @@ use App\Data\UserSettings;
 use App\Data\VoiceLog;
 use App\Notify\Notifier;
 use App\Tools\RegistryFactory;
+use App\Voice\ConfirmGate;
 use App\Voice\VoiceAlert;
 use App\Voice\VoiceToolRunner;
 
@@ -60,6 +61,7 @@ $in        = is_array($in) ? $in : [];
 $sessionId = (string) ($in['session_id'] ?? '');
 $name      = (string) ($in['name'] ?? '');
 $args      = is_array($in['args'] ?? null) ? $in['args'] : [];
+$turn      = max(0, (int) ($in['turn'] ?? 0));
 
 $log = new VoiceLog();
 $convId = $log->sessionConversation($userId, $sessionId);
@@ -90,7 +92,7 @@ try {
         return ['reply' => $reply, 'card' => $loop->lastRender()];
     };
 
-    $res = (new VoiceToolRunner($registry, $gateway))->run($name, $args, $userId);
+    $res = (new VoiceToolRunner($registry, $gateway, new ConfirmGate($log)))->run($name, $args, $userId, $sessionId, $turn, $convId);
 
     $argText = mb_substr((string) json_encode($args, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0, 400);
     if ($res['ok']) {
@@ -122,7 +124,7 @@ try {
         }
     }
 
-    out(200, ['ok' => $res['ok'], 'result' => $res['result'], 'card' => $res['card'], 'ms' => $res['ms']]);
+    out(200, ['ok' => $res['ok'], 'result' => $res['result'], 'card' => $res['card'], 'ms' => $res['ms'], 'summary' => $res['summary']]);
 } catch (\Throwable $e) {
     error_log('live-tool.php: ' . $e->getMessage());
     out(500, ['ok' => false, 'result' => ['error' => 'The tool failed.'], 'card' => null, 'debug' => get_class($e) . ': ' . $e->getMessage()]);

@@ -267,6 +267,7 @@
 
     function handleContent(sc) {
         if (sc.interrupted) {
+            S.turns = (S.turns || 0) + 1;
             flushPlayback();
             logEvent('interrupted');
             // What the assistant had said so far stays in this turn's text, marked as cut off. It is NOT saved on its own:
@@ -303,9 +304,12 @@
 
     // A finished turn: put what was said in the chat and queue it for the conversation.
     function endTurn() {
+        S.turns = (S.turns || 0) + 1;     // the server's spoken-confirmation gate counts turns
         var u = S.userBuf.trim(), a = S.modelBuf.trim();
         S.userBuf = ''; S.modelBuf = '';
         if (u) { S.transcript.push({ role: 'user', text: u }); S.hooks.addMessage && S.hooks.addMessage(u, 'user'); }
+        // What the tools actually did (from the calls themselves, not the model's words) goes under the reply.
+        if (S.actions.length) { a = (a ? a + '\n\n' : '') + S.actions.map(function (x) { return '↳ ' + x; }).join('\n'); S.actions = []; }
         if (a) { S.transcript.push({ role: 'assistant', text: a }); S.hooks.addMessage && S.hooks.addMessage(a, 'assistant'); }
         if (u || a) scheduleFlush();
         S.dock.querySelector('.vd-you').textContent = '';
@@ -320,12 +324,13 @@
             S.lastActivity = Date.now();
             refreshState();
             setTimeout(updateEarcon, EARCON_AFTER_MS + 20);
-            post('/api/live-tool.php', { session_id: S.sessionId, name: name, args: c.args || {} }, ac.signal).then(function (r) {
+            post('/api/live-tool.php', { session_id: S.sessionId, name: name, args: c.args || {}, turn: S.turns || 0 }, ac.signal).then(function (r) {
                 if (!S || !S.pending[id]) return;               // cancelled (barge-in) or the session is over
                 delete S.pending[id];
                 var b = r.body || {};
                 var result = b.result && typeof b.result === 'object' && !Array.isArray(b.result) ? b.result : { output: b.result || b.error || 'No result.' };
                 if (r.status >= 400 && !b.result) result = { error: b.error || 'The tool failed.' };
+                if (b.summary) S.actions.push(b.summary);   // shown under the reply: what was actually done
                 if (b.card && S.hooks.presentCard) S.hooks.presentCard(b.card, 'open');
                 var fr = { id: id, name: name, response: result };
                 if (slow) fr.scheduling = 'WHEN_IDLE';
@@ -381,7 +386,7 @@
         S = {
             hooks: hooks, dock: dock, state: 'connecting', ws: null, ctx: null, stream: null, node: null, src: null,
             play: null, queuedMs: 0, micHoldUntil: 0, lastAudioAt: 0, outMode: 'speaker', speaking: false, muted: false, ready: false, pending: {}, earcon: null,
-            userBuf: '', modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
+            userBuf: '', actions: [], modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
             lastUserAt: 0, firstAudioPending: false, firstAudios: 0, slowTools: [], resumeHandle: null, usage: null, sessionId: '', remaining: 0, idle: 45, timer: null
         };
         setState('connecting');
