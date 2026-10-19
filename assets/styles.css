@@ -2810,3 +2810,9 @@ body.voice-on .voice-dock .vd-orb[data-state="listening"], body.voice-on .voice-
     /* Desktop: the stage takes the chat column; the card column stays on the right. */
     body.voice-on .voice-dock { grid-area: messages; }
 }
+
+/* Email menu: a mailbox row with a disconnect × */
+.tm-acc { display: flex; align-items: center; gap: 6px; }
+.tm-acc-name { flex: 1; min-width: 0; word-break: break-all; }
+.tm-acc-x { flex: none; border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); }
+.tm-acc-x:hover { color: var(--error); background: var(--accent-soft); }
