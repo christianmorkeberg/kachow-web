@@ -4231,8 +4231,30 @@
         chips.className = 'di-chips';
         var list = document.createElement('div');
         list.className = 'di-list';
+        // Export: the ticked ideas, or — with nothing ticked — everything the current filter shows.
+        var picked = {};
+        var exportBar = document.createElement('div');
+        exportBar.className = 'di-exportbar';
+        var exportBtn = document.createElement('button');
+        exportBtn.type = 'button';
+        exportBtn.className = 'di-export';
+        exportBar.appendChild(exportBtn);
         wrap.appendChild(chips);
+        wrap.appendChild(exportBar);
         wrap.appendChild(list);
+
+        function exportLabel(n, shown) {
+            var sel = Object.keys(picked).length;
+            setIconText(exportBtn, 'download', sel
+                ? daText('Export selected (' + sel + ')', 'Eksporter valgte (' + sel + ')')
+                : daText('Export all shown (' + shown + ')', 'Eksporter alle viste (' + shown + ')'));
+            exportBtn.disabled = !shown && !sel;
+        }
+        exportBtn.addEventListener('click', function () {
+            var ids = Object.keys(picked);
+            if (!ids.length) ids = items.filter(visible).map(function (i) { return i.id; });
+            if (ids.length) downloadUrl('/api/dev-ideas-export.php?ids=' + ids.join(','));
+        });
 
         function counts() {
             var c = { new: 0, in_progress: 0, done: 0 };
@@ -4278,7 +4300,18 @@
             }
             shown.forEach(function (i) {
                 var row = document.createElement('div');
-                row.className = 'di-row ' + i.status;
+                row.className = 'di-row ' + i.status + (i.priority === 'high' ? ' high' : '');
+
+                var pick = document.createElement('input');
+                pick.type = 'checkbox';
+                pick.className = 'di-pick';
+                pick.checked = !!picked[i.id];
+                pick.setAttribute('aria-label', daText('Select idea #', 'Vælg idé #') + i.id);
+                pick.addEventListener('change', function () {
+                    if (pick.checked) picked[i.id] = true; else delete picked[i.id];
+                    exportLabel(0, items.filter(visible).length);
+                });
+                row.appendChild(pick);
 
                 var main = document.createElement('div');
                 main.className = 'di-main';
@@ -4288,8 +4321,26 @@
                 var meta = document.createElement('div');
                 meta.className = 'di-meta';
                 meta.textContent = '#' + i.id + (i.noted ? ' · ' + i.noted : '') + (i.from ? ' · ' + i.from : '');
+                if (i.priority === 'high') {
+                    var pri = document.createElement('span');
+                    pri.className = 'di-pri';
+                    pri.textContent = daText('High priority', 'Høj prioritet');
+                    meta.appendChild(pri);
+                }
                 main.appendChild(text);
                 main.appendChild(meta);
+                if (i.details) {
+                    var det = document.createElement('details');
+                    det.className = 'di-details';
+                    var sm = document.createElement('summary');
+                    sm.textContent = daText('Details', 'Detaljer');
+                    var body = document.createElement('div');
+                    body.className = 'di-details-body';
+                    appendLinkified(body, i.details);
+                    det.appendChild(sm);
+                    det.appendChild(body);
+                    main.appendChild(det);
+                }
                 row.appendChild(main);
 
                 if (card.can_edit) {
@@ -4338,7 +4389,7 @@
             });
         }
 
-        function draw() { drawChips(); drawList(); }
+        function draw() { drawChips(); drawList(); exportLabel(0, items.filter(visible).length); }
         draw();
 
         messages.appendChild(wrap);
