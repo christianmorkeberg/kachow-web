@@ -124,7 +124,7 @@ try {
         }
     }
 
-    out(200, ['ok' => $res['ok'], 'result' => $res['result'], 'card' => $res['card'], 'ms' => $res['ms']]);
+    out(200, ['ok' => $res['ok'], 'result' => $res['result'], 'card' => $res['card'], 'ms' => $res['ms'], 'summary' => $res['summary']]);
 } catch (\Throwable $e) {
     error_log('live-tool.php: ' . $e->getMessage());
     out(500, ['ok' => false, 'result' => ['error' => 'The tool failed.'], 'card' => null, 'debug' => get_class($e) . ': ' . $e->getMessage()]);
