@@ -98,19 +98,24 @@
         d.className = 'voice-dock';
         d.innerHTML =
             '<div class="vd-time" hidden></div>' +
-            '<div class="vd-row">' +
+            '<div class="vd-stage">' +
             '<span class="vd-orb" data-state="connecting"></span>' +
-            '<span class="vd-status">Connecting…</span>' +
+            '<div class="vd-status">Connecting…</div>' +
+            '<div class="vd-line vd-ai"></div>' +
+            '<div class="vd-acts"></div>' +
+            '<div class="vd-line vd-you"></div>' +
+            '</div>' +
+            '<div class="vd-row">' +
             '<button type="button" class="vd-btn vd-stop" hidden>Stop talking</button>' +
             '<button type="button" class="vd-btn vd-out" title="Speaker: the microphone stays closed while the assistant talks, so it cannot hear itself. Headphones: you can interrupt by speaking.">Speaker</button>' +
             '<button type="button" class="vd-btn vd-mute" aria-pressed="false">Mute</button>' +
             '<button type="button" class="vd-btn vd-end">End</button>' +
             '</div>' +
-            '<div class="vd-line vd-you"></div><div class="vd-line vd-ai"></div>' +
-            '<form class="vd-type"><input type="text" placeholder="Type to the voice assistant (testing)…" autocomplete="off"><button type="submit" class="vd-btn">Send</button></form>' +
+            '<form class="vd-type" hidden><input type="text" placeholder="Type to the voice assistant (testing)…" autocomplete="off"><button type="submit" class="vd-btn">Send</button></form>' +
             '<div class="vd-error" hidden></div>';
         var composer = document.getElementById('composer');
         if (composer && composer.parentNode) composer.parentNode.insertBefore(d, composer); else document.body.appendChild(d);
+        try { if (localStorage.getItem('kachow.voice.typebox') === '1') d.querySelector('.vd-type').hidden = false; } catch (e) { /* ignore */ }
         return d;
     }
 
@@ -123,6 +128,12 @@
         d.querySelector('.vd-status').textContent = text || ({
             connecting: 'Connecting…', listening: 'Listening', thinking: 'Working on it…', speaking: 'Speaking', muted: 'Muted — tap Unmute to talk', ended: 'Ended'
         }[state] || state);
+    }
+    // What the tools just did, under the assistant's caption (the same lines that go under the saved reply).
+    function renderActs() {
+        if (!S) return;
+        var el = S.dock.querySelector('.vd-acts');
+        el.textContent = S.stageActs.slice(-3).map(function (x) { return '↳ ' + x; }).join('\n');
     }
     function showError(msg) {
         if (!S) return;
@@ -287,11 +298,12 @@
             S.lastUserAt = Date.now();
             S.lastActivity = Date.now();
             S.firstAudioPending = true;
-            S.dock.querySelector('.vd-you').textContent = 'You: ' + S.userBuf.trim();
+            if (S.stageActs.length) { S.stageActs = []; renderActs(); }          // a new request: the last action lines are old news
+            S.dock.querySelector('.vd-you').textContent = S.userBuf.trim();
         }
         if (sc.outputTranscription && sc.outputTranscription.text) {
             S.modelBuf += sc.outputTranscription.text;
-            S.dock.querySelector('.vd-ai').textContent = 'Kachow: ' + S.modelBuf.trim();
+            S.dock.querySelector('.vd-ai').textContent = S.modelBuf.trim();
         }
         if (sc.modelTurn && sc.modelTurn.parts) {
             sc.modelTurn.parts.forEach(function (p) {
@@ -320,8 +332,7 @@
         if (S.actions.length) { a = (a ? a + '\n\n' : '') + S.actions.map(function (x) { return '↳ ' + x; }).join('\n'); S.actions = []; }
         if (a) { S.transcript.push({ role: 'assistant', text: a }); S.hooks.addMessage && S.hooks.addMessage(a, 'assistant'); }
         if (u || a) scheduleFlush();
-        S.dock.querySelector('.vd-you').textContent = '';
-        S.dock.querySelector('.vd-ai').textContent = '';
+        // the captions stay on the stage until the next words replace them
     }
 
     function handleToolCalls(calls) {
@@ -338,7 +349,7 @@
                 var b = r.body || {};
                 var result = b.result && typeof b.result === 'object' && !Array.isArray(b.result) ? b.result : { output: b.result || b.error || 'No result.' };
                 if (r.status >= 400 && !b.result) result = { error: b.error || 'The tool failed.' };
-                if (b.summary) S.actions.push(b.summary);   // shown under the reply: what was actually done
+                if (b.summary) { S.actions.push(b.summary); S.stageActs.push(b.summary); renderActs(); }   // shown under the reply: what was actually done
                 if (b.card && S.hooks.presentCard) S.hooks.presentCard(b.card, 'open');
                 var fr = { id: id, name: name, response: result };
                 if (slow) fr.scheduling = 'WHEN_IDLE';
@@ -415,11 +426,13 @@
         if (S) return Promise.resolve(false);
         hooks = hooks || {};
         var dock = document.getElementById('voiceDock') || buildDock();
+        document.body.classList.add('voice-on');       // the stage replaces the chat while talking
         dock.hidden = false;
+        ['.vd-ai', '.vd-you', '.vd-acts'].forEach(function (q) { dock.querySelector(q).textContent = ''; });
         S = {
             hooks: hooks, dock: dock, state: 'connecting', ws: null, ctx: null, stream: null, node: null, src: null,
             play: null, queuedMs: 0, micHoldUntil: 0, lastAudioAt: 0, outMode: 'speaker', speaking: false, muted: false, ready: false, pending: {}, earcon: null,
-            userBuf: '', actions: [], modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
+            userBuf: '', actions: [], stageActs: [], modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
             lastUserAt: 0, firstAudioPending: false, firstAudios: 0, slowTools: [], resumeHandle: null, usage: null, sessionId: '', remaining: 0, idle: 45, timer: null
         };
         setState('connecting');
@@ -527,6 +540,7 @@
         s.state = 'ended';
         var dock = s.dock;
         S = null;
+        document.body.classList.remove('voice-on');
         // leave the dock up a moment so the reason can be read, unless it never got started
         setTimeout(function () { if (!S && dock) dock.hidden = true; }, failed ? 6000 : 4000);
     }
@@ -566,7 +580,7 @@
         S.lastUserAt = Date.now();
         S.firstAudioPending = true;
         S.userBuf += (S.userBuf ? ' ' : '') + text;
-        S.dock.querySelector('.vd-you').textContent = 'You: ' + S.userBuf;
+        S.dock.querySelector('.vd-you').textContent = S.userBuf;
     }
 
     // dock buttons (delegated, so a rebuilt dock still works)
