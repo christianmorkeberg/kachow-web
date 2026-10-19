@@ -267,6 +267,7 @@
 
     function handleContent(sc) {
         if (sc.interrupted) {
+            S.turns = (S.turns || 0) + 1;
             flushPlayback();
             logEvent('interrupted');
             // What the assistant had said so far stays in this turn's text, marked as cut off. It is NOT saved on its own:
@@ -303,6 +304,7 @@
 
     // A finished turn: put what was said in the chat and queue it for the conversation.
     function endTurn() {
+        S.turns = (S.turns || 0) + 1;     // the server's spoken-confirmation gate counts turns
         var u = S.userBuf.trim(), a = S.modelBuf.trim();
         S.userBuf = ''; S.modelBuf = '';
         if (u) { S.transcript.push({ role: 'user', text: u }); S.hooks.addMessage && S.hooks.addMessage(u, 'user'); }
@@ -320,7 +322,7 @@
             S.lastActivity = Date.now();
             refreshState();
             setTimeout(updateEarcon, EARCON_AFTER_MS + 20);
-            post('/api/live-tool.php', { session_id: S.sessionId, name: name, args: c.args || {} }, ac.signal).then(function (r) {
+            post('/api/live-tool.php', { session_id: S.sessionId, name: name, args: c.args || {}, turn: S.turns || 0 }, ac.signal).then(function (r) {
                 if (!S || !S.pending[id]) return;               // cancelled (barge-in) or the session is over
                 delete S.pending[id];
                 var b = r.body || {};
