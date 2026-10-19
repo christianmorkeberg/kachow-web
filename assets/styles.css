@@ -1419,7 +1419,9 @@ button.ghost {
     border-radius: 5px;
     font-size: .92em;
 }
-.msg.assistant a { color: var(--accent); }
+.msg.assistant a, .msg.notification a { color: var(--accent); }
+.msg.user a { color: inherit; text-decoration: underline; }
+.msg a { overflow-wrap: anywhere; }
 
 /* ---------- Persistent card panel ("canvas") — mobile-first ---------- */
 /* Sits between the message stream and the composer: the message list (flex:1)

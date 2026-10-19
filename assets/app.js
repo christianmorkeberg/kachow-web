@@ -141,6 +141,26 @@
     // as wall-clock time directly — correct as long as the browser is also Europe/Copenhagen,
     // a safe bet (Christian is the only user). Omitted for a message created live, which just
     // means "now" either way.
+    // Plain text → DOM with http(s) URLs as tappable links (never innerHTML, so nothing in the
+    // text can inject markup). Used for user/notification/plain bubbles.
+    function appendLinkified(el, text) {
+        var re = /https?:\/\/[^\s<>"']+/g, str = String(text), last = 0, m;
+        while ((m = re.exec(str)) !== null) {
+            var url = m[0], tail = '';
+            while (url.length > 8 && (/[.,;:!?]$/.test(url) || (url.slice(-1) === ')' && url.split('(').length < url.split(')').length))) {
+                tail = url.slice(-1) + tail;
+                url = url.slice(0, -1);
+            }
+            if (m.index > last) el.appendChild(document.createTextNode(str.slice(last, m.index)));
+            var a = document.createElement('a');
+            a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = url;
+            el.appendChild(a);
+            if (tail) el.appendChild(document.createTextNode(tail));
+            last = m.index + m[0].length;
+        }
+        if (last < str.length) el.appendChild(document.createTextNode(str.slice(last)));
+    }
+
     function addMessage(text, role, html, atLocal) {
         clearEmptyHint();
 
@@ -150,7 +170,7 @@
             // Server-rendered, HTML-escaped markdown (see Support\Markdown).
             bubble.innerHTML = html;
         } else {
-            bubble.textContent = text;
+            appendLinkified(bubble, text);
         }
         var when = atLocal ? new Date(String(atLocal).replace(' ', 'T')) : new Date();
         if (!isNaN(when.getTime())) {
@@ -7864,7 +7884,7 @@
                     turn_id: turnId,
                     // First reply in a chat opened from a notification: the server stores the
                     // notification as the opening assistant turn, so the model has the context.
-                    notice: !conversationId && pendingNotice ? pendingNotice.text : undefined,
+                    notice: pendingNotice ? pendingNotice.text : undefined,
                     view: currentOpenView() || undefined,
                 }),
                 signal: sendController ? sendController.signal : undefined,
@@ -7886,8 +7906,9 @@
                 return;
             }
 
+            pendingNotice = null;   // saved with this message (or irrelevant): never sent twice
+            lastActivityAt = Date.now();
             if (data.conversation_id) {
-                pendingNotice = null;
                 conversationId = data.conversation_id;
                 localStorage.setItem(CONV_KEY, String(conversationId));
             }
@@ -8001,7 +8022,7 @@
         if (parts.length) {
             var b = document.createElement('div');
             b.className = 'notif-body';
-            b.textContent = parts.join('\n');
+            appendLinkified(b, parts.join('\n'));
             bubble.appendChild(b);
         }
         var when = atLocal ? new Date(String(atLocal).replace(' ', 'T')) : null;
@@ -8038,6 +8059,7 @@
                 });
                 if (lastCard) presentCard(lastCard);
                 conversationId = id;
+                lastActivityAt = Date.now();
                 localStorage.setItem(CONV_KEY, String(id));
                 if (!messages.children.length) showEmptyHint();
                 messages.scrollTop = messages.scrollHeight;
@@ -8211,7 +8233,7 @@
     // drops its postMessage to a suspended or discarded page — so check that first.
     takePendingOpen().then(function (p) {
         var gen = navGen;
-        if (p) handlePendingOpen(p);
+        if (p) startFromNotification(p);
         else if (convParam) loadConversation(Number(convParam), gen).catch(function () { if (gen === navGen) decideStartupChat(); });
         else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
         else decideStartupChat();
@@ -8220,6 +8242,28 @@
         if (document.visibilityState !== 'visible') return;
         takePendingOpen().then(function (p) { if (p) handlePendingOpen(p); });
     });
+
+    // Cold start from a tapped notification: first bring back the chat you were in if it is
+    // still warm (the same rule as a normal start), so the notification lands inside it
+    // instead of replacing it; a notification for a specific conversation just opens that.
+    function startFromNotification(p) {
+        var toConv = /[?&]conv=\d/.test(String(p.url || ''));
+        if (toConv) { handlePendingOpen(p); return; }
+        fetch('/api/conversations.php?recent=1', { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                showUnseenTaskAlert(data && data.unseen_tasks);
+                var recent = data && data.recent ? data.recent : null;
+                if (recent && recent.age_seconds <= IDLE_RESUME_SECONDS) {
+                    return loadConversation(recent.id).then(function () {
+                        lastActivityAt = Date.now() - recent.age_seconds * 1000;
+                    });
+                }
+                resumeConversation = (recent && recent.id) ? recent : null;
+            })
+            .catch(function () { /* start without the old chat */ })
+            .then(function () { handlePendingOpen(p); });
+    }
 
     // A scheduled task found something (notify_me fired, see bin/scheduled-tasks-cron.php)
     // but the push may have been missed (dismissed, phone off, notifications denied) — show
@@ -8321,6 +8365,9 @@
     // The notification a fresh chat was opened from — sent with the first message so the
     // server stores it as the assistant's opening turn (the model then knows the context).
     var pendingNotice = null;
+    // When this chat last had activity (loaded, sent, answered) — decides whether a tapped
+    // notification joins it or starts a fresh chat.
+    var lastActivityAt = 0;
     var lastPendingAt = 0;
 
     // Read + clear the tap the service worker parked in CacheStorage (null if none / stale).
@@ -8343,16 +8390,92 @@
         if (!p || (p.at && p.at === lastPendingAt)) return;
         lastPendingAt = p.at || 0;
         if (window.caches) caches.open('kachow-pending').then(function (c) { c.delete('/__pending-open'); }).catch(function () {});
+        refreshInboxCount();
+        landNotification(p);
+    }
+
+    // Where a notification lands (a tap on the push, or on its entry in the bell list):
+    //  • its own conversation, already open  → stay in it; never reload or wipe it;
+    //  • its own conversation, another one   → open that, with the notification at the bottom;
+    //  • a card/plain notification, and a chat that is still warm (<1h, same rule as the app
+    //    start) → show it INSIDE that chat, so what you were doing is not thrown away;
+    //  • otherwise (no chat / gone cold)     → a fresh chat that opens with it.
+    // A notification already shown in this chat is not added again — re-tapping it just
+    // scrolls to it (and re-opens its card).
+    function landNotification(p) {
         var u;
         try { u = new URL(p.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
-        refreshInboxCount();
-        var convParam2 = u.searchParams.get('conv');
-        if (convParam2) {
-            navGen++;
-            loadConversation(Number(convParam2)).catch(function () { openNotificationCard(null, null, p); });
+        var convId = Number(u.searchParams.get('conv')) || 0;
+        var key = u.searchParams.get('card'), rid = u.searchParams.get('rid');
+        try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
+
+        if (convId && convId === conversationId) {
+            showNoticeBubble(p, false);
             return;
         }
-        openNotificationCard(u.searchParams.get('card'), u.searchParams.get('rid'), p);
+        if (convId) {
+            navGen++;
+            var gen = navGen;
+            loadConversation(convId).then(function () {
+                if (gen === navGen) showNoticeBubble(p, false);
+            }).catch(function () {
+                if (gen === navGen) openNotificationCard(null, null, p);
+            });
+            return;
+        }
+        if (conversationIsWarm()) {
+            landInOpenConversation(key, rid, p);
+            return;
+        }
+        openNotificationCard(key, rid, p);
+    }
+
+    // A chat is warm while it has content and was last used within IDLE_RESUME_SECONDS.
+    function conversationIsWarm() {
+        return !!(conversationId && messages.querySelector('.msg') && Date.now() - lastActivityAt < IDLE_RESUME_SECONDS * 1000);
+    }
+
+    // The notification as a bubble at the bottom of the open chat. Returns true when it was
+    // added, false when this chat already showed it. `store` also queues it to be saved with
+    // the next message (so the model knows what a reply like "Done" refers to).
+    function showNoticeBubble(note, store) {
+        var title = (note && note.title) || '', body = (note && note.body) || '';
+        if (!title && !body) { messages.scrollTop = messages.scrollHeight; return false; }
+        var k = title + '\n' + body, shown = null;
+        messages.querySelectorAll('.msg.notification').forEach(function (b) {
+            var t = b.querySelector('.notif-title');
+            if (b.dataset.key === k || (t && t.textContent.trim() === title.trim())) shown = b;
+        });
+        if (shown) {
+            shown.scrollIntoView({ block: 'end', behavior: 'smooth' });
+            return false;
+        }
+        var bubble = addNotificationBubble(body ? title + '\n' + body : title);
+        bubble.dataset.key = k;
+        messages.scrollTop = messages.scrollHeight;
+        if (store) {
+            var text = [title, body].filter(Boolean).join(' — ');
+            pendingNotice = { text: pendingNotice ? pendingNotice.text + '\n' + text : text, type: note.type || '' };
+        }
+        return true;
+    }
+
+    function landInOpenConversation(key, rid, note) {
+        navGen++;
+        var gen = navGen;
+        var added = showNoticeBubble(note, true);
+        var replies = notifReplies(note && note.type);
+        if (replies && added) renderSuggestions(replies);
+        if (!key) return;
+        var url = '/api/card.php?for=' + encodeURIComponent(key);
+        if (rid) url += '&rid=' + encodeURIComponent(rid);
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+            .then(function (data) {
+                if (gen !== navGen) return;
+                if (data && data.card) presentCard(data.card, 'open');
+            })
+            .catch(function () { /* the notification text is already in the chat */ });
     }
 
     function openNotificationCard(key, rid, note) {
@@ -8372,8 +8495,8 @@
         var noticeText = note && (note.title || note.body)
             ? [note.title, note.body].filter(Boolean).join(' — ') : null;
         if (noticeText) {
-            addMessage(noticeText, 'assistant', note.title && note.body
-                ? '<p><strong>' + progEsc(note.title) + '</strong><br>' + progEsc(note.body) + '</p>' : null);
+            var nb = addNotificationBubble(note.body ? (note.title || '') + '\n' + note.body : (note.title || note.body));
+            nb.dataset.key = (note.title || '') + '\n' + (note.body || '');
             pendingNotice = { text: noticeText, type: note.type || '' };
         } else {
             pendingNotice = null;
@@ -9021,15 +9144,7 @@
                 }).then(function () { refreshInboxCount(); }).catch(function () { /* non-fatal */ });
             }
             close();
-            var u;
-            try { u = new URL(it.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
-            var conv = u.searchParams.get('conv');
-            if (conv) {
-                navGen++;
-                loadConversation(Number(conv)).catch(function () { toast(daText('That conversation is gone.', 'Samtalen findes ikke mere.')); });
-                return;
-            }
-            openNotificationCard(u.searchParams.get('card'), u.searchParams.get('rid'), { title: it.title, body: it.body, type: it.type });
+            landNotification({ url: it.url, type: it.type || '', title: it.title, body: it.body });
         }
 
         btn.addEventListener('click', open);
