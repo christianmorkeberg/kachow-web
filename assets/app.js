@@ -50,9 +50,6 @@
     let conversationId = Number(localStorage.getItem(CONV_KEY)) || null;
     let busy = false;
     let sendController = null;  // AbortController for the in-flight chat request (Stop button)
-    // Hands-free voice mode: once on, the mic stays armed across turns until the
-    // user manually switches back to text (by typing) or taps the mic off.
-    let voiceMode = false;
     let quickActions = null;   // cached suggestions for the empty-screen chips
     let resumeConversation = null;      // {id,title} offered as a "pick up where you left off" pill
     const IDLE_RESUME_SECONDS = 3600;   // only auto-resume the last chat if <1h since its last message
@@ -1974,7 +1971,6 @@
                                  : (day.weekday + ' ' + day.label + ' at ' + String(ev.time).split('–')[0]);
         input.value = 'My "' + ev.summary + '" event on ' + start + ' — ';
         autogrow();
-        if (voiceMode) exitVoiceMode();
         input.focus();
         // Land the caret at the end so they type straight after the dash.
         const len = input.value.length;
@@ -2433,7 +2429,6 @@
         input.value = 'Draft a reply to ' + (senderName(card.from) || 'them')
             + ' about "' + (card.subject || '(no subject)') + '": ';
         autogrow();
-        if (voiceMode) exitVoiceMode();
         input.focus();
         var len = input.value.length;
         try { input.setSelectionRange(len, len); } catch (e) { /* ignore */ }
@@ -6841,7 +6836,6 @@
                 var replyRow = addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
                 attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
                 attachMessageMeta(bubble, { id: data.user_message_id });
-                speak(data.reply || '');
                 if (data.card) { applyAppearanceFromCard(data.card); presentCard(data.card, data.card_mode); }
                 if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
                 if (wasNew && conversationId) {
@@ -8163,7 +8157,6 @@
             const replyRow = addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
             attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
             attachMessageMeta(userRow, { id: data.user_message_id });
-            speak(data.reply || '');
             if (data.card) { applyAppearanceFromCard(data.card); presentCard(data.card, data.card_mode); }
             if (data.suggestions && data.suggestions.length) renderSuggestions(data.suggestions);
 
@@ -8190,11 +8183,7 @@
             busy = false;
             sendController = null;
             setSendStopMode(false);
-            if (voiceMode) {
-                resumeVoiceWhenReady(); // stay hands-free — re-arm the mic for the next turn
-            } else {
-                input.focus();
-            }
+            input.focus();
         }
     }
 
@@ -8213,9 +8202,6 @@
 
     input.addEventListener('input', function () {
         autogrow();
-        // Real typing = manual switch to text mode. (Mic dictation sets .value
-        // programmatically, which does NOT fire 'input', so it won't trip this.)
-        if (voiceMode) exitVoiceMode();
     });
     input.addEventListener('keydown', function (ev) {
         // Enter sends; Shift+Enter makes a newline.
@@ -8313,156 +8299,6 @@
                 messages.scrollTop = messages.scrollHeight;
                 return data;
             });
-    }
-
-    // ---------- Voice: text-to-speech (read replies aloud) ----------
-    const synth = window.speechSynthesis;
-    const ttsBtn = document.getElementById('ttsToggle');
-    const TTS_KEY = 'kachow.tts';
-    let ttsOn = localStorage.getItem(TTS_KEY) === '1';
-
-    function renderTts() {
-        if (!ttsBtn) return;
-        // Menu item: icon + label, swapped with the state.
-        setIconText(ttsBtn, ttsOn ? 'volume-2' : 'volume-x', ttsOn ? 'Voice on — tap to mute' : 'Read replies aloud');
-        ttsBtn.classList.toggle('tm-on', ttsOn);
-        ttsBtn.setAttribute('aria-pressed', ttsOn ? 'true' : 'false');
-    }
-
-    // `speak` is hoisted, so send() can call it even though it's defined here.
-    function speak(text) {
-        if (!ttsOn || !synth || !text) return;
-        synth.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = navigator.language || 'en-US';
-        synth.speak(u);
-    }
-
-    if (synth && ttsBtn) {
-        ttsBtn.hidden = false;
-        renderTts();
-        ttsBtn.addEventListener('click', function () {
-            ttsOn = !ttsOn;
-            localStorage.setItem(TTS_KEY, ttsOn ? '1' : '0');
-            if (ttsOn) {
-                // Warm up within this user gesture — iOS won't speak later otherwise.
-                synth.speak(new SpeechSynthesisUtterance(' '));
-            } else {
-                synth.cancel();
-            }
-            renderTts();
-        });
-    }
-
-    // ---------- Voice: speech-to-text + hands-free voice mode ----------
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const micBtn = document.getElementById('mic');
-    let recog = null;
-    let listening = false;     // a recognition session is currently live
-    let stoppedByTap = false;  // this session is ending because the user tapped off
-    let lastStart = 0;
-    let rapidFails = 0;
-
-    // The red pill tracks voiceMode (the whole hands-free session), not each short
-    // recognition session — that's why it now stays lit instead of flickering.
-    function paintMic() {
-        if (micBtn) micBtn.classList.toggle('listening', voiceMode);
-    }
-
-    // Returns true if a session actually started. On iOS, start() outside a user
-    // gesture can throw — the caller treats a false as "can't auto-continue".
-    function startListening() {
-        if (!recog || listening) return false;
-        input.value = '';
-        lastStart = Date.now();
-        try { recog.start(); listening = true; return true; }
-        catch (e) { return false; }
-    }
-
-    function enterVoiceMode() {
-        voiceMode = true;
-        rapidFails = 0;
-        paintMic();
-        startListening();
-    }
-
-    function exitVoiceMode() {
-        voiceMode = false;
-        paintMic();
-        if (listening && recog) { stoppedByTap = true; recog.stop(); }
-    }
-
-    // Re-arm after the assistant's turn, but only once any spoken reply has
-    // finished (so the mic doesn't hear the TTS). Polls speechSynthesis because
-    // utterance 'end' events are unreliable in some browsers.
-    function resumeVoiceWhenReady() {
-        if (!voiceMode) return;
-        const go = function () {
-            if (voiceMode && !listening && !startListening()) exitVoiceMode();
-        };
-        if (!synth || !ttsOn) { go(); return; }
-        let waited = 0;
-        const t = setInterval(function () {
-            if ((!synth.speaking && !synth.pending) || waited >= 20000) {
-                clearInterval(t);
-                go();
-            }
-            waited += 150;
-        }, 150);
-    }
-
-    // Keep voice mode alive through silences, but bail if starts keep failing
-    // instantly (e.g. iOS wants a fresh tap each turn) so we never busy-loop.
-    function keepListeningAlive() {
-        const quick = Date.now() - lastStart < 350;
-        rapidFails = quick ? rapidFails + 1 : 0;
-        if (rapidFails >= 3) { exitVoiceMode(); return; }
-        setTimeout(function () {
-            if (voiceMode && !busy && !listening && !startListening()) exitVoiceMode();
-        }, 400);
-    }
-
-    if (SR && micBtn) {
-        recog = new SR();
-        recog.lang = navigator.language || 'en-US';
-        recog.interimResults = true;
-        recog.continuous = false;
-
-        recog.addEventListener('result', function (ev) {
-            rapidFails = 0;
-            let text = '';
-            for (let i = 0; i < ev.results.length; i++) {
-                text += ev.results[i][0].transcript;
-            }
-            input.value = text;
-            autogrow();
-        });
-        recog.addEventListener('end', function () {
-            listening = false;
-            if (stoppedByTap) { stoppedByTap = false; return; }
-            if (input.value.trim()) {
-                form.requestSubmit();      // natural pause → send; re-arm after the reply
-            } else if (voiceMode) {
-                keepListeningAlive();      // heard nothing yet → keep waiting
-            }
-        });
-        recog.addEventListener('error', function (ev) {
-            listening = false;
-            const err = ev && ev.error;
-            if (err === 'not-allowed' || err === 'service-not-allowed') {
-                exitVoiceMode();           // mic permission denied — stop trying
-                stoppedByTap = false;
-                return;
-            }
-            if (voiceMode && !stoppedByTap) keepListeningAlive();
-            stoppedByTap = false;
-        });
-
-        micBtn.hidden = false;
-        micBtn.addEventListener('click', function () {
-            if (voiceMode) { exitVoiceMode(); input.focus(); return; }
-            enterVoiceMode();
-        });
     }
 
     fetchQuickActions();
@@ -8566,10 +8402,14 @@
             });
     }
 
-    // ---- Live voice (developer preview): the dock + Gemini Live live in assets/voice.js, loaded on first use ----
+    // ---- Live voice (the mic button): the dock + Gemini Live live in assets/voice.js, loaded on first use ----
     (function initLiveVoice() {
-        var btn = document.getElementById('liveVoiceBtn');
+        var btn = document.getElementById('mic');
         if (!btn) return;
+        // Needs the mic, an AudioContext with worklets, and WebSocket; otherwise the button stays hidden.
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.WebSocket
+            && (window.AudioContext || window.webkitAudioContext))) return;
+        btn.hidden = false;
         var loading = null;
         function load() {
             if (window.KachowVoice) return Promise.resolve(window.KachowVoice);
@@ -8591,14 +8431,13 @@
                 conversationId = id;
                 localStorage.setItem(CONV_KEY, String(id));
                 lastActivityAt = Date.now();
+                btn.classList.add('listening');
             },
-            end: function () { lastActivityAt = Date.now(); },
+            end: function () { lastActivityAt = Date.now(); btn.classList.remove('listening'); },
             addMessage: function (text, role) { addMessage(text, role); },
             presentCard: function (card, mode) { if (card) { applyAppearanceFromCard(card); presentCard(card, mode || 'open'); } }
         };
         btn.addEventListener('click', function () {
-            var menu = document.getElementById('topbarMenu');
-            if (menu) menu.removeAttribute('open');
             load().then(function (v) { return v.isActive() ? v.stop() : v.start(hooks); }).catch(function (e) { toast(e.message || 'Voice failed.'); });
         });
     })();

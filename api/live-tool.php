@@ -52,9 +52,6 @@ if (!$session->isLoggedIn()) {
     out(401, ['error' => 'Not authenticated.']);
 }
 $userId = (int) $session->userId();
-if (!$users->isAdmin($userId)) {
-    out(403, ['error' => 'Voice mode is still a developer preview.']);
-}
 
 $in        = json_decode((string) file_get_contents('php://input'), true);
 $in        = is_array($in) ? $in : [];
