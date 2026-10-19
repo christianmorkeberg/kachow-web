@@ -15,25 +15,59 @@
 
     var IN_RATE = 16000;
     var EARCON_AFTER_MS = 800;          // a tool call this slow gets a soft sound, so there is no dead air
+    var MIC_TAIL_MS = 350;              // in speaker mode the mic stays closed this long after the assistant stops (room echo)
 
+    // Two processors in one module: the microphone (any rate -> 16 kHz PCM16) and the speaker (24 kHz PCM16 queue ->
+    // the context's rate, resampled continuously with a small pre-buffer, so playback is gapless and a flush is instant).
     var WORKLET_SRC = [
         'class KachowCap extends AudioWorkletProcessor {',
-        '  constructor() { super(); this.ratio = sampleRate / ' + IN_RATE + '; this.t = 0; this.sum = 0; this.n = 0; this.out = new Int16Array(800); this.k = 0; this.energy = 0; this.cnt = 0; }',
+        '  constructor() { super(); this.ratio = sampleRate / ' + IN_RATE + '; this.t = 0; this.sum = 0; this.n = 0; this.out = new Int16Array(800); this.k = 0; }',
         '  process(inputs) {',
         '    var x = inputs[0] && inputs[0][0]; if (!x) return true;',
         '    for (var i = 0; i < x.length; i++) {',
         '      this.sum += x[i]; this.n++; this.t += 1;',
         '      if (this.t >= this.ratio) {',
         '        this.t -= this.ratio; var v = this.sum / this.n; this.sum = 0; this.n = 0;',
-        '        this.energy += v * v; this.cnt++;',
         '        v = Math.max(-1, Math.min(1, v)); this.out[this.k++] = v < 0 ? v * 32768 : v * 32767;',
-        '        if (this.k === this.out.length) { var rms = Math.sqrt(this.energy / this.cnt); this.port.postMessage({ pcm: this.out.buffer, rms: rms }, [this.out.buffer]); this.out = new Int16Array(800); this.k = 0; this.energy = 0; this.cnt = 0; }',
+        '        if (this.k === this.out.length) { this.port.postMessage({ pcm: this.out.buffer }, [this.out.buffer]); this.out = new Int16Array(800); this.k = 0; }',
         '      }',
         '    }',
         '    return true;',
         '  }',
         '}',
-        'registerProcessor("kachow-cap", KachowCap);'
+        'registerProcessor("kachow-cap", KachowCap);',
+        'class KachowPlay extends AudioWorkletProcessor {',
+        '  constructor() {',
+        '    super(); this.q = []; this.cur = null; this.pos = 0; this.rate = 24000; this.playing = false; this.blocks = 0;',
+        '    this.port.onmessage = (e) => {',
+        '      var m = e.data;',
+        '      if (m.flush) { this.q = []; this.cur = null; this.pos = 0; this.setPlaying(false); this.report(true); return; }',
+        '      if (m.pcm) { this.rate = m.rate || this.rate; this.q.push(new Int16Array(m.pcm)); }',
+        '    };',
+        '  }',
+        '  queued() { var n = this.cur ? this.cur.length - this.pos : 0; for (var i = 0; i < this.q.length; i++) n += this.q[i].length; return n; }',
+        '  setPlaying(p) { if (p !== this.playing) { this.playing = p; this.port.postMessage({ state: p ? "playing" : "drained" }); } }',
+        '  report(force) { this.blocks++; if (force || this.blocks % 12 === 0) this.port.postMessage({ queuedMs: Math.round(this.queued() / this.rate * 1000) }); }',
+        '  process(inputs, outputs) {',
+        '    var out = outputs[0][0]; if (!out) return true;',
+        '    if (!this.playing) {',
+        '      // start only once ~120 ms is queued: absorbs network jitter at the start of a sentence',
+        '      if (this.queued() >= this.rate * 0.12) this.setPlaying(true); else { out.fill(0); this.report(false); return true; }',
+        '    }',
+        '    var step = this.rate / sampleRate;',
+        '    for (var i = 0; i < out.length; i++) {',
+        '      if (!this.cur) { this.cur = this.q.shift() || null; this.pos = 0; if (!this.cur) { out.fill(0, i); this.setPlaying(false); break; } }',
+        '      var idx = Math.floor(this.pos), fr = this.pos - idx, a = this.cur[idx], b;',
+        '      if (idx + 1 < this.cur.length) b = this.cur[idx + 1]; else b = this.q.length ? this.q[0][0] : a;',
+        '      out[i] = (a + (b - a) * fr) / 32768;',
+        '      this.pos += step;',
+        '      while (this.cur && this.pos >= this.cur.length) { this.pos -= this.cur.length; this.cur = this.q.shift() || null; if (!this.cur) { this.pos = 0; } }',
+        '    }',
+        '    this.report(false);',
+        '    return true;',
+        '  }',
+        '}',
+        'registerProcessor("kachow-play", KachowPlay);'
     ].join('\n');
 
     var S = null;   // the live session state, null when no session
@@ -63,6 +97,8 @@
             '<span class="vd-orb" data-state="connecting"></span>' +
             '<span class="vd-status">Connecting…</span>' +
             '<span class="vd-time"></span>' +
+            '<button type="button" class="vd-btn vd-stop" hidden>Stop talking</button>' +
+            '<button type="button" class="vd-btn vd-out" title="Speaker: the microphone stays closed while the assistant talks, so it cannot hear itself. Headphones: you can interrupt by speaking.">Speaker</button>' +
             '<button type="button" class="vd-btn vd-mute" aria-pressed="false">Mute</button>' +
             '<button type="button" class="vd-btn vd-end">End</button>' +
             '</div>' +
@@ -120,41 +156,48 @@
     }
 
     // ---------- audio out ----------
+    // Chunks go to the playback worklet (gapless, resampled continuously); the worklet says when it starts and drains.
     function playPcm(b64, rate) {
-        if (!S || !S.ctx) return;
+        if (!S || !S.play) return;
         var bytes = bytesFromB64(b64);
-        var n = bytes.length >> 1;
-        if (!n) return;
-        var i16 = new Int16Array(bytes.buffer, bytes.byteOffset, n);
-        var buf = S.ctx.createBuffer(1, n, rate || 24000);
-        var ch = buf.getChannelData(0);
-        for (var i = 0; i < n; i++) ch[i] = i16[i] / 32768;
-        var src = S.ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(S.ctx.destination);
-        var startAt = Math.max(S.ctx.currentTime + 0.02, S.nextPlay);
-        src.start(startAt);
-        S.nextPlay = startAt + buf.duration;
-        S.sources.push(src);
-        src.onended = function () {
-            if (!S) return;
-            var ix = S.sources.indexOf(src);
-            if (ix >= 0) S.sources.splice(ix, 1);
-            if (!S.sources.length) { S.speaking = false; refreshState(); }
-        };
-        S.speaking = true;
+        if (bytes.length < 2) return;
+        var ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + (bytes.length & ~1));
+        S.play.port.postMessage({ pcm: ab, rate: rate || 24000 }, [ab]);
+        S.speaking = true;                      // gates the microphone straight away (speaker mode)
+        S.lastAudioAt = Date.now();
         S.lastActivity = Date.now();
         refreshState();
     }
     function flushPlayback() {
         if (!S) return;
-        S.sources.splice(0).forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) { /* already stopped */ } });
-        S.nextPlay = 0;
+        if (S.play) S.play.port.postMessage({ flush: true });
         S.speaking = false;
+        S.queuedMs = 0;
+        S.micHoldUntil = Date.now() + 120;
         refreshState();
+    }
+    function onPlayMessage(m) {
+        if (!S) return;
+        if (m.queuedMs !== undefined) S.queuedMs = m.queuedMs;
+        if (m.state === 'playing') { S.speaking = true; refreshState(); }
+        if (m.state === 'drained') {
+            // chunks may still be on their way: only call it silence when nothing is queued
+            S.speaking = false;
+            S.micHoldUntil = Date.now() + MIC_TAIL_MS;
+            S.lastActivity = Date.now();
+            refreshState();
+        }
+    }
+    function micOpen() {
+        if (!S || S.muted || !S.ready) return false;
+        // half-duplex: no echo. Audio that arrived a moment ago counts as still speaking (a network gap mid-sentence must not open the mic)
+        if (S.outMode === 'speaker' && (S.speaking || Date.now() < S.micHoldUntil || Date.now() - S.lastAudioAt < 700)) return false;
+        return true;
     }
     function refreshState() {
         if (!S || S.state === 'connecting' || S.state === 'ended') return;
+        var stop = S.dock.querySelector('.vd-stop');
+        if (stop) stop.hidden = !S.speaking;
         if (S.muted) return setState('muted');
         if (S.speaking) return setState('speaking');
         if (Object.keys(S.pending).length) return setState('thinking');
@@ -226,11 +269,9 @@
         if (sc.interrupted) {
             flushPlayback();
             logEvent('interrupted');
-            // what the assistant had said before it was cut off still happened: keep it
-            var cut = S.modelBuf.trim();
-            S.modelBuf = '';
-            if (cut) { S.transcript.push({ role: 'assistant', text: cut + ' …' }); S.hooks.addMessage && S.hooks.addMessage(cut + ' …', 'assistant'); scheduleFlush(); }
-            S.dock.querySelector('.vd-ai').textContent = '';
+            // What the assistant had said so far stays in this turn's text, marked as cut off. It is NOT saved on its own:
+            // the transcription of what interrupted it often arrives later, and the saved order must stay you → assistant.
+            if (S.modelBuf.trim() && !/…\s*$/.test(S.modelBuf)) S.modelBuf = S.modelBuf.replace(/\s+$/, '') + ' … ';
         }
         if (sc.inputTranscription && sc.inputTranscription.text) {
             S.userBuf += sc.inputTranscription.text;
@@ -318,19 +359,13 @@
         navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }).then(function (stream) {
             if (!S) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
             S.stream = stream;
-            var blob = new Blob([WORKLET_SRC], { type: 'application/javascript' });
-            var url = URL.createObjectURL(blob);
-            return S.ctx.audioWorklet.addModule(url).then(function () {
-                URL.revokeObjectURL(url);
-                if (!S) return;
-                S.src = S.ctx.createMediaStreamSource(stream);
-                S.node = new AudioWorkletNode(S.ctx, 'kachow-cap');
-                S.node.port.onmessage = function (ev) {
-                    if (!S || S.muted || !S.ready) return;
-                    send({ realtimeInput: { audio: { data: b64FromBytes(new Uint8Array(ev.data.pcm)), mimeType: 'audio/pcm;rate=' + IN_RATE } } });
-                };
-                S.src.connect(S.node);       // not connected to the speakers: nothing to echo
-            });
+            S.src = S.ctx.createMediaStreamSource(stream);
+            S.node = new AudioWorkletNode(S.ctx, 'kachow-cap');
+            S.node.port.onmessage = function (ev) {
+                if (!micOpen()) return;
+                send({ realtimeInput: { audio: { data: b64FromBytes(new Uint8Array(ev.data.pcm)), mimeType: 'audio/pcm;rate=' + IN_RATE } } });
+            };
+            S.src.connect(S.node);       // not connected to the speakers: nothing to echo
         }).catch(function (e) {
             logEvent('client_error', { detail: { message: 'microphone: ' + (e && e.message) } });
             showError('Could not use the microphone: ' + (e && e.message ? e.message : e) + ' (you can still type below).');
@@ -345,7 +380,7 @@
         dock.hidden = false;
         S = {
             hooks: hooks, dock: dock, state: 'connecting', ws: null, ctx: null, stream: null, node: null, src: null,
-            sources: [], nextPlay: 0, speaking: false, muted: false, ready: false, pending: {}, earcon: null,
+            play: null, queuedMs: 0, micHoldUntil: 0, lastAudioAt: 0, outMode: 'speaker', speaking: false, muted: false, ready: false, pending: {}, earcon: null,
             userBuf: '', modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
             lastUserAt: 0, firstAudioPending: false, firstAudios: 0, slowTools: [], resumeHandle: null, usage: null, sessionId: '', remaining: 0, idle: 45, timer: null
         };
@@ -356,6 +391,8 @@
         S.ctx = new AC();
         if (S.ctx.resume) S.ctx.resume();
         var toolMode = (window.localStorage && localStorage.getItem('kachow.voice.toolmode')) || 'auto';
+        try { S.outMode = localStorage.getItem('kachow.voice.output') === 'headphones' ? 'headphones' : 'speaker'; } catch (e) { /* default */ }
+        setOutLabel();
 
         return post('/api/live-token.php', { tool_mode: toolMode }).then(function (r) {
             if (!S) return false;
@@ -365,11 +402,23 @@
             S.startedAt = Date.now();
             if (hooks.begin) hooks.begin(b.conversation_id);
             if (navigator.wakeLock && navigator.wakeLock.request) navigator.wakeLock.request('screen').then(function (w) { if (S) S.wake = w; else w.release(); }).catch(function () { /* optional */ });
-            return openSocket(b);
+            return loadWorklets().then(function () { return openSocket(b); });
         }).then(function () { return true; }).catch(function (e) {
             showError(e && e.message ? e.message : String(e));
             teardown(true);
             return false;
+        });
+    }
+
+    // the speaker worklet is ready before the first chunk can arrive; the microphone worklet is added with the mic
+    var workletUrl = null;
+    function loadWorklets() {
+        workletUrl = workletUrl || URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+        return S.ctx.audioWorklet.addModule(workletUrl).then(function () {
+            if (!S) return;
+            S.play = new AudioWorkletNode(S.ctx, 'kachow-play', { numberOfInputs: 0, outputChannelCount: [1] });
+            S.play.port.onmessage = function (e) { onPlayMessage(e.data); };
+            S.play.connect(S.ctx.destination);
         });
     }
 
@@ -431,7 +480,7 @@
         flushPlayback();
         Object.keys(s.pending).forEach(function (id) { try { s.pending[id].abort.abort(); } catch (e) { /* ignore */ } });
         s.pending = {};
-        try { s.node && s.node.disconnect(); s.src && s.src.disconnect(); } catch (e) { /* ignore */ }
+        try { s.node && s.node.disconnect(); s.src && s.src.disconnect(); s.play && s.play.disconnect(); } catch (e) { /* ignore */ }
         try { s.stream && s.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* ignore */ }
         try { s.ws && s.ws.readyState < 2 && s.ws.close(); } catch (e) { /* ignore */ }
         try { s.ctx && s.ctx.close(); } catch (e) { /* ignore */ }
@@ -457,6 +506,20 @@
         refreshState();
     }
 
+    function setOutLabel() {
+        if (!S) return;
+        var b = S.dock.querySelector('.vd-out');
+        if (b) b.textContent = S.outMode === 'speaker' ? 'Speaker' : 'Headphones';
+    }
+    // Speaker: the mic is closed while the assistant talks (it cannot hear itself); use Stop talking to cut in.
+    // Headphones: the mic stays open, so speaking over the assistant interrupts it.
+    function toggleOutMode() {
+        if (!S) return;
+        S.outMode = S.outMode === 'speaker' ? 'headphones' : 'speaker';
+        try { localStorage.setItem('kachow.voice.output', S.outMode); } catch (e) { /* ignore */ }
+        setOutLabel();
+    }
+
     function sendText(text) {
         text = (text || '').trim();
         if (!S || !S.ready || !text) return;
@@ -473,6 +536,8 @@
         if (!e.target || !e.target.closest) return;
         if (e.target.closest('#voiceDock .vd-end')) stop();
         else if (e.target.closest('#voiceDock .vd-mute')) toggleMute();
+        else if (e.target.closest('#voiceDock .vd-out')) toggleOutMode();
+        else if (e.target.closest('#voiceDock .vd-stop')) { if (S) { flushPlayback(); S.micHoldUntil = 0; } }
     });
     document.addEventListener('submit', function (e) {
         var f = e.target && e.target.closest && e.target.closest('#voiceDock .vd-type');
