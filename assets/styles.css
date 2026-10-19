@@ -1768,6 +1768,7 @@ button.iconbtn.on {
 }
 .tm-item:hover { background: var(--accent-soft); }
 .tm-item.tm-on { color: var(--accent); }
+.tm-version { padding: 8px 10px 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; user-select: all; word-break: break-word; }
 
 /* ---------- IMAP connect modal ---------- */
 .imap-hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; line-height: 1.5; }
@@ -2711,3 +2712,40 @@ svg.cyc-emoji { overflow: visible; }
     .loc-card { grid-template-rows: auto auto auto 1fr; }
     .loc-card > .loc-map { grid-row: 2 / span 3; }
 }
+
+
+/* ---------- Scheduled tasks card ---------- */
+.sched-row { padding: 10px 2px; border-top: 1px solid var(--line); }
+.sched-row:first-child { border-top: 0; }
+.sched-row.paused .sched-name, .sched-row.done .sched-name { color: var(--muted); }
+.sched-head { display: flex; align-items: center; gap: 10px; }
+.sched-name { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; word-break: break-word; }
+.sched-meta { margin-top: 2px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.sched-desc { margin-top: 5px; font-size: 12.5px; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.sched-pill { padding: 1px 8px; border-radius: 999px; font-size: 10.5px; color: var(--text); background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.sched-section { margin: 14px 0 2px; padding-top: 10px; border-top: 1px solid var(--border-strong, var(--border)); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.sched-last { margin-top: 7px; padding: 7px 9px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12.5px; }
+.sched-last.none { color: var(--muted); }
+.sched-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; background: var(--muted); }
+.sched-dot.ok { background: var(--success, #34d399); }
+.sched-dot.notified { background: var(--accent); }
+.sched-dot.err { background: var(--error, #f87171); }
+.sched-said { margin-top: 5px; }
+.sched-said > summary { cursor: pointer; color: var(--muted); list-style: none; user-select: none; font-size: 12px; }
+.sched-said > summary::before { content: '▸ '; }
+.sched-said[open] > summary::before { content: '▾ '; }
+.sched-said-body { margin-top: 4px; white-space: pre-wrap; word-break: break-word; line-height: 1.45; max-height: 220px; overflow: auto; }
+.sched-said-body.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+.sched-said-body a { color: var(--accent); }
+.sched-open { margin-top: 8px; display: inline-flex; align-items: center; border: 1px solid var(--border); background: transparent; color: var(--muted);
+    border-radius: 999px; padding: 4px 11px; font-size: 12px; cursor: pointer; }
+.sched-open:hover, .sched-open.unseen { color: var(--text); border-color: var(--accent-line); }
+.sched-open.unseen { background: var(--accent-soft); }
+.sched-switch { position: relative; flex: none; width: 42px; height: 24px; cursor: pointer; }
+.sched-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.sched-track { position: absolute; inset: 0; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border-strong, var(--border)); transition: background .15s; pointer-events: none; }
+.sched-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.sched-switch input:checked + .sched-track { background: var(--accent-soft); border-color: var(--accent-line); }
+.sched-switch input:checked + .sched-track::after { transform: translateX(18px); background: var(--accent); }
+.sched-switch input:disabled + .sched-track { opacity: .55; }
+.sched-switch input:focus-visible + .sched-track { outline: 2px solid var(--accent); outline-offset: 2px; }

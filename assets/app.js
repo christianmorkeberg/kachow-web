@@ -801,6 +801,7 @@
         email_draft:   ['pencil-line', 'Draft'],
         feedback:      ['wrench', 'Feedback'],
         dev_ideas:     ['lightbulb', 'Dev ideas'],
+        scheduled_tasks: ['repeat', 'Scheduled'],
         personality:   ['drama', 'Personality'],
         appearance:    ['palette', 'Appearance'],
         notice:        ['circle-alert', 'Note']
@@ -966,6 +967,11 @@
         if (card.kind === 'dev_ideas' && card.counts) {
             return (card.counts.new || 0) + ' ' + devStatusLabel('new').toLowerCase() + ' · '
                 + (card.counts.in_progress || 0) + ' ' + devStatusLabel('in_progress').toLowerCase();
+        }
+        if (card.kind === 'scheduled_tasks') {
+            var on = (card.items || []).filter(function (t) { return t.status === 'active'; }).length;
+            var off = (card.items || []).filter(function (t) { return t.status === 'paused'; }).length;
+            return on + ' ' + daText('active', 'aktive') + (off ? ' · ' + off + ' ' + daText('paused', 'på pause') : '');
         }
         if (card.kind === 'places') {
             var pc = card.count != null ? card.count : (card.places || []).length;
@@ -1170,6 +1176,15 @@
                     else if (!j) toast(daText('Could not refresh the reports.', 'Kunne ikke opdatere rapporterne.'));
                 })
                 .catch(function () { toast(daText('Could not refresh the reports.', 'Kunne ikke opdatere rapporterne.')); });
+            return;
+        }
+
+        // Scheduled tasks run, pause and resume without the chat noticing — re-read them when the card is reopened.
+        if (card && card.kind === 'scheduled_tasks') {
+            fetch('/api/scheduled-tasks.php', { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) { if (j && j.card && panelCard === card) refreshPanelCard(j.card); })
+                .catch(function () { /* keep the snapshot */ });
             return;
         }
 
@@ -1403,6 +1418,7 @@
         if (card.kind === 'chart') { renderChart(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
         if (card.kind === 'dev_ideas') { renderDevIdeas(card); return; }
+        if (card.kind === 'scheduled_tasks') { renderScheduledTasks(card); return; }
         if (card.kind === 'personality') { renderPersonality(card); return; }
         if (card.kind === 'appearance') { renderAppearance(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
@@ -4391,6 +4407,170 @@
 
         function draw() { drawChips(); drawList(); exportLabel(0, items.filter(visible).length); }
         draw();
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Scheduled tasks card: every task with a switch (pause/resume), its schedule and next run, and what the
+    // last run came to (notified / quiet / error, with the run's closing words). The developer also gets the
+    // built-in system jobs below, with who starts them (cPanel or the per-minute dispatcher) and their last output.
+    function renderScheduledTasks(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card sched-card';
+
+        function post(body, sw) {
+            sw.disabled = true;
+            fetch('/api/scheduled-tasks.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                body: JSON.stringify(body)
+            }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (res) {
+                if (res && res.ok && res.card) {
+                    if (panelCard === card) refreshPanelCard(res.card);
+                } else {
+                    sw.checked = !sw.checked; sw.disabled = false;
+                    toast((res && res.error) || daText('Could not update.', 'Kunne ikke opdatere.'));
+                }
+            }).catch(function () {
+                sw.checked = !sw.checked; sw.disabled = false;
+                toast(daText('Network error.', 'Netværksfejl.'));
+            });
+        }
+
+        function lastRun(t, isSystem) {
+            var box = document.createElement('div');
+            box.className = 'sched-last';
+            if (!t.last_run) {
+                box.textContent = daText('Has not run yet.', 'Har ikke kørt endnu.');
+                box.classList.add('none');
+                return box;
+            }
+            var res = document.createElement('div');
+            res.className = 'sched-last-head';
+            var state, cls;
+            if (t.last_status === 'error') { state = daText('Error', 'Fejl'); cls = 'err'; }
+            else if (isSystem) { state = t.last_status === 'skipped' ? daText('Skipped', 'Sprunget over') : daText('Ran OK', 'Kørte fint'); cls = 'ok'; }
+            else if (t.notified) { state = daText('Notified you', 'Gav dig besked') + (t.last_title ? ': ' + t.last_title : ''); cls = 'notified'; }
+            else { state = daText('Quiet — nothing to report', 'Stille — intet at melde'); cls = 'ok'; }
+            var dot = document.createElement('span');
+            dot.className = 'sched-dot ' + cls;
+            res.appendChild(dot);
+            res.appendChild(document.createTextNode(' ' + daText('Last run ', 'Sidst kørt ') + t.last_run + ' · ' + state
+                + (isSystem && t.last_ms != null ? ' · ' + (t.last_ms >= 1000 ? (t.last_ms / 1000).toFixed(1) + ' s' : t.last_ms + ' ms') : '')));
+            box.appendChild(res);
+            var said = isSystem ? t.last_output : t.last_summary;
+            if (said) {
+                var det = document.createElement('details');
+                det.className = 'sched-said';
+                var sm = document.createElement('summary');
+                sm.textContent = isSystem ? daText('Output', 'Output') : daText('What it said', 'Hvad den skrev');
+                var body = document.createElement('div');
+                body.className = 'sched-said-body' + (isSystem ? ' mono' : '');
+                appendLinkified(body, said);
+                det.appendChild(sm);
+                det.appendChild(body);
+                box.appendChild(det);
+            }
+            return box;
+        }
+
+        function toggle(label, checked, onChange) {
+            var l = document.createElement('label');
+            l.className = 'sched-switch';
+            l.title = checked ? daText('Active — tap to pause', 'Aktiv — tryk for at sætte på pause') : daText('Paused — tap to resume', 'På pause — tryk for at genoptage');
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = checked;
+            cb.setAttribute('role', 'switch');
+            cb.setAttribute('aria-label', label);
+            var track = document.createElement('span');
+            track.className = 'sched-track';
+            l.appendChild(cb);
+            l.appendChild(track);
+            cb.addEventListener('change', function () { onChange(cb); });
+            return { el: l, input: cb };
+        }
+
+        function row(t, isSystem) {
+            var el = document.createElement('div');
+            el.className = 'sched-row ' + t.status + (isSystem ? ' system' : '');
+            var head = document.createElement('div');
+            head.className = 'sched-head';
+            var name = document.createElement('div');
+            name.className = 'sched-name';
+            name.textContent = t.label;
+            head.appendChild(name);
+            if (t.status === 'done') {
+                var done = document.createElement('span');
+                done.className = 'sched-pill';
+                done.textContent = daText('Done', 'Færdig');
+                head.appendChild(done);
+            } else {
+                var sw = toggle(t.label, t.status === 'active', function (cb) {
+                    var body = { action: cb.checked ? 'resume' : 'pause' };
+                    if (isSystem) body.system_task = t.key; else body.id = t.id;
+                    post(body, cb);
+                });
+                head.appendChild(sw.el);
+            }
+            el.appendChild(head);
+
+            var meta = document.createElement('div');
+            meta.className = 'sched-meta';
+            var bits = [t.schedule];
+            if (t.status === 'active' && t.next_run) bits.push(daText('next ', 'næste ') + t.next_run);
+            else if (t.status === 'paused') bits.push(daText('paused', 'på pause'));
+            if (!isSystem && t.tell_always) bits.push(daText('tells you every time', 'melder hver gang'));
+            meta.textContent = bits.join(' · ');
+            if (isSystem) {
+                var trig = document.createElement('span');
+                trig.className = 'sched-pill';
+                trig.textContent = t.mode === 'dispatcher' ? daText('Dispatcher', 'Dispatcher') : 'cPanel';
+                trig.title = t.mode === 'dispatcher' ? daText('Started by the per-minute scheduled-tasks cron', 'Startes af det minutlige cron-job')
+                    : daText("Started by the server's own cron entry", 'Startes af serverens egen cron-linje');
+                meta.appendChild(trig);
+            }
+            el.appendChild(meta);
+
+            var info = isSystem ? t.description : t.instruction;
+            if (info) {
+                var d = document.createElement('div');
+                d.className = 'sched-desc';
+                d.textContent = info;
+                el.appendChild(d);
+            }
+            el.appendChild(lastRun(t, isSystem));
+
+            if (!isSystem && t.conversation_id) {
+                var open = document.createElement('button');
+                open.type = 'button';
+                open.className = 'sched-open' + (t.unseen ? ' unseen' : '');
+                setIconText(open, 'message-square', daText('Open the runs', 'Åbn kørslerne'));
+                open.addEventListener('click', function () { loadConversation(t.conversation_id).catch(function () { toast(daText('That conversation is gone.', 'Samtalen findes ikke mere.')); }); });
+                el.appendChild(open);
+            }
+            return el;
+        }
+
+        var items = card.items || [];
+        if (!items.length) {
+            var empty = document.createElement('div');
+            empty.className = 'prog-empty';
+            empty.textContent = daText(
+                'No scheduled tasks yet. Ask me, e.g. "every weekday at 8, check my mail for invoices and tell me if there are any".',
+                'Ingen planlagte opgaver endnu. Spørg mig fx: "hver hverdag kl. 8, tjek min mail for fakturaer og sig til hvis der er nogen".');
+            wrap.appendChild(empty);
+        }
+        items.forEach(function (t) { wrap.appendChild(row(t, false)); });
+
+        if (card.system && card.system.length) {
+            var h = document.createElement('div');
+            h.className = 'sched-section';
+            h.textContent = daText('System jobs', 'Systemjobs');
+            wrap.appendChild(h);
+            card.system.forEach(function (t) { wrap.appendChild(row(t, true)); });
+        }
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
