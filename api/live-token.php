@@ -49,9 +49,6 @@ if (!$session->isLoggedIn()) {
     out(401, ['error' => 'Not authenticated.']);
 }
 $userId = (int) $session->userId();
-if (!$users->isAdmin($userId)) {
-    out(403, ['error' => 'Voice mode is still a developer preview.']);
-}
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     out(405, ['error' => 'POST only.']);
 }

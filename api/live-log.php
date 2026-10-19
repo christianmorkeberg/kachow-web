@@ -41,9 +41,6 @@ if (!$session->isLoggedIn()) {
     out(401, ['error' => 'Not authenticated.']);
 }
 $userId = (int) $session->userId();
-if (!$users->isAdmin($userId)) {
-    out(403, ['error' => 'Voice mode is still a developer preview.']);
-}
 
 /** The kinds the browser may log (tool calls are logged by live-tool.php, the start by live-token.php). */
 const CLIENT_KINDS = ['setup_complete', 'first_audio', 'interrupted', 'cancelled', 'goaway', 'resume', 'idle_close', 'limit_close', 'session_end', 'client_error'];

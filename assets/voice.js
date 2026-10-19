@@ -87,26 +87,35 @@
             .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); });
     }
 
+    var LOW_SECONDS = 120;          // the countdown appears when this little of today's voice time is left
+    var MIC_KEEP_MS = 180000;       // how long the mic stays open after a session ends, so the next one needn't ask again
+    var keptStream = null, keptTimer = null;
+
     // ---------- the dock (state, live lines, mute / end, type-to-test) ----------
     function buildDock() {
         var d = document.createElement('div');
         d.id = 'voiceDock';
         d.className = 'voice-dock';
         d.innerHTML =
-            '<div class="vd-row">' +
+            '<div class="vd-time" hidden></div>' +
+            '<div class="vd-stage">' +
             '<span class="vd-orb" data-state="connecting"></span>' +
-            '<span class="vd-status">Connecting…</span>' +
-            '<span class="vd-time"></span>' +
+            '<div class="vd-status">Connecting…</div>' +
+            '<div class="vd-line vd-ai"></div>' +
+            '<div class="vd-acts"></div>' +
+            '<div class="vd-line vd-you"></div>' +
+            '</div>' +
+            '<div class="vd-row">' +
             '<button type="button" class="vd-btn vd-stop" hidden>Stop talking</button>' +
             '<button type="button" class="vd-btn vd-out" title="Speaker: the microphone stays closed while the assistant talks, so it cannot hear itself. Headphones: you can interrupt by speaking.">Speaker</button>' +
             '<button type="button" class="vd-btn vd-mute" aria-pressed="false">Mute</button>' +
             '<button type="button" class="vd-btn vd-end">End</button>' +
             '</div>' +
-            '<div class="vd-line vd-you"></div><div class="vd-line vd-ai"></div>' +
-            '<form class="vd-type"><input type="text" placeholder="Type to the voice assistant (testing)…" autocomplete="off"><button type="submit" class="vd-btn">Send</button></form>' +
+            '<form class="vd-type" hidden><input type="text" placeholder="Type to the voice assistant (testing)…" autocomplete="off"><button type="submit" class="vd-btn">Send</button></form>' +
             '<div class="vd-error" hidden></div>';
         var composer = document.getElementById('composer');
         if (composer && composer.parentNode) composer.parentNode.insertBefore(d, composer); else document.body.appendChild(d);
+        try { if (localStorage.getItem('kachow.voice.typebox') === '1') d.querySelector('.vd-type').hidden = false; } catch (e) { /* ignore */ }
         return d;
     }
 
@@ -120,6 +129,12 @@
             connecting: 'Connecting…', listening: 'Listening', thinking: 'Working on it…', speaking: 'Speaking', muted: 'Muted — tap Unmute to talk', ended: 'Ended'
         }[state] || state);
     }
+    // What the tools just did, under the assistant's caption (the same lines that go under the saved reply).
+    function renderActs() {
+        if (!S) return;
+        var el = S.dock.querySelector('.vd-acts');
+        el.textContent = S.stageActs.slice(-3).map(function (x) { return '↳ ' + x; }).join('\n');
+    }
     function showError(msg) {
         if (!S) return;
         var e = S.dock.querySelector('.vd-error');
@@ -128,7 +143,11 @@
     function tickClock() {
         if (!S) return;
         var left = Math.max(0, S.remaining - Math.round((Date.now() - S.startedAt) / 1000));
-        S.dock.querySelector('.vd-time').textContent = Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' left today';
+        // Only shown when it is nearly used up; a line of its own above the buttons, so a phone's narrow row can't hide it.
+        var t = S.dock.querySelector('.vd-time');
+        t.hidden = left > LOW_SECONDS;
+        t.classList.toggle('vd-time-urgent', left <= 30);
+        t.textContent = Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' of voice time left today';
         return left;
     }
 
@@ -279,11 +298,12 @@
             S.lastUserAt = Date.now();
             S.lastActivity = Date.now();
             S.firstAudioPending = true;
-            S.dock.querySelector('.vd-you').textContent = 'You: ' + S.userBuf.trim();
+            if (S.stageActs.length) { S.stageActs = []; renderActs(); }          // a new request: the last action lines are old news
+            S.dock.querySelector('.vd-you').textContent = S.userBuf.trim();
         }
         if (sc.outputTranscription && sc.outputTranscription.text) {
             S.modelBuf += sc.outputTranscription.text;
-            S.dock.querySelector('.vd-ai').textContent = 'Kachow: ' + S.modelBuf.trim();
+            S.dock.querySelector('.vd-ai').textContent = S.modelBuf.trim();
         }
         if (sc.modelTurn && sc.modelTurn.parts) {
             sc.modelTurn.parts.forEach(function (p) {
@@ -312,8 +332,7 @@
         if (S.actions.length) { a = (a ? a + '\n\n' : '') + S.actions.map(function (x) { return '↳ ' + x; }).join('\n'); S.actions = []; }
         if (a) { S.transcript.push({ role: 'assistant', text: a }); S.hooks.addMessage && S.hooks.addMessage(a, 'assistant'); }
         if (u || a) scheduleFlush();
-        S.dock.querySelector('.vd-you').textContent = '';
-        S.dock.querySelector('.vd-ai').textContent = '';
+        // the captions stay on the stage until the next words replace them
     }
 
     function handleToolCalls(calls) {
@@ -330,7 +349,7 @@
                 var b = r.body || {};
                 var result = b.result && typeof b.result === 'object' && !Array.isArray(b.result) ? b.result : { output: b.result || b.error || 'No result.' };
                 if (r.status >= 400 && !b.result) result = { error: b.error || 'The tool failed.' };
-                if (b.summary) S.actions.push(b.summary);   // shown under the reply: what was actually done
+                if (b.summary) { S.actions.push(b.summary); S.stageActs.push(b.summary); renderActs(); }   // shown under the reply: what was actually done
                 if (b.card && S.hooks.presentCard) S.hooks.presentCard(b.card, 'open');
                 var fr = { id: id, name: name, response: result };
                 if (slow) fr.scheduling = 'WHEN_IDLE';
@@ -360,9 +379,34 @@
     }
 
     // ---------- the microphone ----------
+    // Phones (iOS especially) ask for the microphone on every getUserMedia, so after a session the stream is kept
+    // (silenced) for a few minutes and handed to the next one; then it is released and the mic indicator goes off.
+    function getMic() {
+        if (keptTimer) { clearTimeout(keptTimer); keptTimer = null; }
+        if (keptStream && keptStream.getAudioTracks().some(function (t) { return t.readyState === 'live'; })) {
+            var st = keptStream; keptStream = null;
+            st.getAudioTracks().forEach(function (t) { t.enabled = true; });
+            return Promise.resolve(st);
+        }
+        keptStream = null;
+        return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    }
+    function releaseMic() {
+        if (keptTimer) { clearTimeout(keptTimer); keptTimer = null; }
+        if (keptStream) { try { keptStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* ignore */ } keptStream = null; }
+    }
+    function keepMic(stream) {
+        if (!stream) return;
+        releaseMic();
+        stream.getAudioTracks().forEach(function (t) { t.enabled = false; });
+        keptStream = stream;
+        keptTimer = setTimeout(releaseMic, MIC_KEEP_MS);
+    }
+    window.addEventListener('pagehide', releaseMic);
+
     function startMic() {
-        navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }).then(function (stream) {
-            if (!S) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        getMic().then(function (stream) {
+            if (!S) { keepMic(stream); return; }
             S.stream = stream;
             S.src = S.ctx.createMediaStreamSource(stream);
             S.node = new AudioWorkletNode(S.ctx, 'kachow-cap');
@@ -382,11 +426,13 @@
         if (S) return Promise.resolve(false);
         hooks = hooks || {};
         var dock = document.getElementById('voiceDock') || buildDock();
+        document.body.classList.add('voice-on');       // the stage replaces the chat while talking
         dock.hidden = false;
+        ['.vd-ai', '.vd-you', '.vd-acts'].forEach(function (q) { dock.querySelector(q).textContent = ''; });
         S = {
             hooks: hooks, dock: dock, state: 'connecting', ws: null, ctx: null, stream: null, node: null, src: null,
             play: null, queuedMs: 0, micHoldUntil: 0, lastAudioAt: 0, outMode: 'speaker', speaking: false, muted: false, ready: false, pending: {}, earcon: null,
-            userBuf: '', actions: [], modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
+            userBuf: '', actions: [], stageActs: [], modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
             lastUserAt: 0, firstAudioPending: false, firstAudios: 0, slowTools: [], resumeHandle: null, usage: null, sessionId: '', remaining: 0, idle: 45, timer: null
         };
         setState('connecting');
@@ -486,7 +532,7 @@
         Object.keys(s.pending).forEach(function (id) { try { s.pending[id].abort.abort(); } catch (e) { /* ignore */ } });
         s.pending = {};
         try { s.node && s.node.disconnect(); s.src && s.src.disconnect(); s.play && s.play.disconnect(); } catch (e) { /* ignore */ }
-        try { s.stream && s.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* ignore */ }
+        keepMic(s.stream);
         try { s.ws && s.ws.readyState < 2 && s.ws.close(); } catch (e) { /* ignore */ }
         try { s.ctx && s.ctx.close(); } catch (e) { /* ignore */ }
         if (s.wake) { try { s.wake.release(); } catch (e) { /* ignore */ } }
@@ -494,6 +540,7 @@
         s.state = 'ended';
         var dock = s.dock;
         S = null;
+        document.body.classList.remove('voice-on');
         // leave the dock up a moment so the reason can be read, unless it never got started
         setTimeout(function () { if (!S && dock) dock.hidden = true; }, failed ? 6000 : 4000);
     }
@@ -533,7 +580,7 @@
         S.lastUserAt = Date.now();
         S.firstAudioPending = true;
         S.userBuf += (S.userBuf ? ' ' : '') + text;
-        S.dock.querySelector('.vd-you').textContent = 'You: ' + S.userBuf;
+        S.dock.querySelector('.vd-you').textContent = S.userBuf;
     }
 
     // dock buttons (delegated, so a rebuilt dock still works)

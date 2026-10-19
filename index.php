@@ -234,11 +234,9 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
 
                         <div class="tm-sep"></div>
                         <button type="button" id="notifBtn" class="tm-item" data-icon="bell" hidden>Notifications</button>
-                        <button type="button" id="ttsToggle" class="tm-item" aria-pressed="false" data-icon="volume-x" hidden>Read replies aloud</button>
                         <button type="button" id="appearanceBtn" class="tm-item" data-icon="palette">Appearance</button>
                         <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false" data-icon="wrench">Developer mode</button>
 <?php if ($users->isAdmin((int) $session->userId())): ?>
-                        <button type="button" id="liveVoiceBtn" class="tm-item dev-only" data-icon="mic">Live voice (preview)</button>
 <?php endif; ?>
                         <button type="button" id="insightsBtn" class="tm-item" data-icon="chart-column">Insights</button>
                         <a class="tm-item" data-icon="log-out" href="index.php?action=logout">Log out</a>
@@ -395,7 +393,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <input type="file" id="photoInput" accept="image/*" hidden>
             <input type="file" id="invoiceInput" accept="image/*,application/pdf" hidden>
             <textarea id="input" rows="1" placeholder="Message Kachow…" autocomplete="off"></textarea>
-            <button type="button" id="mic" class="ghost mic" title="Dictate a message" aria-label="Dictate a message" hidden><span data-icon="mic" data-icon-only></span></button>
+            <button type="button" id="mic" class="ghost mic" title="Talk to Kachow" aria-label="Talk to Kachow" hidden><span data-icon="mic" data-icon-only></span></button>
             <button type="submit" id="send" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </form>
         </div><!-- /.workspace -->

@@ -2756,9 +2756,14 @@ svg.cyc-emoji { overflow: visible; }
 body.devmode .tm-item.dev-only { display: block; }
 .voice-dock { flex: none; margin: 0 12px 8px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--accent-line); border-radius: var(--radius); }
 .voice-dock[hidden] { display: none; }
-.vd-row { display: flex; align-items: center; gap: 10px; }
-.vd-status { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
-.vd-time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vd-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
+.vd-stage { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin-bottom: 8px; }
+.vd-status { min-width: 0; font-size: 13px; font-weight: 600; }
+.vd-acts { white-space: pre-line; font-size: 12.5px; color: var(--accent); }
+.vd-acts:empty { display: none; }
+.vd-time { margin-bottom: 8px; font-size: 12.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vd-time[hidden] { display: none; }
+.vd-time-urgent { color: var(--error); }
 .vd-btn { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
 .vd-end { border-color: var(--error); color: var(--error); }
 .vd-orb { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); }
@@ -2770,8 +2775,38 @@ body.devmode .tm-item.dev-only { display: block; }
 @media (prefers-reduced-motion: reduce) { .vd-orb { animation: none !important; } }
 .vd-line { margin-top: 6px; font-size: 12.5px; color: var(--muted); min-height: 0; word-break: break-word; }
 .vd-line:empty { display: none; }
-.vd-ai { color: var(--text); }
+.vd-ai { color: var(--text); font-size: 15px; }
+.vd-you { font-size: 12px; opacity: .75; }
 .vd-type { display: flex; gap: 8px; margin-top: 8px; }
 .vd-type input { flex: 1; min-width: 0; font-size: 13px; padding: 6px 10px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .vd-type input:focus { outline: none; border-color: var(--accent-line); }
 .vd-error { margin-top: 8px; padding: 7px 9px; border-radius: var(--radius-sm); background: rgba(248,113,113,.12); border: 1px solid var(--error); color: var(--text); font-size: 12.5px; word-break: break-word; }
+
+/* ---------- Voice stage: while talking, the chat gives way to the card (or the big orb when there is none) ---------- */
+body.voice-on #messages, body.voice-on #composer { display: none !important; }
+body.voice-on .voice-dock {
+    flex: 1; min-height: 0; margin: 0; border: 0; border-radius: 0; background: var(--bg);
+    display: flex; flex-direction: column; justify-content: center; padding: 16px;
+}
+body.voice-on .vd-stage { flex: 0 1 auto; margin-bottom: 18px; }
+body.voice-on .vd-orb { width: 72px; height: 72px; }
+body.voice-on .vd-status { font-size: 15px; }
+body.voice-on .vd-ai { font-size: 17px; max-width: 34em; }
+body.voice-on .vd-time { text-align: center; }
+body.voice-on .vd-btn { padding: 8px 16px; font-size: 13px; }
+body.voice-on .voice-dock .vd-orb[data-state="listening"], body.voice-on .voice-dock .vd-orb[data-state="speaking"], body.voice-on .voice-dock .vd-orb[data-state="thinking"] { animation-name: vd-pulse-big; }
+@keyframes vd-pulse-big { 0% { box-shadow: 0 0 0 0 var(--accent-line); } 100% { box-shadow: 0 0 0 26px transparent; } }
+@media (max-width: 1023px) {
+    /* A card is on screen: it takes the room, and the dock shrinks to a strip under it. */
+    body.voice-on .card-panel:not([hidden]) { flex: 1 1 auto; }
+    body.voice-on .card-panel:not([hidden]) .card-panel-body { max-height: none; flex: 1; min-height: 0; overflow-y: auto; }
+    body.voice-on:has(#cardPanel:not([hidden])) .voice-dock { flex: 0 0 auto; padding: 8px 12px; border-top: 1px solid var(--line); }
+    body.voice-on:has(#cardPanel:not([hidden])) .vd-stage { flex-direction: row; flex-wrap: wrap; justify-content: center; margin-bottom: 8px; }
+    body.voice-on:has(#cardPanel:not([hidden])) .vd-orb { width: 14px; height: 14px; }
+    body.voice-on:has(#cardPanel:not([hidden])) .vd-ai { font-size: 13px; flex-basis: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    body.voice-on:has(#cardPanel:not([hidden])) .vd-you { display: none; }
+}
+@media (min-width: 1024px) {
+    /* Desktop: the stage takes the chat column; the card column stays on the right. */
+    body.voice-on .voice-dock { grid-area: messages; }
+}
