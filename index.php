@@ -237,6 +237,9 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <button type="button" id="ttsToggle" class="tm-item" aria-pressed="false" data-icon="volume-x" hidden>Read replies aloud</button>
                         <button type="button" id="appearanceBtn" class="tm-item" data-icon="palette">Appearance</button>
                         <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false" data-icon="wrench">Developer mode</button>
+<?php if ($users->isAdmin((int) $session->userId())): ?>
+                        <button type="button" id="liveVoiceBtn" class="tm-item dev-only" data-icon="mic">Live voice (preview)</button>
+<?php endif; ?>
                         <button type="button" id="insightsBtn" class="tm-item" data-icon="chart-column">Insights</button>
                         <a class="tm-item" data-icon="log-out" href="index.php?action=logout">Log out</a>
 <?php $version = \App\Support\Version::summary(__DIR__, $appPath); ?>

@@ -2749,3 +2749,29 @@ svg.cyc-emoji { overflow: visible; }
 .sched-switch input:checked + .sched-track::after { transform: translateX(18px); background: var(--accent); }
 .sched-switch input:disabled + .sched-track { opacity: .55; }
 .sched-switch input:focus-visible + .sched-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+
+/* ---------- Live voice dock (developer preview) ---------- */
+.tm-item.dev-only { display: none; }
+body.devmode .tm-item.dev-only { display: block; }
+.voice-dock { flex: none; margin: 0 12px 8px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--accent-line); border-radius: var(--radius); }
+.voice-dock[hidden] { display: none; }
+.vd-row { display: flex; align-items: center; gap: 10px; }
+.vd-status { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
+.vd-time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vd-btn { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.vd-end { border-color: var(--error); color: var(--error); }
+.vd-orb { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); }
+.vd-orb[data-state="listening"] { background: var(--accent); box-shadow: 0 0 0 0 var(--accent-line); animation: vd-pulse 1.8s ease-out infinite; }
+.vd-orb[data-state="speaking"] { background: #34d399; animation: vd-pulse 0.9s ease-out infinite; }
+.vd-orb[data-state="thinking"] { background: #fbbf24; animation: vd-pulse 1.1s ease-out infinite; }
+.vd-orb[data-state="muted"], .vd-orb[data-state="ended"] { background: var(--muted); }
+@keyframes vd-pulse { 0% { box-shadow: 0 0 0 0 var(--accent-line); } 100% { box-shadow: 0 0 0 10px transparent; } }
+@media (prefers-reduced-motion: reduce) { .vd-orb { animation: none !important; } }
+.vd-line { margin-top: 6px; font-size: 12.5px; color: var(--muted); min-height: 0; word-break: break-word; }
+.vd-line:empty { display: none; }
+.vd-ai { color: var(--text); }
+.vd-type { display: flex; gap: 8px; margin-top: 8px; }
+.vd-type input { flex: 1; min-width: 0; font-size: 13px; padding: 6px 10px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.vd-type input:focus { outline: none; border-color: var(--accent-line); }
+.vd-error { margin-top: 8px; padding: 7px 9px; border-radius: var(--radius-sm); background: rgba(248,113,113,.12); border: 1px solid var(--error); color: var(--text); font-size: 12.5px; word-break: break-word; }

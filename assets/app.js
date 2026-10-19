@@ -8566,6 +8566,43 @@
             });
     }
 
+    // ---- Live voice (developer preview): the dock + Gemini Live live in assets/voice.js, loaded on first use ----
+    (function initLiveVoice() {
+        var btn = document.getElementById('liveVoiceBtn');
+        if (!btn) return;
+        var loading = null;
+        function load() {
+            if (window.KachowVoice) return Promise.resolve(window.KachowVoice);
+            if (!loading) loading = new Promise(function (resolve, reject) {
+                var sc = document.createElement('script');
+                sc.src = '/assets/voice.js?v=' + Date.now();
+                sc.onload = function () { resolve(window.KachowVoice); };
+                sc.onerror = function () { loading = null; reject(new Error('Could not load voice.')); };
+                document.head.appendChild(sc);
+            });
+            return loading;
+        }
+        var hooks = {
+            // the voice session has its own conversation: show it empty and let the spoken turns fill it
+            begin: function (id) {
+                clearSuggestions();
+                messages.innerHTML = '';
+                hidePanel();
+                conversationId = id;
+                localStorage.setItem(CONV_KEY, String(id));
+                lastActivityAt = Date.now();
+            },
+            end: function () { lastActivityAt = Date.now(); },
+            addMessage: function (text, role) { addMessage(text, role); },
+            presentCard: function (card, mode) { if (card) { applyAppearanceFromCard(card); presentCard(card, mode || 'open'); } }
+        };
+        btn.addEventListener('click', function () {
+            var menu = document.getElementById('topbarMenu');
+            if (menu) menu.removeAttribute('open');
+            load().then(function (v) { return v.isActive() ? v.stop() : v.start(hooks); }).catch(function (e) { toast(e.message || 'Voice failed.'); });
+        });
+    })();
+
     function startFreshChat(recent) {
         conversationId = null;
         localStorage.removeItem(CONV_KEY);
