@@ -7,7 +7,7 @@ declare(strict_types=1);
  * notification can open a fresh chat that already shows the relevant card. Own data
  * only. The `for` key comes from NotificationTypes::deepLink (`/?card=<key>`).
  *
- *   GET ?for=cycle | work_hours | work_week | work_log  → { card }
+ *   GET ?for=cycle | work_hours | work_week | work_log | feedback  → { card }
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -15,6 +15,7 @@ require __DIR__ . '/../bootstrap.php';
 use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\CycleTracker;
+use App\Data\FeedbackReports;
 use App\Data\Income;
 use App\Data\Moms;
 use App\Data\NotificationHistory;
@@ -24,6 +25,7 @@ use App\Data\Reminders;
 use App\Data\Users;
 use App\Data\WorkEvents;
 use App\Data\WorkLog;
+use App\Tools\ListFeedback;
 
 header('Content-Type: application/json');
 
@@ -73,6 +75,13 @@ try {
         case 'moms':
             // The quarter awaiting filing (previous quarter) — what the nudge is about.
             $card = (new Moms(new Income(), new Receipts()))->card($userId, -1);
+            break;
+        case 'feedback':
+            // The developer's open reports (the "new feedback report" push). Admin only.
+            if (!$users->isAdmin($userId)) {
+                out(404, ['error' => 'Unknown card.']);
+            }
+            $card = ListFeedback::build(new FeedbackReports(), 'open')['card'];
             break;
         case 'reminder':
             $rid = isset($_GET['rid']) ? (int) $_GET['rid'] : 0;

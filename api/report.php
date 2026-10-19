@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 /**
  * "Report to developer" — a user flags a specific message that looked off. Stores a
- * self-contained snapshot (the message + a little context + its diagnostics) and emails
- * the developer(s). Owner-scoped: you can only report a message in your own conversation.
+ * self-contained snapshot (the message + a little context + its diagnostics) and pushes
+ * a notification to the developer(s). Owner-scoped: you can only report a message in your own conversation.
  *
  *   POST { message_id:int, note?:string } → { ok:true, id:int }
  */
@@ -18,7 +18,8 @@ use App\Data\Conversations;
 use App\Data\FeedbackReports;
 use App\Data\RememberTokens;
 use App\Data\Users;
-use App\Mail\NativeMailer;
+use App\Notify\NotificationTypes;
+use App\Notify\Notifier;
 
 header('Content-Type: application/json');
 
@@ -101,9 +102,9 @@ try {
     $reports  = new FeedbackReports();
     $reportId = $reports->create($userId, $conversationId, $messageId, $note, $snapshot);
 
-    // Notify the developer(s) by email — best-effort, never fails the request.
+    // Push the developer(s) — best-effort, never fails the request.
     try {
-        notifyAdmins($users, $userId, $reportId, $note, $ctx, $diag);
+        notifyAdmins($users, $userId, $reportId, $note, $ctx);
     } catch (\Throwable $e) {
         error_log('report.php notify: ' . $e->getMessage());
     }
@@ -115,40 +116,27 @@ try {
 }
 
 /**
+ * Pushes "new feedback report" to the developer(s) — replaces the old e-mail. Tapping it opens the
+ * open reports (api/card.php?for=feedback). The push also lands in the in-app notification history.
+ *
  * @param array<string, mixed> $ctx
- * @param array<string, mixed>|null $diag
  */
-function notifyAdmins(Users $users, int $reporterId, int $reportId, ?string $note, array $ctx, ?array $diag): void
+function notifyAdmins(Users $users, int $reporterId, int $reportId, ?string $note, array $ctx): void
 {
-    $admins = $users->adminContacts();
-    if ($admins === []) {
+    $adminIds = $users->adminIds();
+    if ($adminIds === []) {
         return;
     }
     $reporter = $users->findById($reporterId);
     $who      = is_array($reporter) ? (string) ($reporter['name'] ?: $reporter['email']) : ('user #' . $reporterId);
 
-    $routing = is_array($diag) && isset($diag['routing']) ? implode(', ', (array) $diag['routing']) : '—';
-    $calls   = '';
-    if (is_array($diag) && !empty($diag['calls'])) {
-        foreach ($diag['calls'] as $c) {
-            $calls .= '<li><code>' . htmlspecialchars((string) ($c['name'] ?? '')) . '</code>'
-                . (($c['ok'] ?? true) ? '' : ' <b>ERROR:</b> ' . htmlspecialchars((string) ($c['error'] ?? '')))
-                . '</li>';
-        }
-    }
+    // The note if there is one, otherwise what was flagged — one short line.
+    $what = $note !== null && trim($note) !== '' ? trim($note) : trim((string) $ctx['content']);
+    $what = trim((string) preg_replace('/\s+/u', ' ', $what));
+    $body = ($what === '' ? 'A message was flagged.' : mb_substr($what, 0, 140) . (mb_strlen($what) > 140 ? '…' : ''));
 
-    $body = '<h2>Kachow feedback #' . $reportId . '</h2>'
-        . '<p><b>From:</b> ' . htmlspecialchars($who) . '</p>'
-        . ($note !== null && trim($note) !== ''
-            ? '<p><b>Note:</b><br>' . nl2br(htmlspecialchars($note)) . '</p>' : '')
-        . '<p><b>Reported message (' . htmlspecialchars((string) $ctx['role']) . '):</b></p>'
-        . '<blockquote>' . nl2br(htmlspecialchars(mb_substr((string) $ctx['content'], 0, 1500))) . '</blockquote>'
-        . '<p><b>Routing:</b> ' . htmlspecialchars($routing) . '</p>'
-        . ($calls !== '' ? '<p><b>Tool calls:</b></p><ul>' . $calls . '</ul>' : '')
-        . '<p style="color:#888">Reply in Kachow: “any feedback reports?”</p>';
-
-    $mailer = NativeMailer::fromEnv();
-    foreach ($admins as $a) {
-        $mailer->send($a['email'], 'Kachow feedback #' . $reportId . ' from ' . $who, $body);
+    $notifier = Notifier::fromEnv();
+    foreach ($adminIds as $adminId) {
+        $notifier->notify($adminId, NotificationTypes::FEEDBACK_REPORT, 'Feedback #' . $reportId . ' from ' . $who, $body);
     }
 }
