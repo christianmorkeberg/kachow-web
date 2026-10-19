@@ -18,6 +18,7 @@ use App\Auth\RememberMe;
 use App\Auth\Session;
 use App\Data\Conversations;
 use App\Data\FeedbackReports;
+use App\Data\HomeDevices;
 use App\Data\Memories;
 use App\Data\RememberTokens;
 use App\Data\UserInstructions;
@@ -89,7 +90,22 @@ try {
         return ['reply' => $reply, 'card' => $loop->lastRender()];
     };
 
-    $res = (new VoiceToolRunner($registry, $gateway, new ConfirmGate($log)))->run($name, $args, $userId, $sessionId, $turn, $convId);
+    // Hue ids -> the names saved from the bridge, so the action line says "Turned off Hallway", not a UUID.
+    $homeName = function (string $id) use ($userId): ?string {
+        try {
+            foreach ((new HomeDevices())->entries($userId, 'hue') as $e) {
+                if ($e['id'] === $id || $e['group'] === $id) {
+                    return $e['name'];
+                }
+            }
+        } catch (\Throwable $e) {
+            // no saved list: the line just says "a light"
+        }
+
+        return null;
+    };
+
+    $res = (new VoiceToolRunner($registry, $gateway, new ConfirmGate($log), $homeName))->run($name, $args, $userId, $sessionId, $turn, $convId);
 
     $argText = mb_substr((string) json_encode($args, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0, 400);
     if ($res['ok']) {
