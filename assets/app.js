@@ -800,7 +800,7 @@
         dev_ideas:     ['lightbulb', 'Dev ideas'],
         scheduled_tasks: ['repeat', 'Routines'],
         personality:   ['drama', 'Personality'],
-        home_cards:    ['sparkles', 'Start cards'],
+        home_cards:    ['list-checks', 'Start cards'],
         appearance:    ['palette', 'Appearance'],
         notice:        ['circle-alert', 'Note']
     };
@@ -1318,7 +1318,7 @@
         cash:            { kind: 'cash',            icon: 'landmark',      en: 'Cash',            da: 'Kontanter',      load: cardFromUrl('/api/cash.php') },
         pl:              { kind: 'pl',              icon: 'trending-up',   en: 'P&L',             da: 'Resultat',       load: cardFromUrl('/api/pl.php?granularity=year&offset=0') },
         mileage:         { kind: 'mileage',         icon: 'car',           en: 'Mileage',         da: 'Kørsel',         load: cardFromUrl('/api/mileage.php?offset=0') },
-        scheduled_tasks: { kind: 'scheduled_tasks', icon: 'sparkles',      en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
+        scheduled_tasks: { kind: 'scheduled_tasks', icon: 'repeat',        en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
         feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') }
     };
