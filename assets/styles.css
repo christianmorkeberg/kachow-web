@@ -2822,3 +2822,9 @@ body.voice-on .voice-dock .vd-orb[data-state="listening"], body.voice-on .voice-
 .vd-lang span { padding: 3px 10px; border-radius: 999px; }
 .vd-lang[data-lang="en"] span[data-l="en"], .vd-lang[data-lang="da"] span[data-l="da"] { background: var(--accent); color: #fff; }
 body.voice-on .vd-lang { font-size: 13px; }
+
+/* Location: Day | Places tabs shared by the two location cards */
+.loc-tabs { display: flex; gap: 6px; margin: 0 0 8px; }
+.loc-tab { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.loc-tab.is-active { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); cursor: default; }
+.loc-tabs.is-busy { opacity: .5; pointer-events: none; }

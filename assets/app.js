@@ -6908,8 +6908,38 @@
         }).then(function (r) { return r.json(); });
     }
 
+    // One "Location" experience over two cards: Day (the timeline + route) and Places (the saved places + map). The tabs flip
+    // between them in place, so asking for "my location" and then "the registered places" no longer means two separate cards.
+    function locTabs(active) {
+        var bar = document.createElement('div');
+        bar.className = 'loc-tabs';
+        [['day', daText('Day', 'Dag')], ['places', daText('Places', 'Steder')]].forEach(function (t) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'loc-tab' + (t[0] === active ? ' is-active' : '');
+            b.textContent = t[1];
+            if (t[0] !== active) {
+                b.addEventListener('click', function () {
+                    bar.classList.add('is-busy');
+                    var req = t[0] === 'day' ? fetchLocationDay(locToday()) : postPlaces({ action: 'list' }, true);
+                    req.then(function (j) {
+                        if (j && j.card) presentCard(j.card, 'open');   // a different kind: replaces the panel, not an in-place refresh
+                        else bar.classList.remove('is-busy');
+                    }).catch(function () {
+                        bar.classList.remove('is-busy');
+                        toast(daText('Could not load that.', 'Kunne ikke hente det.'));
+                    });
+                });
+            }
+            bar.appendChild(b);
+        });
+
+        return bar;
+    }
+
     function renderLocationDay(card) {
         clearEmptyHint();
+        messages.appendChild(locTabs('day'));
         var st = card.stats || {};
         var pts = card.points || [];
         var wrap = document.createElement('div');
@@ -7153,6 +7183,7 @@
 
     function renderPlaces(card) {
         clearEmptyHint();
+        messages.appendChild(locTabs('places'));
         var places = card.places || [];
         var wrap = document.createElement('div');
         wrap.className = 'plan-card places-card';
