@@ -332,7 +332,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                     <button type="button" class="modal-close" id="homeCardsClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
                 </div>
                 <div class="modal-body">
-                    <p class="imap-hint">Tick the cards you want one tap away (up to 6). The first one opens on the start screen.</p>
+                    <p class="imap-hint">Tick the cards you want one tap away. The first one opens on the start screen.</p>
                     <ul id="homeCardsList" class="hc-list"></ul>
                     <button type="button" id="homeCardsSave" class="imap-connect">Save</button>
                     <button type="button" id="homeCardsReset" class="hc-reset">Back to the default</button>

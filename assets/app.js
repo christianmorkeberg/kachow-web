@@ -1328,7 +1328,7 @@
 
     function cleanHomeCards(list) {
         var out = [];
-        (list || []).forEach(function (k) { if (HOME_CARDS[k] && out.indexOf(k) === -1 && out.length < 6) out.push(k); });
+        (list || []).forEach(function (k) { if (HOME_CARDS[k] && out.indexOf(k) === -1) out.push(k); });
         return out;
     }
     // The start-card picker's list (checkbox + order per row), shared by the ☰ menu modal and the chat card:
@@ -1347,7 +1347,6 @@
             cb.id = 'hc-' + list.id + '-' + k;
             cb.addEventListener('change', function () {
                 if (cb.checked) {
-                    if (state.chosen.length >= 6) { cb.checked = false; toast(daText('At most 6 cards.', 'Højst 6 kort.')); return; }
                     state.chosen.push(k);
                 } else state.chosen = state.chosen.filter(function (x) { return x !== k; });
                 rerender();
@@ -2247,8 +2246,8 @@
         wrap.className = 'plan-card homecards-card';
         var intro = document.createElement('div');
         intro.className = 'persona-intro';
-        intro.textContent = daText('Pick up to 6 cards. The first opens when the app starts; the rest stay one tap away.',
-            'Vælg op til 6 kort. Det første åbner når appen starter; resten er et tryk væk.');
+        intro.textContent = daText('Pick the cards you want. The first opens when the app starts; the rest stay one tap away.',
+            'Vælg de kort du vil have. Det første åbner når appen starter; resten er et tryk væk.');
         wrap.appendChild(intro);
         var list = document.createElement('ul');
         list.className = 'hc-list';
