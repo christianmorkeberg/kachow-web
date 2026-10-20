@@ -236,6 +236,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <div class="tm-sep"></div>
                         <button type="button" id="notifBtn" class="tm-item" data-icon="bell" hidden>Notifications</button>
                         <button type="button" id="appearanceBtn" class="tm-item" data-icon="palette">Appearance</button>
+                        <button type="button" id="homeCardsBtn" class="tm-item" data-icon="star">Start cards</button>
                         <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false" data-icon="wrench">Developer mode</button>
 <?php if ($users->isAdmin((int) $session->userId())): ?>
 <?php endif; ?>
@@ -321,6 +322,21 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                     <button type="button" class="modal-close" id="notifClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
                 </div>
                 <div id="notifBody" class="modal-body"></div>
+            </div>
+        </div>
+
+        <div id="homeCardsModal" class="modal" hidden>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-label="Start cards">
+                <div class="modal-head">
+                    <strong>Start cards</strong>
+                    <button type="button" class="modal-close" id="homeCardsClose" aria-label="Close"><span data-icon="x" data-icon-only></span></button>
+                </div>
+                <div class="modal-body">
+                    <p class="imap-hint">Tick the cards you want one tap away (up to 6). The first one opens on the start screen.</p>
+                    <ul id="homeCardsList" class="hc-list"></ul>
+                    <button type="button" id="homeCardsSave" class="imap-connect">Save</button>
+                    <button type="button" id="homeCardsReset" class="hc-reset">Back to the default</button>
+                </div>
             </div>
         </div>
 
