@@ -9,7 +9,11 @@ declare(strict_types=1);
  *   POST { id:int, action:pause|resume }          → { ok, card }   (your own task)
  *   POST { id:int, action:run }                   → starts it now (Run now)
  *   POST { id:int, action:save|discard }          → a routine draft: make it live / remove it
- *   POST { id:int, action:mode, value:auto|ask }  → a routine: run by itself, or ask first
+ *   POST { id:int, action:mode, value:auto|ask }  → a recurring task or routine: run by itself, or ask first
+ *   POST { id:int, action:undo }                  → put the lights back as they were before its last run
+ *   POST { id:int, action:forget }                → drop its recorded steps (the next run asks the assistant and records again)
+ *   POST { action:build, ...fields }              → the card's builder: a new, live routine (fields as create_routine takes them)
+ *   POST { id:int, action:edit, ...fields }       → the builder on an existing routine (fields as update_routine takes them)
  *   POST { request_id:int, action:answer, approve:bool } → an "ask first" question: run it / skip it
  *   POST { system_task:string, action:… }         → { ok, card }   (developer only)
  */
@@ -18,6 +22,11 @@ require __DIR__ . '/../bootstrap.php';
 
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\AgentCommands;
+use App\Data\ApiTokens;
+use App\Data\Connections;
+use App\Data\Conversations;
+use App\Data\HomeDevices;
 use App\Data\Places;
 use App\Data\RememberTokens;
 use App\Data\Routines;
@@ -25,7 +34,13 @@ use App\Support\BackgroundRun;
 use App\Data\ScheduledTasks;
 use App\Data\SystemTasks;
 use App\Data\Users;
+use App\Home\HomeOwner;
+use App\Home\HueSync;
+use App\Tools\CreateRoutine;
+use App\Tools\HomeDeviceCall;
 use App\Tools\ScheduleTask;
+use App\Tools\UndoRoutine;
+use App\Tools\UpdateRoutine;
 
 header('Content-Type: application/json');
 
@@ -80,13 +95,45 @@ try {
             }
             out(200, ['ok' => true, 'card' => $tasks->cardForUser($userId, new Places(), $isAdmin && isset($sysTasks) ? SystemTasks::cardRows($sysTasks->listAll()) : null)]);
         }
+        if ($action === 'build' || $action === 'edit') {
+            // The builder form sends the same fields the assistant's tools take, so the checks are the same ones.
+            $fields = array_diff_key($in, ['action' => 1, 'id' => 1]);
+            $places = new Places();
+            if ($action === 'build') {
+                $res = (new CreateRoutine($routines, $tasks, new Conversations(), $places))->execute($fields + ['save' => true], $userId);
+            } else {
+                $res = (new UpdateRoutine($routines, $tasks, $places))->execute($fields + ['routine' => (string) (int) ($in['id'] ?? 0)], $userId);
+            }
+            if (isset($res['error'])) {
+                out(422, ['error' => (string) $res['error']]);
+            }
+            out(200, ['ok' => true, 'card' => $tasks->cardForUser($userId, $places, $isAdmin && isset($sysTasks) ? SystemTasks::cardRows($sysTasks->listAll()) : null)]);
+        }
+        if ($action === 'undo' || $action === 'forget') {
+            $id = (int) ($in['id'] ?? 0);
+            if ($routines->getAny($userId, $id) === null) {
+                out(404, ['error' => 'No such task.']);
+            }
+            if ($action === 'forget') {
+                $routines->saveSteps($id, null);
+            } else {
+                $agent = new AgentCommands();
+                $tokens = new ApiTokens();
+                $home  = new HomeDeviceCall($agent, $tokens, new HueSync(new HomeDevices(), HueSync::viaAgent($agent)), new HomeOwner($tokens, new Connections()));
+                $res   = (new UndoRoutine($routines, $home))->execute(['routine' => (string) $id], $userId);
+                if (empty($res['undone'])) {
+                    out(409, ['error' => (string) ($res['note'] ?? 'Could not undo that.')]);
+                }
+            }
+            out(200, ['ok' => true, 'card' => $tasks->cardForUser($userId, new Places(), $isAdmin && isset($sysTasks) ? SystemTasks::cardRows($sysTasks->listAll()) : null)]);
+        }
         if (in_array($action, ['run', 'save', 'discard', 'mode'], true)) {
             $id = (int) ($in['id'] ?? 0);
             $ok = match ($action) {
                 'run'     => $routines->requestRun($userId, $id, 'run now (card)'),
                 'save'    => $routines->setStatus($userId, $id, 'active'),
                 'discard' => $routines->setStatus($userId, $id, 'cancelled'),
-                'mode'    => $routines->update($userId, $id, ['run_mode' => (string) ($in['value'] ?? '')]),
+                'mode'    => $routines->setRunMode($userId, $id, (string) ($in['value'] ?? '')),
             };
             if (!$ok) {
                 out(409, ['error' => $action === 'run' ? 'It is not active, or a run is already waiting.' : 'That did not work.']);
