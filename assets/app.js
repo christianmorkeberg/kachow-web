@@ -1393,7 +1393,7 @@
     function openHomeCard(key, mode) {
         var c = HOME_CARDS[key];
         if (!c) return Promise.resolve();
-        return c.load().then(function (card) { if (card && card.kind) presentCard(card, mode); }).catch(function () { /* the card just doesn't open */ });
+        return openLoadedCard(c.kind, c.load(), mode);
     }
     function railStaples() {
         if (!homeCards.length) return RAIL_STAPLES;
@@ -1408,40 +1408,53 @@
         return { icon: cardIconFor(card), label: (CARD_TITLES[card.kind] || [])[1] || card.title || card.kind };
     }
 
-    function openBooksFresh() {
-        fetch('/api/books.php?granularity=quarter&offset=0', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) presentCard(j.card); })
-            .catch(function () {});
+    // A card that has to be fetched first opens its panel at once with a spinner, so a slow one (calendar, books …) never looks dead.
+    function showPanelLoading(kind) {
+        if (!cardPanel) return;
+        var t = CARD_TITLES[kind] || [];
+        cardPanelBody.innerHTML = '';
+        var box = document.createElement('div');
+        box.className = 'card-loading';
+        box.innerHTML = '<span class="card-loading-spin" aria-hidden="true"></span>';
+        var tx = document.createElement('span');
+        tx.textContent = daText('Loading…', 'Henter…');
+        box.appendChild(tx);
+        cardPanelBody.appendChild(box);
+        panelKind = kind;
+        panelCard = null;
+        setIconText(cardPanelTitle, t[0] || 'folder', t[1] || '');
+        cardPanelSub.textContent = '';
+        cardPanel.hidden = false;
+        setPanelState('open');
+        renderRail();
+    }
+    function showPanelLoadFailed() {
+        if (!cardPanel || !cardPanelBody.querySelector('.card-loading')) return;
+        cardPanelBody.innerHTML = '';
+        var d = document.createElement('div');
+        d.className = 'card-loading failed';
+        d.textContent = daText('Could not load that card.', 'Kunne ikke hente kortet.');
+        cardPanelBody.appendChild(d);
+    }
+    // Fetch a card (a promise of the card), showing the loading state meanwhile.
+    var openSeq = 0;
+    function openLoadedCard(kind, promise, mode) {
+        var mine = ++openSeq;                           // opening another card meanwhile: the slower answer is dropped
+        if (mode !== 'min') showPanelLoading(kind);     // a phone's start card stays minimised, nothing to show yet
+        return promise.then(function (card) {
+            if (mine !== openSeq) return;
+            if (card && card.kind) presentCard(card, mode); else showPanelLoadFailed();
+        }).catch(function () { if (mine === openSeq) showPanelLoadFailed(); });
+    }
+    function openFetchedCard(kind, url) {
+        openLoadedCard(kind, fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) { return j && j.card; }));
     }
 
-    function openMomsFresh() {
-        fetch('/api/moms.php?offset=0', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) presentCard(j.card); })
-            .catch(function () {});
-    }
-
-    function openCashFresh() {
-        fetch('/api/cash.php', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) presentCard(j.card); })
-            .catch(function () {});
-    }
-
-    function openPlFresh() {
-        fetch('/api/pl.php?granularity=year&offset=0', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) presentCard(j.card); })
-            .catch(function () {});
-    }
-
-    function openMileageFresh() {
-        fetch('/api/mileage.php?offset=0', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) presentCard(j.card); })
-            .catch(function () {});
-    }
+    function openBooksFresh() { openFetchedCard('bookkeeping', '/api/books.php?granularity=quarter&offset=0'); }
+    function openMomsFresh() { openFetchedCard('moms', '/api/moms.php?offset=0'); }
+    function openCashFresh() { openFetchedCard('cash', '/api/cash.php'); }
+    function openPlFresh() { openFetchedCard('pl', '/api/pl.php?granularity=year&offset=0'); }
+    function openMileageFresh() { openFetchedCard('mileage', '/api/mileage.php?offset=0'); }
 
     // The Location card flips between a Day and a Places view (kinds location_day / places): in the rail it is ONE entry.
     function railKind(kind) { return kind === 'places' ? 'location_day' : kind; }
