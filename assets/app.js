@@ -1443,12 +1443,16 @@
             .catch(function () {});
     }
 
+    // The Location card flips between a Day and a Places view (kinds location_day / places): in the rail it is ONE entry.
+    function railKind(kind) { return kind === 'places' ? 'location_day' : kind; }
+
     function recordRailCard(card) {
         if (!card || !card.kind) return;
-        if (railStapleKinds().indexOf(card.kind) !== -1) return;   // staples are pinned, not recents
-        railRecents = railRecents.filter(function (r) { return r.kind !== card.kind; });  // dedupe by kind
-        var info = railInfo(card);
-        railRecents.unshift({ kind: card.kind, icon: info.icon, label: info.label, card: card });
+        var kind = railKind(card.kind);
+        if (railStapleKinds().indexOf(kind) !== -1) return;   // staples are pinned, not recents
+        railRecents = railRecents.filter(function (r) { return r.kind !== kind; });  // dedupe by kind
+        var info = railInfo({ kind: kind, title: card.title });
+        railRecents.unshift({ kind: kind, icon: info.icon, label: info.label, card: card });
         if (railRecents.length > 6) railRecents = railRecents.slice(0, 6);
     }
 
@@ -1467,12 +1471,12 @@
             return b;
         }
         railStaples().forEach(function (s) {
-            rail.appendChild(railBtn(s.icon, s.label, panelKind === s.kind, s.open));
+            rail.appendChild(railBtn(s.icon, s.label, railKind(panelKind) === s.kind, s.open));
         });
         if (railRecents.length) {
             var sep = document.createElement('div'); sep.className = 'rail-sep'; rail.appendChild(sep);
             railRecents.forEach(function (r) {
-                rail.appendChild(railBtn(r.icon, r.label, panelKind === r.kind, function () {
+                rail.appendChild(railBtn(r.icon, r.label, railKind(panelKind) === r.kind, function () {
                     presentCard(r.card);   // desktop-only rail — presentCard() itself now freshens
                 }));
             });
