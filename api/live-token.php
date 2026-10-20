@@ -73,6 +73,8 @@ try {
         $settings->set($userId, 'voice_language', $language);
     }
 
+    $stopWords = VoiceSession::stopWords($settings->get($userId, 'voice_stop_words'));
+
     $memories     = new Memories();
     $instructions = new UserInstructions();
     $registry     = RegistryFactory::standard($users, $memories, $instructions);
@@ -99,7 +101,8 @@ try {
         $instructions->all($userId),
         $agenda,
         null,
-        $language
+        $language,
+        $stopWords
     );
 
     $apiKey = (string) ($_ENV['GEMINI_API_KEY'] ?? '');
@@ -131,6 +134,7 @@ try {
         'idle_seconds'      => $limits['idle_seconds'],
         'tool_mode'         => $toolMode,
         'language'          => $language,
+        'stop_words'        => $stopWords,
         'slow_tools'        => \App\Voice\VoiceTools::SLOW,
     ]);
 } catch (\Throwable $e) {

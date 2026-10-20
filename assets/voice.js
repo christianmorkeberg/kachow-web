@@ -329,7 +329,7 @@
         S.turns = (S.turns || 0) + 1;     // the server's spoken-confirmation gate counts turns
         var u = S.userBuf.trim(), a = S.modelBuf.trim();
         S.userBuf = ''; S.modelBuf = '';
-        if (u) { S.transcript.push({ role: 'user', text: u }); S.hooks.addMessage && S.hooks.addMessage(u, 'user'); }
+        if (u) { S.transcript.push({ role: 'user', text: u }); S.hooks.addMessage && S.hooks.addMessage(u, 'user'); if (isStopPhrase(u)) beginClosing('words'); }
         // What the tools actually did (from the calls themselves, not the model's words) goes under the reply.
         if (S.actions.length) { a = (a ? a + '\n\n' : '') + S.actions.map(function (x) { return '↳ ' + x; }).join('\n'); S.actions = []; }
         if (a) { S.transcript.push({ role: 'assistant', text: a }); S.hooks.addMessage && S.hooks.addMessage(a, 'assistant'); }
@@ -337,8 +337,39 @@
         // the captions stay on the stage until the next words replace them
     }
 
+    // ---------- ending the conversation (stop words: "farvel", "stop tale", "goodbye" …) ----------
+    // Two ways in: the model calls end_conversation after a short goodbye (it judges what the user meant), and a plain match of what the
+    // user said against their stop-word list (a short utterance that is, starts or ends with one). Either way the goodbye is allowed to
+    // finish playing, then the session closes (see tick).
+    function normWords(t) {
+        return String(t || '').toLowerCase().replace(/[.,!?;:"“”'’()\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    function isStopPhrase(text) {
+        var u = normWords(text);
+        if (!u || !S || !S.stopWords) return false;
+        var n = u.split(' ').length;
+        return S.stopWords.some(function (w) {
+            // the stop phrase, plus at most two other words ("ok, farvel", "goodbye for now") — never inside a real request
+            if (n - w.split(' ').length > 2) return false;
+            return u === w || u.indexOf(w + ' ') === 0 || u.slice(-(w.length + 1)) === ' ' + w;
+        });
+    }
+    function beginClosing(why) {
+        if (!S || S.closing) return;
+        S.closing = why;
+        S.closingAt = Date.now();
+        S.lastActivity = Date.now();
+        logEvent('stop_word', { detail: { why: why } });
+        setState('listening', 'Saying goodbye…');
+    }
+
     function handleToolCalls(calls) {
         calls.forEach(function (c) {
+            if (c.name === 'end_conversation') {         // handled here, not on the server
+                send({ toolResponse: { functionResponses: [{ id: c.id, name: c.name, response: { ok: true, note: 'The session ends after your goodbye. Say nothing more.' } }] } });
+                beginClosing('tool');
+                return;
+            }
             var id = c.id, name = c.name, slow = S.slowTools.indexOf(name) >= 0;
             var ac = new AbortController();
             S.pending[id] = { name: name, started: Date.now(), abort: ac, slow: slow };
@@ -453,6 +484,7 @@
             if (r.status >= 400 || !b.token) throw new Error(b.error || ('Could not start voice (HTTP ' + r.status + ').'));
             S.sessionId = b.session_id; S.remaining = b.remaining_seconds; S.idle = b.idle_seconds; S.slowTools = b.slow_tools || [];
             S.lang = b.language === 'da' ? 'da' : 'en';
+            S.stopWords = (b.stop_words || []).map(normWords).filter(Boolean);
             setLangLabel();
             S.startedAt = Date.now();
             if (hooks.begin) hooks.begin(b.conversation_id);
@@ -514,6 +546,13 @@
         if (!S) return;
         var left = tickClock();
         if (left <= 0) { logEvent('limit_close'); showError('Today\'s voice time is used up.'); return finish('limit'); }
+        if (S.closing) {                                   // the goodbye is playing: close once it is done (or after 9 s at most)
+            var since = Date.now() - S.closingAt;
+            var working = Object.keys(S.pending).length > 0;   // a tool is still running: let it finish and be told
+            var quiet = !working && !S.speaking && S.queuedMs <= 0 && Date.now() - S.lastAudioAt > 1200;
+            if ((quiet && since > 1500) || since > (working ? 30000 : 9000)) return finish('stopword');
+            return;
+        }
         var busy = Object.keys(S.pending).length > 0 || S.speaking;
         if (!busy && Date.now() - S.lastActivity > S.idle * 1000) { logEvent('idle_close', { ms: Date.now() - S.startedAt }); return finish('idle'); }
     }
@@ -522,7 +561,7 @@
         if (!S) return;
         logEvent('session_end', { ms: Date.now() - S.startedAt, detail: { why: why, usage: S.usage } });
         endTurn();
-        setState('ended', why === 'idle' ? 'Stopped after silence — tap the mic to start again' : (why === 'limit' ? 'Daily limit reached' : 'Ended'));
+        setState('ended', why === 'idle' ? 'Stopped after silence — tap the mic to start again' : (why === 'limit' ? 'Daily limit reached' : (why === 'stopword' ? 'Goodbye 👋 — tap the mic to talk again' : 'Ended')));
         teardown(false);
     }
 
