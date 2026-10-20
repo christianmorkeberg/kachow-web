@@ -22,7 +22,9 @@ use App\Data\LocationPoints;
 use App\Data\LocationWorkClock;
 use App\Data\Places;
 use App\Data\Reminders;
+use App\Data\Routines;
 use App\Notify\PlaceReminderRunner;
+use App\Notify\RoutinePlaceRunner;
 use App\Tools\GetLocationTrackingSetup;
 
 header('Content-Type: application/json; charset=utf-8');
@@ -105,6 +107,13 @@ try {
             (new PlaceReminderRunner(new Reminders(), new Places()))->onPoints($userId, $stored);
         } catch (\Throwable $e) {
             error_log('owntracks place reminders: ' . $e->getMessage());
+        }
+        // Routines triggered by leaving / arriving at a saved place: this only REQUESTS the run (conditions, "ask first" and the
+        // run itself are the runner's job), then starts the runner in the background.
+        try {
+            (new RoutinePlaceRunner(new Routines(), new Places()))->onPoints($userId, $stored);
+        } catch (\Throwable $e) {
+            error_log('owntracks routines: ' . $e->getMessage());   // e.g. not migrated yet
         }
         // Location work clock (only when the user switched to it): keep today's punches current.
         // Just after midnight also yesterday, whose last departure may only show up now.
