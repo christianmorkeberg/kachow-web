@@ -197,7 +197,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                 <input type="password" name="password" required autocomplete="current-password">
             </label>
             <label class="checkbox">
-                <input type="checkbox" name="remember" value="1"> Remember me
+                <input type="checkbox" name="remember" value="1" checked> Remember me
             </label>
             <button type="submit">Sign in</button>
         </form>
