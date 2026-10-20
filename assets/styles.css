@@ -2854,3 +2854,10 @@ body.voice-on .vd-lang { font-size: 13px; }
 .sched-ask { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; }
 .sched-ask-text { font-weight: 600; }
 .sched-row.draft { border: 1px dashed var(--accent-line); border-radius: var(--radius-sm); padding: 8px; }
+
+/* A card that is being fetched */
+.card-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 48px 12px; color: var(--muted); font-size: 14px; }
+.card-loading-spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--accent); animation: card-spin .8s linear infinite; }
+.card-loading.failed { color: var(--muted); }
+@keyframes card-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .card-loading-spin { animation-duration: 2.4s; } }
