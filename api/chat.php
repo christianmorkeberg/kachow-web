@@ -187,7 +187,7 @@ try {
         Discogs::fromEnv()
     );
     $gemini = GeminiClient::fromEnv();
-    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories, new UserSettings());
+    $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories, new UserSettings(), routines: new \App\Data\Routines());
 
     // Live progress for the typing bubble (tool names/status only), if the client sent a turn id.
     $turnId = isset($input['turn_id']) && is_string($input['turn_id']) ? $input['turn_id'] : '';

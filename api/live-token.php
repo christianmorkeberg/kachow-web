@@ -73,6 +73,16 @@ try {
         $settings->set($userId, 'voice_language', $language);
     }
 
+    // The routines (names + phrases), so "I'm leaving" in voice runs one.
+    $routineLines = '';
+    try {
+        foreach ((new \App\Data\Routines())->active($userId) as $r) {
+            $routineLines .= '- ' . $r['label'] . ($r['phrases'] !== [] ? ' — says: ' . implode(' / ', array_map(static fn (string $x): string => '"' . $x . '"', $r['phrases'])) : '') . "\n";
+        }
+    } catch (\Throwable $e) {
+        error_log('live-token.php routines: ' . $e->getMessage());   // not migrated yet: no routines
+    }
+
     $stopWords = VoiceSession::stopWords($settings->get($userId, 'voice_stop_words'));
 
     $memories     = new Memories();
@@ -102,7 +112,8 @@ try {
         $agenda,
         null,
         $language,
-        $stopWords
+        $stopWords,
+        rtrim($routineLines)
     );
 
     $apiKey = (string) ($_ENV['GEMINI_API_KEY'] ?? '');
