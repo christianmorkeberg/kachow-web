@@ -2839,6 +2839,18 @@ body.voice-on .vd-lang { font-size: 13px; }
 .sched-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .sched-btn:disabled { opacity: .5; cursor: default; }
 .sched-pill.draft { background: var(--accent-soft); color: var(--accent); }
+.sched-form { border: 1px solid var(--accent-line); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.sched-form[hidden], .sched-field[hidden] { display: none; }
+.sched-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.sched-field input, .sched-field select, .sched-field textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; min-width: 0; }
+.sched-field textarea { resize: vertical; }
+.sched-sensor, .sched-window { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sched-sensor input { flex: 1 1 110px; }
+.sched-days { display: flex; gap: 4px; flex-wrap: wrap; }
+.sched-day { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.sched-day.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sched-check { font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.sched-new { margin: 0 0 10px; }
 .sched-ask { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; }
 .sched-ask-text { font-weight: 600; }
 .sched-row.draft { border: 1px dashed var(--accent-line); border-radius: var(--radius-sm); padding: 8px; }

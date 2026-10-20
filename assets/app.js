@@ -4567,6 +4567,160 @@
             return { el: l, input: cb };
         }
 
+        // The builder: one form for a new routine and for editing one (name, what it does, what starts it, conditions, ask first).
+        // It sends the same fields the assistant's create_routine / update_routine take, so the same checks answer.
+        function builderForm(t) {
+            var editing = !!t;
+            var trig = (t && t.trigger) || {};
+            var cond = (t && t.conditions) || {};
+            var places = card.places || [];
+            var form = document.createElement('div');
+            form.className = 'sched-form';
+            function field(label, el) {
+                var l = document.createElement('label');
+                l.className = 'sched-field';
+                var sp = document.createElement('span');
+                sp.textContent = label;
+                l.appendChild(sp);
+                l.appendChild(el);
+                form.appendChild(l);
+                return l;
+            }
+            function input(type, value, ph) {
+                var i = document.createElement('input');
+                i.type = type;
+                i.value = value == null ? '' : value;
+                if (ph) i.placeholder = ph;
+                return i;
+            }
+            function select(opts, value) {
+                var sel = document.createElement('select');
+                opts.forEach(function (o) {
+                    var op = document.createElement('option');
+                    op.value = o[0]; op.textContent = o[1];
+                    if (o[0] === value) op.selected = true;
+                    sel.appendChild(op);
+                });
+                return sel;
+            }
+            var name = input('text', t ? t.label : '', daText('e.g. Leaving', 'fx Forlader hjemmet'));
+            field(daText('Name', 'Navn'), name);
+            var instr = document.createElement('textarea');
+            instr.rows = 3;
+            instr.value = t ? t.instruction : '';
+            instr.placeholder = daText('What to do, e.g. “Turn off all lights and set the heating to 17 °C.”', 'Hvad der skal ske, fx “Sluk alle lys og sæt varmen til 17 °C.”');
+            field(daText('What it does', 'Hvad den gør'), instr);
+
+            // What starts it. An existing routine keeps its kind (a phrase routine stays a phrase routine).
+            var kinds = [['phrase', daText('I say a phrase', 'Jeg siger en sætning')], ['leave', daText('I leave a place', 'Jeg forlader et sted')],
+                ['enter', daText('I arrive at a place', 'Jeg ankommer til et sted')], ['sensor', daText('A sensor reads …', 'En sensor måler …')]];
+            var kind0 = !editing ? 'phrase' : t.trigger_type === 'place' ? (trig.event === 'enter' ? 'enter' : 'leave') : t.trigger_type;
+            if (editing) kinds = kinds.filter(function (k) { return t.trigger_type === 'place' ? k[0] === 'leave' || k[0] === 'enter' : k[0] === t.trigger_type; });
+            var kindSel = select(kinds, kind0);
+            field(daText('Starts when', 'Starter når'), kindSel);
+
+            var phr = input('text', (t && t.phrases || []).join(', '), daText('I\'m leaving, jeg smutter', 'jeg smutter, I\'m leaving'));
+            var phrField = field(daText('Phrases (comma separated)', 'Sætninger (adskilt med komma)'), phr);
+
+            var placeOpts = places.map(function (p) { return [p.name, p.name]; })
+                .concat([['type:home', daText('any home place', 'ethvert hjem-sted')], ['type:work', daText('any work place', 'ethvert arbejdssted')]]);
+            var placeVal = '';
+            if (trig.place_ids && trig.place_ids.length) {
+                var pm = places.filter(function (p) { return p.id === trig.place_ids[0]; })[0];
+                placeVal = pm ? pm.name : '';
+            } else if (trig.place_types && trig.place_types.length) placeVal = 'type:' + trig.place_types[0];
+            var placeSel = select(placeOpts, placeVal);
+            var placeField = field(daText('Place', 'Sted'), placeSel);
+
+            var sName = input('text', trig.sensor ? String(trig.sensor).replace(/_/g, ' ') : '', daText('kitchen light', 'køkkenlys'));
+            var sOp = select([['below', daText('goes below', 'går under')], ['above', daText('goes above', 'går over')], ['is', daText('becomes', 'bliver')]], trig.op || 'below');
+            var sVal = input('text', trig.value == null ? '' : trig.value, daText('50 or open', '50 eller åben'));
+            var sensorBox = document.createElement('div');
+            sensorBox.className = 'sched-sensor';
+            [sName, sOp, sVal].forEach(function (e) { sensorBox.appendChild(e); });
+            var sensorField = field(daText('Sensor', 'Sensor'), sensorBox);
+
+            function showKind() {
+                var k = kindSel.value;
+                placeField.hidden = k !== 'leave' && k !== 'enter';
+                sensorField.hidden = k !== 'sensor';
+            }
+            kindSel.addEventListener('change', showKind);
+            showKind();
+
+            // Only when …
+            var days = document.createElement('div');
+            days.className = 'sched-days';
+            var dayBtns = [];
+            [[1, 'Mon', 'Man'], [2, 'Tue', 'Tir'], [3, 'Wed', 'Ons'], [4, 'Thu', 'Tor'], [5, 'Fri', 'Fre'], [6, 'Sat', 'Lør'], [7, 'Sun', 'Søn']].forEach(function (d) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'sched-day' + ((cond.weekdays || []).indexOf(d[0]) >= 0 ? ' on' : '');
+                b.textContent = daText(d[1], d[2]);
+                b.dataset.day = d[0];
+                b.addEventListener('click', function () { b.classList.toggle('on'); });
+                days.appendChild(b);
+                dayBtns.push(b);
+            });
+            field(daText('Only on (none = every day)', 'Kun på (ingen = alle dage)'), days);
+            var from = input('time', (cond.between || [])[0] || '');
+            var to = input('time', (cond.between || [])[1] || '');
+            var win = document.createElement('div');
+            win.className = 'sched-window';
+            win.appendChild(from); win.appendChild(document.createTextNode(' – ')); win.appendChild(to);
+            field(daText('Only between', 'Kun mellem'), win);
+            var cool = input('number', cond.cooldown_minutes || '', daText('minutes', 'minutter'));
+            cool.min = '0'; cool.max = '1440';
+            field(daText('Not again within (minutes)', 'Ikke igen inden for (minutter)'), cool);
+            function check(label, on) {
+                var l = document.createElement('label');
+                l.className = 'sched-check';
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = !!on;
+                l.appendChild(cb);
+                l.appendChild(document.createTextNode(' ' + label));
+                form.appendChild(l);
+                return cb;
+            }
+            var away = check(daText('Only when I am away from home', 'Kun når jeg er væk hjemmefra'), cond.away);
+            var others = check(daText('Only if nobody else is home', 'Kun hvis ingen andre er hjemme'), cond.others_away);
+            var ask = check(daText('Ask me first, then run', 'Spørg mig først, og kør så'), t && t.run_mode === 'ask');
+
+            var actions = document.createElement('div');
+            actions.className = 'sched-actions';
+            actions.appendChild(actBtn(daText('Save', 'Gem'), 'primary', function (b) {
+                var k = kindSel.value;
+                var body = {
+                    action: editing ? 'edit' : 'build', name: name.value.trim(), instruction: instr.value.trim(),
+                    phrases: phr.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
+                    mode: ask.checked ? 'ask' : 'auto'
+                };
+                if (editing) body.id = t.id;
+                var c = {};
+                var wd = dayBtns.filter(function (x) { return x.classList.contains('on'); }).map(function (x) { return parseInt(x.dataset.day, 10); });
+                if (wd.length) c.weekdays = wd;
+                if (from.value && to.value) c.between = [from.value, to.value];
+                if (parseInt(cool.value, 10) > 0) c.cooldown_minutes = parseInt(cool.value, 10);
+                if (away.checked) c.away = true;
+                if (others.checked) c.others_away = true;
+                body.conditions = c;
+                if (k === 'leave' || k === 'enter') {
+                    body.trigger_event = k;
+                    if (placeSel.value.indexOf('type:') === 0) body.trigger_place_type = placeSel.value.slice(5); else body.trigger_place = placeSel.value;
+                } else if (k === 'sensor') {
+                    body.trigger_sensor = sName.value.trim();
+                    body.trigger_sensor_op = sOp.value;
+                    body.trigger_sensor_value = sVal.value.trim();
+                }
+                if (!body.name || !body.instruction) { toast(daText('Give it a name and say what it does.', 'Giv den et navn og skriv hvad den gør.')); return; }
+                act(body, b, editing ? daText('Saved.', 'Gemt.') : daText('Routine saved — it is live.', 'Rutine gemt — den er aktiv.'));
+            }));
+            actions.appendChild(actBtn(daText('Cancel', 'Annullér'), '', function () { if (panelCard === card) refreshPanelCard(card); }));
+            form.appendChild(actions);
+            return form;
+        }
+
         function row(t, isSystem) {
             var el = document.createElement('div');
             el.className = 'sched-row ' + t.status + (isSystem ? ' system' : '');
@@ -4603,7 +4757,8 @@
             else if (t.status === 'paused') bits.push(daText('paused', 'på pause'));
             if (!isSystem && t.tell_always) bits.push(daText('tells you every time', 'melder hver gang'));
             if (!isSystem && t.routine && t.conditions_text) bits.push(t.conditions_text);
-            if (!isSystem && t.routine && t.trigger_type === 'place') bits.push(t.run_mode === 'ask' ? daText('asks you first', 'spørger dig først') : daText('runs by itself', 'kører af sig selv'));
+            if (!isSystem && t.status === 'active' && !t.once && (t.routine || t.run_mode === 'ask')) bits.push(t.run_mode === 'ask' ? daText('asks you first', 'spørger dig først') : daText('runs by itself', 'kører af sig selv'));
+            if (!isSystem && t.steps) bits.push(daText('runs ' + t.steps + ' recorded step' + (t.steps === 1 ? '' : 's'), 'kører ' + t.steps + ' optaget' + (t.steps === 1 ? ' trin' : ' trin')));
             meta.textContent = bits.join(' · ');
             if (isSystem) {
                 var trig = document.createElement('span');
@@ -4628,15 +4783,25 @@
                 var da = document.createElement('div');
                 da.className = 'sched-actions';
                 da.appendChild(actBtn(daText('Save', 'Gem'), 'primary', function (b) { act({ id: t.id, action: 'save' }, b, daText('Saved — it is live.', 'Gemt — den er aktiv.')); }));
+                da.appendChild(actBtn(daText('Edit', 'Rediger'), '', function () { el.replaceWith(builderForm(t)); }));
                 da.appendChild(actBtn(daText('Discard', 'Kassér'), '', function (b) { act({ id: t.id, action: 'discard' }, b); }));
                 el.appendChild(da);
             } else if (!isSystem && t.status === 'active') {
                 var ra = document.createElement('div');
                 ra.className = 'sched-actions';
                 ra.appendChild(actBtn(daText('Run now', 'Kør nu'), '', function (b) { act({ id: t.id, action: 'run' }, b, daText('Started — you will get a notification when it is done.', 'Startet — du får en besked når den er færdig.')); }));
-                if (t.routine && t.trigger_type === 'place') {
+                if (!t.once) {
                     ra.appendChild(actBtn(t.run_mode === 'ask' ? daText('Run by itself', 'Kør af sig selv') : daText('Ask me first', 'Spørg mig først'), '',
                         function (b) { act({ id: t.id, action: 'mode', value: t.run_mode === 'ask' ? 'auto' : 'ask' }, b); }));
+                }
+                if (t.can_undo) {
+                    ra.appendChild(actBtn(daText('Undo last run', 'Fortryd sidste kørsel'), '', function (b) { act({ id: t.id, action: 'undo' }, b, daText('Put back.', 'Sat tilbage.')); }));
+                }
+                if (t.steps) {
+                    ra.appendChild(actBtn(daText('Re-learn steps', 'Lær trinnene igen'), '', function (b) { act({ id: t.id, action: 'forget' }, b, daText('Forgotten — the next run learns them again.', 'Glemt — næste kørsel lærer dem igen.')); }));
+                }
+                if (t.routine) {
+                    ra.appendChild(actBtn(daText('Edit', 'Rediger'), '', function () { el.replaceWith(builderForm(t)); }));
                 }
                 el.appendChild(ra);
             }
@@ -4666,6 +4831,11 @@
             box.appendChild(bt);
             wrap.appendChild(box);
         });
+
+        var newBar = document.createElement('div');
+        newBar.className = 'sched-actions sched-new';
+        newBar.appendChild(actBtn('+ ' + daText('New routine', 'Ny rutine'), 'primary', function () { newBar.replaceWith(builderForm(null)); }));
+        wrap.appendChild(newBar);
 
         var items = card.items || [];
         if (!items.length) {
