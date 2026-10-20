@@ -800,6 +800,7 @@
         dev_ideas:     ['lightbulb', 'Dev ideas'],
         scheduled_tasks: ['repeat', 'Routines'],
         personality:   ['drama', 'Personality'],
+        home_cards:    ['sparkles', 'Start cards'],
         appearance:    ['palette', 'Appearance'],
         notice:        ['circle-alert', 'Note']
     };
@@ -1317,9 +1318,11 @@
         cash:            { kind: 'cash',            icon: 'landmark',      en: 'Cash',            da: 'Kontanter',      load: cardFromUrl('/api/cash.php') },
         pl:              { kind: 'pl',              icon: 'trending-up',   en: 'P&L',             da: 'Resultat',       load: cardFromUrl('/api/pl.php?granularity=year&offset=0') },
         mileage:         { kind: 'mileage',         icon: 'car',           en: 'Mileage',         da: 'Kørsel',         load: cardFromUrl('/api/mileage.php?offset=0') },
-        scheduled_tasks: { kind: 'scheduled_tasks', icon: 'sparkles',      en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') }
+        scheduled_tasks: { kind: 'scheduled_tasks', icon: 'sparkles',      en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
+        feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
+        dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') }
     };
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks', 'feedback', 'dev_ideas'];
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
 
@@ -1327,6 +1330,66 @@
         var out = [];
         (list || []).forEach(function (k) { if (HOME_CARDS[k] && out.indexOf(k) === -1 && out.length < 6) out.push(k); });
         return out;
+    }
+    // The start-card picker's list (checkbox + order per row), shared by the ☰ menu modal and the chat card:
+    // state.chosen is the ordered keys; every change calls rerender().
+    function fillHomeCardsList(list, state, rerender) {
+        list.innerHTML = '';
+        var rest = HOME_CARD_ORDER.filter(function (k) { return state.chosen.indexOf(k) === -1; });
+        state.chosen.concat(rest).forEach(function (k) {
+            var on = state.chosen.indexOf(k) !== -1;
+            var c = HOME_CARDS[k];
+            var li = document.createElement('li');
+            li.className = 'hc-row' + (on ? ' is-on' : '');
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = on;
+            cb.id = 'hc-' + list.id + '-' + k;
+            cb.addEventListener('change', function () {
+                if (cb.checked) {
+                    if (state.chosen.length >= 6) { cb.checked = false; toast(daText('At most 6 cards.', 'Højst 6 kort.')); return; }
+                    state.chosen.push(k);
+                } else state.chosen = state.chosen.filter(function (x) { return x !== k; });
+                rerender();
+            });
+            var lab = document.createElement('label');
+            lab.htmlFor = cb.id;
+            lab.innerHTML = icon(c.icon, 'ic-lead') + progEsc(daText(c.en, c.da)) + (on && state.chosen[0] === k ? ' <small>' + progEsc(daText('opens at start', 'åbner ved start')) + '</small>' : '');
+            li.appendChild(cb);
+            li.appendChild(lab);
+            if (on) {
+                var i = state.chosen.indexOf(k);
+                [['↑', -1], ['↓', 1]].forEach(function (d) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'hc-move';
+                    b.textContent = d[0];
+                    b.setAttribute('aria-label', d[1] < 0 ? daText('Move up', 'Flyt op') : daText('Move down', 'Flyt ned'));
+                    b.disabled = i + d[1] < 0 || i + d[1] >= state.chosen.length;
+                    b.addEventListener('click', function () {
+                        var t = state.chosen[i + d[1]]; state.chosen[i + d[1]] = state.chosen[i]; state.chosen[i] = t;
+                        rerender();
+                    });
+                    li.appendChild(b);
+                });
+            }
+            list.appendChild(li);
+        });
+    }
+    // Saves the start cards (same setting on every device) and applies them to the rail; calls done(ok, message).
+    function saveHomeCards(value, done) {
+        fetch('/api/settings.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify({ key: 'home_cards', value: value })
+        })
+            .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (r) {
+                if (!r.ok || !r.j || !r.j.ok) { done(false, (r.j && r.j.error) || daText('Could not save.', 'Kunne ikke gemme.')); return; }
+                homeCards = cleanHomeCards(String(r.j.value || '').split(','));
+                renderRail();
+                done(true, homeCards.length ? daText('Start cards saved.', 'Startkort gemt.') : daText('Back to the default.', 'Tilbage til standard.'));
+            })
+            .catch(function () { done(false, daText('Network error.', 'Netværksfejl.')); });
     }
     function openHomeCard(key, mode) {
         var c = HOME_CARDS[key];
@@ -1473,6 +1536,7 @@
         if (card.kind === 'scheduled_tasks') { renderScheduledTasks(card); return; }
         if (card.kind === 'personality') { renderPersonality(card); return; }
         if (card.kind === 'appearance') { renderAppearance(card); return; }
+        if (card.kind === 'home_cards') { renderHomeCards(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
 
         let sections, endpoint, doneKey;
@@ -2172,6 +2236,47 @@
         slider.addEventListener('change', function () { apply(parseInt(slider.value, 10) || 0, true); });
 
         paint(idx);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Start-cards card (chat): pick which cards open at start and stay one tap away, and in what order.
+    function renderHomeCards(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card homecards-card';
+        var intro = document.createElement('div');
+        intro.className = 'persona-intro';
+        intro.textContent = daText('Pick up to 6 cards. The first opens when the app starts; the rest stay one tap away.',
+            'Vælg op til 6 kort. Det første åbner når appen starter; resten er et tryk væk.');
+        wrap.appendChild(intro);
+        var list = document.createElement('ul');
+        list.className = 'hc-list';
+        list.id = 'hcc' + Date.now();
+        wrap.appendChild(list);
+        var state = { chosen: cleanHomeCards(card.chosen || []) };
+        function draw() { fillHomeCardsList(list, state, draw); card.chosen = state.chosen.slice(); }
+        draw();
+        var actions = document.createElement('div');
+        actions.className = 'sched-actions';
+        function btn(label, cls, value) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'sched-btn' + (cls ? ' ' + cls : '');
+            b.textContent = label;
+            b.addEventListener('click', function () {
+                b.disabled = true;
+                saveHomeCards(value(), function (ok, msg) {
+                    toast(msg);
+                    b.disabled = false;
+                    if (ok && value() === '') { state.chosen = []; draw(); }
+                });
+            });
+            actions.appendChild(b);
+        }
+        btn(daText('Save', 'Gem'), 'primary', function () { return state.chosen.join(','); });
+        btn(daText('Back to default', 'Tilbage til standard'), '', function () { return ''; });
+        wrap.appendChild(actions);
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
@@ -9375,80 +9480,29 @@
         var modal = document.getElementById('homeCardsModal');
         var list = document.getElementById('homeCardsList');
         if (!btn || !modal || !list) return;
-        var chosen = [];
 
-        function render() {
-            list.innerHTML = '';
-            var rest = HOME_CARD_ORDER.filter(function (k) { return chosen.indexOf(k) === -1; });
-            chosen.concat(rest).forEach(function (k) {
-                var on = chosen.indexOf(k) !== -1;
-                var c = HOME_CARDS[k];
-                var li = document.createElement('li');
-                li.className = 'hc-row' + (on ? ' is-on' : '');
-                var cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.checked = on;
-                cb.id = 'hc-' + k;
-                cb.addEventListener('change', function () {
-                    if (cb.checked) {
-                        if (chosen.length >= 6) { cb.checked = false; toast(daText('At most 6 cards.', 'Højst 6 kort.')); return; }
-                        chosen.push(k);
-                    } else chosen = chosen.filter(function (x) { return x !== k; });
-                    render();
-                });
-                var lab = document.createElement('label');
-                lab.htmlFor = cb.id;
-                lab.innerHTML = icon(c.icon, 'ic-lead') + progEsc(daText(c.en, c.da)) + (on && chosen[0] === k ? ' <small>' + progEsc(daText('opens at start', 'åbner ved start')) + '</small>' : '');
-                li.appendChild(cb);
-                li.appendChild(lab);
-                if (on) {
-                    var i = chosen.indexOf(k);
-                    [['↑', -1], ['↓', 1]].forEach(function (d) {
-                        var b = document.createElement('button');
-                        b.type = 'button';
-                        b.className = 'hc-move';
-                        b.textContent = d[0];
-                        b.setAttribute('aria-label', d[1] < 0 ? daText('Move up', 'Flyt op') : daText('Move down', 'Flyt ned'));
-                        b.disabled = i + d[1] < 0 || i + d[1] >= chosen.length;
-                        b.addEventListener('click', function () {
-                            var t = chosen[i + d[1]]; chosen[i + d[1]] = chosen[i]; chosen[i] = t;
-                            render();
-                        });
-                        li.appendChild(b);
-                    });
-                }
-                list.appendChild(li);
-            });
-        }
+        var state = { chosen: [] };
+        function render() { fillHomeCardsList(list, state, render); }
         function openModal() {
             var menu = document.getElementById('topbarMenu');
             if (menu) menu.removeAttribute('open');
             (homeCardsReady || Promise.resolve(homeCards)).then(function () {
-                chosen = homeCards.slice();
+                state.chosen = homeCards.slice();
                 render();
                 modal.hidden = false;
             });
         }
         function closeModal() { modal.hidden = true; }
         function saveValue(value) {
-            fetch('/api/settings.php', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-                body: JSON.stringify({ key: 'home_cards', value: value })
-            })
-                .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
-                .then(function (r) {
-                    if (!r.ok || !r.j || !r.j.ok) { toast((r.j && r.j.error) || daText('Could not save.', 'Kunne ikke gemme.')); return; }
-                    homeCards = cleanHomeCards(String(r.j.value || '').split(','));
-                    renderRail();
-                    closeModal();
-                    toast(homeCards.length ? daText('Start cards saved.', 'Startkort gemt.') : daText('Back to the default.', 'Tilbage til standard.'));
-                })
-                .catch(function () { toast(daText('Network error.', 'Netværksfejl.')); });
+            saveHomeCards(value, function (ok, msg) {
+                toast(msg);
+                if (ok) closeModal();
+            });
         }
         btn.addEventListener('click', openModal);
         document.getElementById('homeCardsClose').addEventListener('click', closeModal);
         modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-        document.getElementById('homeCardsSave').addEventListener('click', function () { saveValue(chosen.join(',')); });
+        document.getElementById('homeCardsSave').addEventListener('click', function () { saveValue(state.chosen.join(',')); });
         document.getElementById('homeCardsReset').addEventListener('click', function () { saveValue(''); });
     })();
 
