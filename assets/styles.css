@@ -2623,12 +2623,22 @@ svg.cyc-emoji { overflow: visible; }
     border: 1px solid var(--line, rgba(127,127,127,.25)); background: var(--surface-2, #e5e7eb);
 }
 .loc-map .leaflet-control-attribution { font-size: 10px; }
+/* One Location card: tabs, then the side pane (day detail or the places list/editor) and the shared map. Phone: Day = detail then
+   map; Places = map first (tap it, then name + save below). Wide: side pane left, map right. */
+.loc-card { display: flex; flex-direction: column; }
+.loc-card > .loc-tabs { order: 0; }
+.loc-card > .loc-side { order: 1; min-width: 0; }
+.loc-card > .loc-map { order: 2; }
+.loc-card[data-view="places"] > .loc-map { order: 1; height: 280px; margin-bottom: 10px; }
+.loc-card[data-view="places"] > .loc-side { order: 2; }
+.pf-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 @container cardpanel (min-width: 720px) {
-    .loc-card { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; grid-template-rows: auto 1fr; gap: 0 20px; }
-    .loc-card > .loc-head { grid-column: 1 / -1; }
-    .loc-card > .loc-stats { grid-template-columns: 1fr; align-content: start; gap: 10px; margin: 4px 0 0; }
-    .loc-card > .loc-map { height: min(62vh, 560px); }
-    .loc-card > .plan-empty { grid-column: 1 / -1; }
+    .loc-card { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; grid-template-rows: auto 1fr; gap: 0 20px; align-items: start; }
+    .loc-card > .loc-tabs { grid-column: 1 / -1; }
+    .loc-card > .loc-side { grid-column: 1; grid-row: 2; }
+    .loc-card > .loc-map, .loc-card[data-view="places"] > .loc-map { grid-column: 2; grid-row: 2; height: min(64vh, 580px); margin-bottom: 0; }
+    .loc-side .loc-stats { grid-template-columns: 1fr; align-content: start; gap: 10px; margin: 4px 0 0; }
+    .pf-row2 { grid-template-columns: 1fr; }
 }
 
 /* ---- Time in places (day card) + Places card (phase 2) --------------------------- */
@@ -2639,7 +2649,6 @@ svg.cyc-emoji { overflow: visible; }
 .loc-ip-time { font-variant-numeric: tabular-nums; font-weight: 600; }
 .loc-ip-visits { grid-column: 2 / -1; font-size: 12px; color: var(--muted); }
 
-.places-side { margin-bottom: 10px; }
 .places-add {
     display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 9px; cursor: pointer;
     border: 1px solid var(--line); background: var(--accent-soft, transparent); color: inherit; font: inherit; font-weight: 600;
@@ -2673,20 +2682,6 @@ svg.cyc-emoji { overflow: visible; }
 .pf-hint { font-size: 12px; color: var(--muted); }
 .places-map { cursor: crosshair; }
 .places-form [hidden] { display: none !important; }
-/* Phone: map first (tap it, then name + save below), name + type side by side. */
-.places-card { display: flex; flex-direction: column; }
-.places-card > .places-map { order: -1; height: 280px; margin-bottom: 10px; }
-.pf-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-@container cardpanel (min-width: 720px) {
-    .loc-card > .loc-inplaces { grid-column: 1; }
-    .loc-card { grid-template-rows: auto auto 1fr; }
-    .loc-card > .loc-map { grid-column: 2; grid-row: 2 / span 2; }
-    .places-card { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; gap: 0 20px; align-items: start; }
-    .places-card > .places-side { grid-column: 1; grid-row: 1; }
-    .places-card > .places-map { grid-column: 2; grid-row: 1; height: min(64vh, 580px); margin-bottom: 0; }
-    .pf-row2 { grid-template-columns: 1fr; }
-    .places-card > .plan-empty { grid-column: 1 / -1; }
-}
 
 /* ---- Timeline (phase 3) + place suggestions ---------------------------------------- */
 .loc-timeline { list-style: none; margin: 4px 0 10px; padding: 0; display: flex; flex-direction: column; }
@@ -2827,4 +2822,3 @@ body.voice-on .vd-lang { font-size: 13px; }
 .loc-tabs { display: flex; gap: 6px; margin: 0 0 8px; }
 .loc-tab { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .loc-tab.is-active { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); cursor: default; }
-.loc-tabs.is-busy { opacity: .5; pointer-events: none; }

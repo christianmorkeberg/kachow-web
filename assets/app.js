@@ -1401,8 +1401,7 @@
         if (card.kind === 'cash') { renderCash(card); return; }
         if (card.kind === 'pl') { renderPl(card); return; }
         if (card.kind === 'mileage') { renderMileage(card); return; }
-        if (card.kind === 'location_day') { renderLocationDay(card); return; }
-        if (card.kind === 'places') { renderPlaces(card); return; }
+        if (card.kind === 'location_day' || card.kind === 'places') { renderLocation(card); return; }
         if (card.kind === 'work_log') { renderWorkLog(card); return; }
         if (card.kind === 'notice') { renderNotice(card); return; }
         if (card.kind === 'email_list') { renderEmailList(card); return; }
@@ -6908,43 +6907,160 @@
         }).then(function (r) { return r.json(); });
     }
 
-    // One "Location" experience over two cards: Day (the timeline + route) and Places (the saved places + map). The tabs flip
-    // between them in place, so asking for "my location" and then "the registered places" no longer means two separate cards.
-    function locTabs(active) {
-        var bar = document.createElement('div');
-        bar.className = 'loc-tabs';
+    // ---- Location: ONE card — the day (route, stats, timeline) and the saved places — over ONE map ----------
+    // A 'location_day' card opens on the Day tab and a 'places' card on the Places tab; the other half is fetched the first time its
+    // tab is used. Both views draw into layer groups of the same Leaflet map and into the same side pane, so asking for "my location"
+    // and then for "the registered places" is one card you flip, not two.
+    function adoptPanelCard(card, wrap) {
+        // The tabs change which kind the panel shows: keep the panel's own record (title, summary, rail) in step with it.
+        if (!cardPanel || !wrap.closest('#cardPanelBody')) return;
+        panelKind = card.kind;
+        panelCard = card;
+        setIconText(cardPanelTitle, cardIconFor(card), cardTitleFor(card));
+        cardPanelSub.textContent = cardSubFor(card);
+        recordRailCard(card);
+        renderRail();
+    }
+
+    function renderLocation(initial) {
+        clearEmptyHint();
+        var ctx = {
+            view: initial.kind === 'places' ? 'places' : 'day',
+            day: initial.kind === 'location_day' ? initial : null,
+            places: initial.kind === 'places' ? initial : null,
+            token: 0, mapReady: null, fit: null
+        };
+        var L = null, map = null;                       // Leaflet and the one shared map
+        var dayLayer = null, placeLayer = null, draftLayer = null, placeLayers = {};
+        var draft = null, hint = null;                  // the place being edited (Places view)
+        var card = null, places = [];                   // the Places payload the editor below works on
+
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card loc-card';
+        var tabs = document.createElement('div');
+        tabs.className = 'loc-tabs';
+        var tabBtns = {};
         [['day', daText('Day', 'Dag')], ['places', daText('Places', 'Steder')]].forEach(function (t) {
             var b = document.createElement('button');
             b.type = 'button';
-            b.className = 'loc-tab' + (t[0] === active ? ' is-active' : '');
+            b.className = 'loc-tab';
             b.textContent = t[1];
-            if (t[0] !== active) {
-                b.addEventListener('click', function () {
-                    bar.classList.add('is-busy');
-                    var req = t[0] === 'day' ? fetchLocationDay(locToday()) : postPlaces({ action: 'list' }, true);
-                    req.then(function (j) {
-                        if (j && j.card) presentCard(j.card, 'open');   // a different kind: replaces the panel, not an in-place refresh
-                        else bar.classList.remove('is-busy');
-                    }).catch(function () {
-                        bar.classList.remove('is-busy');
-                        toast(daText('Could not load that.', 'Kunne ikke hente det.'));
+            b.addEventListener('click', function () { if (ctx.view !== t[0]) show(t[0]); });
+            tabs.appendChild(b);
+            tabBtns[t[0]] = b;
+        });
+        var side = document.createElement('div');
+        side.className = 'loc-side';
+        var mapEl = document.createElement('div');
+        mapEl.className = 'loc-map';
+        wrap.appendChild(tabs);
+        wrap.appendChild(side);
+        wrap.appendChild(mapEl);
+        messages.appendChild(wrap);
+
+        function adopt(c) { adoptPanelCard(c, wrap); }
+
+        function hasData(view) {
+            var c = view === 'day' ? ctx.day : ctx.places;
+            if (!c) return false;
+            if (c.stripped) {                           // reopened from chat history: no coordinates were kept
+                return view === 'day' ? (c.points || []).length > 0 || !c.date : (c.places || []).length > 0 || !c.count;
+            }
+            return true;
+        }
+
+        function show(view) {
+            ctx.view = view;
+            draft = null;
+            wrap.setAttribute('data-view', view);
+            Object.keys(tabBtns).forEach(function (k) { tabBtns[k].classList.toggle('is-active', k === view); });
+            mapEl.classList.toggle('places-map', view === 'places');
+            var mine = ++ctx.token;                     // a slow answer for an earlier tab must not paint over this one
+            if (hasData(view)) { paint(); return; }
+            side.innerHTML = '';
+            clearLayers();
+            var ld = document.createElement('div');
+            ld.className = 'plan-empty';
+            ld.textContent = view === 'day' ? daText('Loading the day…', 'Henter dagen…') : daText('Loading places…', 'Henter steder…');
+            side.appendChild(ld);
+            var req = view === 'day'
+                ? fetchLocationDay(ctx.day && ctx.day.date ? ctx.day.date : locToday())
+                : postPlaces({ action: 'list' }, true);
+            req.then(function (j) {
+                if (mine !== ctx.token) return;
+                if (!j || !j.card) throw new Error('no card');
+                if (view === 'day') ctx.day = j.card; else ctx.places = j.card;
+                adopt(j.card);
+                paint();
+            }).catch(function () {
+                if (mine === ctx.token) ld.textContent = daText('Could not load that.', 'Kunne ikke hente det.');
+            });
+        }
+
+        // A saved / deleted place changes what the day card says about "time in your places", so the day is re-read next time.
+        function placesChanged(c) {
+            ctx.places = c;
+            ctx.day = null;
+            adopt(c);
+            show('places');
+        }
+
+        function paint() {
+            draft = null;
+            side.innerHTML = '';
+            if (ctx.view === 'day') buildDay(); else buildPlaces();
+            withMap(function () { if (ctx.view === 'day') drawDay(); else drawPlaces(); });
+        }
+
+        // ---------- the shared map ----------
+        function clearLayers() {
+            if (!map) return;
+            dayLayer.clearLayers();
+            placeLayer.clearLayers();
+            draftLayer.clearLayers();
+            placeLayers = {};
+        }
+        function withMap(fn) {
+            if (map) { fn(); return; }
+            if (!ctx.mapReady) {
+                ctx.mapReady = loadLeaflet().then(function (lib) {
+                    if (!mapEl.isConnected) return null;
+                    L = lib;
+                    map = L.map(mapEl, { zoomControl: true, attributionControl: true });
+                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+                    }).addTo(map);
+                    dayLayer = L.layerGroup().addTo(map);
+                    placeLayer = L.layerGroup().addTo(map);
+                    draftLayer = L.featureGroup().addTo(map);
+                    map.on('click', function (ev) {
+                        if (ctx.view !== 'places' || !draft) return;
+                        var ll = [Math.round(ev.latlng.lat * 1e6) / 1e6, Math.round(ev.latlng.lng * 1e6) / 1e6];
+                        if (draft.shape === 'circle') { draft.lat = ll[0]; draft.lon = ll[1]; }
+                        else draft.polygon.push(ll);
+                        drawDraft();
                     });
+                    if (window.ResizeObserver) {
+                        var lastW = mapEl.clientWidth;
+                        new ResizeObserver(function () {
+                            if (mapEl.clientWidth && mapEl.clientWidth !== lastW) {
+                                lastW = mapEl.clientWidth;
+                                if (ctx.fit) ctx.fit(); else map.invalidateSize();
+                            }
+                        }).observe(mapEl);
+                    }
+                    return map;
                 });
             }
-            bar.appendChild(b);
-        });
+            ctx.mapReady.then(function (m) { if (m) fn(); })
+                .catch(function () { mapEl.textContent = daText('The map could not load.', 'Kortet kunne ikke indlæses.'); });
+        }
 
-        return bar;
-    }
-
-    function renderLocationDay(card) {
-        clearEmptyHint();
-        messages.appendChild(locTabs('day'));
-        var st = card.stats || {};
-        var pts = card.points || [];
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card loc-card';
-
+        // ---------- Day view ----------
+        function buildDay() {
+            var card = ctx.day;
+            var st = card.stats || {};
         // Header: day with previous / next (no "next" past today).
         var head = document.createElement('div');
         head.className = 'plan-card-title loc-head';
@@ -6966,7 +7082,7 @@
             if (!card.date) return;
             prev.disabled = next.disabled = true;
             fetchLocationDay(locShiftDate(card.date, days)).then(function (j) {
-                if (j && j.card) refreshPanelCard(j.card);
+                if (j && j.card) { ctx.day = j.card; adopt(j.card); paint(); }
             }).catch(function () {
                 prev.disabled = false;
                 next.disabled = card.date >= locToday();
@@ -6978,7 +7094,7 @@
         head.appendChild(prev);
         head.appendChild(title);
         head.appendChild(next);
-        wrap.appendChild(head);
+        side.appendChild(head);
 
         // Stats (data quality for phase 1): points, span, distance, cadence, gaps, accuracy, battery.
         var stats = document.createElement('div');
@@ -7002,7 +7118,7 @@
             stat(daText('median accuracy', 'median nøjagtighed'), st.median_acc_m != null ? '±' + st.median_acc_m + ' m' : null);
             if (st.battery) stat(daText('battery', 'batteri'), st.battery.from + '% → ' + st.battery.to + '%');
         }
-        wrap.appendChild(stats);
+        side.appendChild(stats);
 
         // Time in the user's places (phase 2: a first, simple estimate from runs of points inside).
         if ((st.in_places || []).length) {
@@ -7021,7 +7137,7 @@
                         + (pl.passes ? (visits ? ' · ' : '') + pl.passes + ' ' + daText(pl.passes === 1 ? 'pass-by' : 'pass-bys', 'forbikørsler') : '')) + '</span>';
                 ip.appendChild(row);
             });
-            wrap.appendChild(ip);
+            side.appendChild(ip);
         }
 
         // Timeline (phase 3): stays and the trips between them, in order.
@@ -7056,159 +7172,72 @@
                 }
                 tl.appendChild(li);
             });
-            wrap.appendChild(tl);
+            side.appendChild(tl);
         }
 
-        // A card reopened from chat history carries no coordinates (they're only kept 60 days,
-        // server-side) — fetch the day live instead.
-        if (card.stripped && !pts.length && card.date) {
-            var loading = document.createElement('div');
-            loading.className = 'plan-empty';
-            loading.textContent = daText('Loading map…', 'Henter kort…');
-            wrap.appendChild(loading);
-            messages.appendChild(wrap);
-            fetchLocationDay(card.date).then(function (j) {
-                if (j && j.card) refreshPanelCard(j.card);
-            }).catch(function () { loading.textContent = daText('Could not load this day.', 'Kunne ikke hente dagen.'); });
-            return;
+
+            if (!(card.points || []).length && !(card.timeline || []).length) {
+                var empty = document.createElement('div');
+                empty.className = 'plan-empty';
+                empty.textContent = daText('No location points for this day.', 'Ingen positioner for denne dag.');
+                side.appendChild(empty);
+            }
         }
 
-        if (!pts.length && !(card.timeline || []).length) {
-            var empty = document.createElement('div');
-            empty.className = 'plan-empty';
-            empty.textContent = daText('No location points for this day.', 'Ingen positioner for denne dag.');
-            wrap.appendChild(empty);
-            messages.appendChild(wrap);
-            return;
-        }
-
-        var mapEl = document.createElement('div');
-        mapEl.className = 'loc-map';
-        wrap.appendChild(mapEl);
-        messages.appendChild(wrap);
-
-        loadLeaflet().then(function (L) {
-            if (!mapEl.isConnected) return;
-            var map = L.map(mapEl, { zoomControl: true, attributionControl: true });
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-            }).addTo(map);
-
-            (card.places || []).forEach(function (pl) { drawPlace(L, map, pl, false); });
-            (card.timeline || []).forEach(function (it) {
+        function drawDay() {
+            var c = ctx.day;
+            if (!c) return;
+            clearLayers();
+            var pts = c.points || [];
+            (c.places || []).forEach(function (pl) { drawPlace(L, dayLayer, pl, false); });
+            (c.timeline || []).forEach(function (it) {
                 if (it.kind !== 'stay') return;
                 L.circleMarker([it.lat, it.lon], { radius: 9, weight: 2, color: '#fff',
                     fillColor: it.place ? placeColor(it.type) : '#94a3b8', fillOpacity: 0.95 })
                     .bindTooltip((it.place || daText('Unnamed place', 'Unavngivet sted')) + ' · ' + it.from + '–'
-                        + (it.ongoing ? daText('now', 'nu') : it.to)).addTo(map);
+                        + (it.ongoing ? daText('now', 'nu') : it.to)).addTo(dayLayer);
             });
-
-            var goodAcc = card.good_acc_m || 100;
+            var goodAcc = c.good_acc_m || 100;
             var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3b82f6';
             var good = pts.filter(function (p) { return p[3] == null || p[3] <= goodAcc; });
             var line = good.map(function (p) { return [p[0], p[1]]; });
-            if (line.length > 1) L.polyline(line, { color: accent, weight: 4, opacity: 0.85 }).addTo(map);
-
+            if (line.length > 1) L.polyline(line, { color: accent, weight: 4, opacity: 0.85 }).addTo(dayLayer);
             pts.forEach(function (p) {
                 var isGood = p[3] == null || p[3] <= goodAcc;
                 L.circleMarker([p[0], p[1]], {
                     radius: isGood ? 3 : 2, weight: 1, color: accent,
                     opacity: isGood ? 0.9 : 0.35, fillOpacity: isGood ? 0.6 : 0.15
-                }).bindTooltip(p[2] + (p[3] != null ? ' · ±' + p[3] + ' m' : '') + (p[4] ? ' · ' + p[4] + ' km/h' : ''))
-                  .addTo(map);
+                }).bindTooltip(p[2] + (p[3] != null ? ' · ±' + p[3] + ' m' : '') + (p[4] ? ' · ' + p[4] + ' km/h' : '')).addTo(dayLayer);
             });
             var first = pts[0], last = pts[pts.length - 1];
             if (first) {
-            // Start drawn larger underneath, so a round trip (start ≈ end) still shows both.
-            L.circleMarker([first[0], first[1]], { radius: 10, weight: 2, color: '#fff', fillColor: '#16a34a', fillOpacity: 1 })
-                .bindTooltip(daText('Start ', 'Start ') + first[2]).addTo(map);
-            L.circleMarker([last[0], last[1]], { radius: 6, weight: 2, color: '#fff', fillColor: '#dc2626', fillOpacity: 1 })
-                .bindTooltip(daText('Last ', 'Seneste ') + last[2]).addTo(map);
+                // Start drawn larger underneath, so a round trip (start ≈ end) still shows both.
+                L.circleMarker([first[0], first[1]], { radius: 10, weight: 2, color: '#fff', fillColor: '#16a34a', fillOpacity: 1 })
+                    .bindTooltip(daText('Start ', 'Start ') + first[2]).addTo(dayLayer);
+                L.circleMarker([last[0], last[1]], { radius: 6, weight: 2, color: '#fff', fillColor: '#dc2626', fillOpacity: 1 })
+                    .bindTooltip(daText('Last ', 'Seneste ') + last[2]).addTo(dayLayer);
             }
-
-            var stayLL = (card.timeline || []).filter(function (it) { return it.kind === 'stay'; }).map(function (it) { return [it.lat, it.lon]; });
-            var bounds = L.latLngBounds(line.concat(stayLL).length ? line.concat(stayLL) : pts.map(function (p) { return [p[0], p[1]]; }));
-            function fit() { map.invalidateSize(); map.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 }); }
-            fit();
-            // The panel may be minimised or resized (split / full width): refit when it gets a size.
-            if (window.ResizeObserver) {
-                var lastW = mapEl.clientWidth;
-                new ResizeObserver(function () {
-                    if (mapEl.clientWidth && mapEl.clientWidth !== lastW) { lastW = mapEl.clientWidth; fit(); }
-                }).observe(mapEl);
-            }
-        }).catch(function () {
-            mapEl.textContent = daText('The map could not load.', 'Kortet kunne ikke indlæses.');
-        });
-    }
-
-    // ---- Places (location tracking phase 2): the user's own named places on a map ------------
-    var PLACE_TYPES = {
-        work:     ['Work', 'Arbejde', '#2563eb'],
-        business: ['Business', 'Erhverv', '#ea580c'],
-        commute:  ['Commute', 'Pendling', '#7c3aed'],
-        home:     ['Home', 'Hjem', '#16a34a'],
-        private:  ['Private', 'Privat', '#db2777'],
-        other:    ['Other', 'Andet', '#64748b']
-    };
-    function placeColor(type) { return (PLACE_TYPES[type] || PLACE_TYPES.other)[2]; }
-    function placeTypeLabel(type) { var t = PLACE_TYPES[type] || PLACE_TYPES.other; return daText(t[0], t[1]); }
-
-    // Draws one place (circle or polygon) on a Leaflet map; returns the layer.
-    function drawPlace(L, map, pl, focused) {
-        var style = { color: placeColor(pl.type), weight: focused ? 3 : 2, opacity: 0.9,
-            fillColor: placeColor(pl.type), fillOpacity: focused ? 0.22 : 0.12 };
-        var layer = pl.shape === 'polygon' && (pl.polygon || []).length >= 3
-            ? L.polygon(pl.polygon, style)
-            : L.circle([pl.lat, pl.lon], Object.assign({ radius: pl.radius_m || 100 }, style));
-        layer.bindTooltip(pl.name, { direction: 'center', className: 'place-label', permanent: false });
-        return layer.addTo(map);
-    }
-
-    // Bounds from the place's own data (a Leaflet circle can't measure itself before the map has a view).
-    function placeBounds(L, pl) {
-        if (pl.shape === 'polygon' && (pl.polygon || []).length >= 3) return L.latLngBounds(pl.polygon);
-        return L.latLng(pl.lat, pl.lon).toBounds((pl.radius_m || 100) * 2);
-    }
-
-    function postPlaces(body, withSuggestions) {
-        if (withSuggestions) body.suggest = true;
-        return fetch('/api/places.php', {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'error'); return j; }); });
-    }
-
-    function renderPlaces(card) {
-        clearEmptyHint();
-        messages.appendChild(locTabs('places'));
-        var places = card.places || [];
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card places-card';
-
-        // A card reopened from chat history has no coordinates — fetch the live list.
-        if (card.stripped && !places.length && card.count) {
-            var ld = document.createElement('div');
-            ld.className = 'plan-empty';
-            ld.textContent = daText('Loading places…', 'Henter steder…');
-            wrap.appendChild(ld);
-            messages.appendChild(wrap);
-            postPlaces({ action: 'list' }, card.stripped && card.suggestions !== undefined).then(function (j) { if (j.card) refreshPanelCard(j.card); })
-                .catch(function () { ld.textContent = daText('Could not load places.', 'Kunne ikke hente steder.'); });
-            return;
+            var stayLL = (c.timeline || []).filter(function (it) { return it.kind === 'stay'; }).map(function (it) { return [it.lat, it.lon]; });
+            var all = line.concat(stayLL);
+            if (!all.length) all = pts.map(function (p) { return [p[0], p[1]]; });
+            ctx.fit = function () {
+                map.invalidateSize();
+                if (all.length) map.fitBounds(L.latLngBounds(all), { padding: [24, 24], maxZoom: 16 });
+                else if ((c.places || []).length) {
+                    var b = placeBounds(L, c.places[0]);
+                    c.places.slice(1).forEach(function (p) { b.extend(placeBounds(L, p)); });
+                    map.fitBounds(b, { padding: [30, 30], maxZoom: 16 });
+                } else map.setView([55.68, 12.57], 11);
+            };
+            ctx.fit();
         }
 
-        var mapEl = document.createElement('div');
-        mapEl.className = 'loc-map places-map';
-        var side = document.createElement('div');
-        side.className = 'places-side';
-        wrap.appendChild(side);
-        wrap.appendChild(mapEl);
-        messages.appendChild(wrap);
-
-        var L, map, placeLayers = {}, draft = null, draftLayer = null, hint = null;
+        // ---------- Places view ----------
+        function buildPlaces() {
+            card = ctx.places;
+            places = card.places || [];
+            showList();
+        }
 
         // --- list view ---
         function showList() {
@@ -7347,7 +7376,7 @@
             var del = f.querySelector('.pf-delete');
             if (del) del.addEventListener('click', function () {
                 if (!confirm(daText('Delete "' + pl.name + '"?', 'Slet "' + pl.name + '"?'))) return;
-                postPlaces({ action: 'delete', id: pl.id }, !!card.suggestions).then(function (j) { refreshPanelCard(j.card); })
+                postPlaces({ action: 'delete', id: pl.id }, !!card.suggestions).then(function (j) { placesChanged(j.card); })
                     .catch(function (e) { toast(e.message); });
             });
             f.querySelector('.pf-save').addEventListener('click', function () {
@@ -7361,7 +7390,7 @@
                     if (draft.lat == null) { toast(daText('Tap the map to place it.', 'Tryk på kortet for at placere det.')); return; }
                     body.lat = draft.lat; body.lon = draft.lon; body.radius_m = draft.radius_m;
                 }
-                postPlaces(body, !!card.suggestions).then(function (j) { refreshPanelCard(j.card); })
+                postPlaces(body, !!card.suggestions).then(function (j) { placesChanged(j.card); })
                     .catch(function (e) { toast(e.message); });
             });
 
@@ -7374,15 +7403,15 @@
             }
         }
 
-        function clearDraftLayer() { if (draftLayer && map) { map.removeLayer(draftLayer); } draftLayer = null; }
+
+        function clearDraftLayer() { if (draftLayer) draftLayer.clearLayers(); }
         function drawDraft() {
-            if (!map || !draft) return;
+            if (!map || !draft || ctx.view !== 'places') return;
             clearDraftLayer();
             Object.keys(placeLayers).forEach(function (id) {
                 placeLayers[id].setStyle({ opacity: String(id) === String(draft.id) ? 0 : 0.35, fillOpacity: String(id) === String(draft.id) ? 0 : 0.06 });
             });
             var col = placeColor(draft.type);
-            draftLayer = L.featureGroup().addTo(map);
             if (draft.shape === 'circle' && draft.lat != null) {
                 L.circle([draft.lat, draft.lon], { radius: draft.radius_m, color: col, weight: 3, fillColor: col, fillOpacity: 0.2, dashArray: '6 4' }).addTo(draftLayer);
                 L.circleMarker([draft.lat, draft.lon], { radius: 5, color: '#fff', weight: 2, fillColor: col, fillOpacity: 1 }).addTo(draftLayer);
@@ -7406,46 +7435,70 @@
             else map.setView([55.68, 12.57], 11);
         }
 
-        showList();
-        loadLeaflet().then(function (lib) {
-            if (!mapEl.isConnected) return;
-            L = lib;
-            map = L.map(mapEl, { zoomControl: true });
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-            }).addTo(map);
+        function drawPlaces() {
+            if (!ctx.places) return;
+            card = ctx.places;
+            places = card.places || [];
+            clearLayers();
             places.forEach(function (pl) {
-                var layer = drawPlace(L, map, pl, card.focus === pl.id);
+                var layer = drawPlace(L, placeLayer, pl, card.focus === pl.id);
                 layer.on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit(pl); } });
                 placeLayers[pl.id] = layer;
             });
             (card.suggestions || []).forEach(function (sg, i) {
                 var label = sg.suggested_name || (daText('Suggestion ', 'Forslag ') + (i + 1));
                 L.circle([sg.lat, sg.lon], { radius: 60, color: '#94a3b8', weight: 2, dashArray: '4 4', fillOpacity: 0.08 })
-                    .bindTooltip(label).addTo(map)
+                    .bindTooltip(label).addTo(placeLayer)
                     .on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit({ id: null, name: sg.suggested_name || '', type: 'other', shape: 'circle', lat: sg.lat, lon: sg.lon, radius_m: 100, polygon: [] }); } });
             });
             if (card.here) {
                 L.circleMarker(card.here, { radius: 6, color: '#fff', weight: 2, fillColor: '#0ea5e9', fillOpacity: 1 })
-                    .bindTooltip(daText('Your latest position', 'Din seneste position')).addTo(map);
+                    .bindTooltip(daText('Your latest position', 'Din seneste position')).addTo(placeLayer);
             }
-            map.on('click', function (ev) {
-                if (!draft) return;
-                var ll = [Math.round(ev.latlng.lat * 1e6) / 1e6, Math.round(ev.latlng.lng * 1e6) / 1e6];
-                if (draft.shape === 'circle') { draft.lat = ll[0]; draft.lon = ll[1]; }
-                else draft.polygon.push(ll);
-                drawDraft();
-            });
+            ctx.fit = fitAll;
             fitAll();
             if (draft) drawDraft();
-            if (window.ResizeObserver) {
-                var lastW = mapEl.clientWidth;
-                new ResizeObserver(function () {
-                    if (mapEl.clientWidth && mapEl.clientWidth !== lastW) { lastW = mapEl.clientWidth; map.invalidateSize(); }
-                }).observe(mapEl);
-            }
-        }).catch(function () { mapEl.textContent = daText('The map could not load.', 'Kortet kunne ikke indlæses.'); });
+        }
+
+        show(ctx.view);
+    }
+
+    // ---- Places (location tracking phase 2): the user's own named places on a map ------------
+    var PLACE_TYPES = {
+        work:     ['Work', 'Arbejde', '#2563eb'],
+        business: ['Business', 'Erhverv', '#ea580c'],
+        commute:  ['Commute', 'Pendling', '#7c3aed'],
+        home:     ['Home', 'Hjem', '#16a34a'],
+        private:  ['Private', 'Privat', '#db2777'],
+        other:    ['Other', 'Andet', '#64748b']
+    };
+    function placeColor(type) { return (PLACE_TYPES[type] || PLACE_TYPES.other)[2]; }
+    function placeTypeLabel(type) { var t = PLACE_TYPES[type] || PLACE_TYPES.other; return daText(t[0], t[1]); }
+
+    // Draws one place (circle or polygon) on a Leaflet map; returns the layer.
+    function drawPlace(L, map, pl, focused) {
+        var style = { color: placeColor(pl.type), weight: focused ? 3 : 2, opacity: 0.9,
+            fillColor: placeColor(pl.type), fillOpacity: focused ? 0.22 : 0.12 };
+        var layer = pl.shape === 'polygon' && (pl.polygon || []).length >= 3
+            ? L.polygon(pl.polygon, style)
+            : L.circle([pl.lat, pl.lon], Object.assign({ radius: pl.radius_m || 100 }, style));
+        layer.bindTooltip(pl.name, { direction: 'center', className: 'place-label', permanent: false });
+        return layer.addTo(map);
+    }
+
+    // Bounds from the place's own data (a Leaflet circle can't measure itself before the map has a view).
+    function placeBounds(L, pl) {
+        if (pl.shape === 'polygon' && (pl.polygon || []).length >= 3) return L.latLngBounds(pl.polygon);
+        return L.latLng(pl.lat, pl.lon).toBounds((pl.radius_m || 100) * 2);
+    }
+
+    function postPlaces(body, withSuggestions) {
+        if (withSuggestions) body.suggest = true;
+        return fetch('/api/places.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'error'); return j; }); });
     }
 
     // ---- Work hours card ------------------------------------------------------------------
