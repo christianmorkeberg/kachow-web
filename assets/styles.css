@@ -2822,3 +2822,13 @@ body.voice-on .vd-lang { font-size: 13px; }
 .loc-tabs { display: flex; gap: 6px; margin: 0 0 8px; }
 .loc-tab { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .loc-tab.is-active { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); cursor: default; }
+
+/* Start cards picker */
+.hc-list { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.hc-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid transparent; }
+.hc-row.is-on { border-color: var(--accent-line); background: var(--accent-soft); }
+.hc-row label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.hc-row small { color: var(--muted); }
+.hc-move { border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; }
+.hc-move:disabled { opacity: .3; cursor: default; }
+.hc-reset { display: block; margin: 8px auto 0; border: 0; background: transparent; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }

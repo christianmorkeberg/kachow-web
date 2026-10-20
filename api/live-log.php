@@ -43,7 +43,7 @@ if (!$session->isLoggedIn()) {
 $userId = (int) $session->userId();
 
 /** The kinds the browser may log (tool calls are logged by live-tool.php, the start by live-token.php). */
-const CLIENT_KINDS = ['setup_complete', 'first_audio', 'interrupted', 'cancelled', 'goaway', 'resume', 'idle_close', 'limit_close', 'session_end', 'client_error'];
+const CLIENT_KINDS = ['setup_complete', 'first_audio', 'interrupted', 'cancelled', 'goaway', 'resume', 'idle_close', 'limit_close', 'session_end', 'client_error', 'stop_word'];
 
 $in        = json_decode((string) file_get_contents('php://input'), true);
 $in        = is_array($in) ? $in : [];

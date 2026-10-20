@@ -1294,8 +1294,52 @@
         { kind: 'mileage',     icon: 'car', label: 'Mileage',    open: function () { openMileageFresh(); } },
         { kind: 'appearance',  icon: 'palette', label: 'Appearance', open: function () { openAppearanceCard(); } }
     ];
-    var RAIL_STAPLE_KINDS = RAIL_STAPLES.map(function (s) { return s.kind; });
     var railRecents = [];
+
+    // ---- Start cards: the cards the user picked (setting home_cards) open at the start screen and replace the rail's default staples ----
+    function cardFromUrl(url, pick) {
+        return function () {
+            return fetch(url, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+                .then(function (j) { return pick ? pick(j) : (j && j.card); });
+        };
+    }
+    var HOME_CARDS = {
+        work_hours:      { kind: 'work_hours',      icon: 'clock',         en: "Today's hours",   da: 'Dagens timer',   load: cardFromUrl('/api/card.php?for=work_hours', function (j) { return j && j.card; }) },
+        work_week:       { kind: 'work_hours',      icon: 'chart-column',  en: 'Last week',       da: 'Sidste uge',     load: cardFromUrl('/api/card.php?for=work_week', function (j) { return j && j.card; }) },
+        work_log:        { kind: 'work_log',        icon: 'notebook-pen',  en: 'Work log',        da: 'Arbejdslog',     load: cardFromUrl('/api/card.php?for=work_log', function (j) { return j && j.card; }) },
+        location:        { kind: 'location_day',    icon: 'map-pin',       en: 'Location',        da: 'Lokation',       load: function () { return fetchLocationDay(locToday()).then(function (j) { return j && j.card; }); } },
+        calendar:        { kind: 'calendar_month',  icon: 'calendar',      en: 'Calendar',        da: 'Kalender',       load: cardFromUrl('/api/calendar-month.php') },
+        cycle:           { kind: 'cycle',           icon: 'moon',          en: 'Cycle',           da: 'Cyklus',         load: cardFromUrl('/api/card.php?for=cycle', function (j) { return j && j.card; }) },
+        books:           { kind: 'bookkeeping',     icon: 'book-open',     en: 'Books',           da: 'Regnskab',       load: cardFromUrl('/api/books.php?granularity=quarter&offset=0') },
+        moms:            { kind: 'moms',            icon: 'percent',       en: 'Moms',            da: 'Moms',           load: cardFromUrl('/api/moms.php?offset=0') },
+        cash:            { kind: 'cash',            icon: 'landmark',      en: 'Cash',            da: 'Kontanter',      load: cardFromUrl('/api/cash.php') },
+        pl:              { kind: 'pl',              icon: 'trending-up',   en: 'P&L',             da: 'Resultat',       load: cardFromUrl('/api/pl.php?granularity=year&offset=0') },
+        mileage:         { kind: 'mileage',         icon: 'car',           en: 'Mileage',         da: 'Kørsel',         load: cardFromUrl('/api/mileage.php?offset=0') },
+        scheduled_tasks: { kind: 'scheduled_tasks', icon: 'sparkles',      en: 'Scheduled tasks', da: 'Planlagte opgaver', load: cardFromUrl('/api/scheduled-tasks.php') }
+    };
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks'];
+    var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
+    var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
+
+    function cleanHomeCards(list) {
+        var out = [];
+        (list || []).forEach(function (k) { if (HOME_CARDS[k] && out.indexOf(k) === -1 && out.length < 6) out.push(k); });
+        return out;
+    }
+    function openHomeCard(key, mode) {
+        var c = HOME_CARDS[key];
+        if (!c) return Promise.resolve();
+        return c.load().then(function (card) { if (card && card.kind) presentCard(card, mode); }).catch(function () { /* the card just doesn't open */ });
+    }
+    function railStaples() {
+        if (!homeCards.length) return RAIL_STAPLES;
+        return homeCards.map(function (k) {
+            var c = HOME_CARDS[k];
+            return { kind: c.kind, icon: c.icon, label: daText(c.en, c.da), open: function () { openHomeCard(k); } };
+        });
+    }
+    function railStapleKinds() { return railStaples().map(function (s) { return s.kind; }); }
 
     function railInfo(card) {
         return { icon: cardIconFor(card), label: (CARD_TITLES[card.kind] || [])[1] || card.title || card.kind };
@@ -1338,7 +1382,7 @@
 
     function recordRailCard(card) {
         if (!card || !card.kind) return;
-        if (RAIL_STAPLE_KINDS.indexOf(card.kind) !== -1) return;   // staples are pinned, not recents
+        if (railStapleKinds().indexOf(card.kind) !== -1) return;   // staples are pinned, not recents
         railRecents = railRecents.filter(function (r) { return r.kind !== card.kind; });  // dedupe by kind
         var info = railInfo(card);
         railRecents.unshift({ kind: card.kind, icon: info.icon, label: info.label, card: card });
@@ -1359,7 +1403,7 @@
             b.addEventListener('click', onClick);
             return b;
         }
-        RAIL_STAPLES.forEach(function (s) {
+        railStaples().forEach(function (s) {
             rail.appendChild(railBtn(s.icon, s.label, panelKind === s.kind, s.open));
         });
         if (railRecents.length) {
@@ -1373,6 +1417,17 @@
     }
 
     renderRail();   // seed the rail with staples on load
+
+    // The saved start cards (setting home_cards, same on every device).
+    homeCardsReady = fetch('/api/settings.php', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+            var raw = j && j.values && j.values.home_cards ? String(j.values.home_cards) : '';
+            homeCards = cleanHomeCards(raw.split(','));
+            if (homeCards.length) renderRail();
+            return homeCards;
+        })
+        .catch(function () { return []; });
 
     // Display polish: capitalise the first letter of a list item (æøå-aware),
     // without mutating the stored text (matching/dedup rely on the raw value).
@@ -8532,6 +8587,14 @@
         resumeConversation = (recent && recent.id) ? recent : null;
         messages.innerHTML = '';
         showEmptyHint();
+        // The start screen shows the user's first start card (desktop: in the card column; phone: folded under its header,
+        // one tap to unfold) — unless a notification or another card got there first.
+        var gen = navGen;
+        if (homeCardsReady) homeCardsReady.then(function (list) {
+            if (!list.length || gen !== navGen || panelCard) return;
+            var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
+            openHomeCard(list[0], desktop ? 'open' : 'min');
+        });
     }
 
     // Short contextual line shown in the fresh chat when a notification card opens, so
@@ -9068,6 +9131,89 @@
                 if (changed) applyTheme(v.theme || themeChoice(), false);
             })
             .catch(function () { /* offline / not logged in — keep the local theme */ });
+    })();
+
+    // ---------- Start cards picker (☰ → Start cards) ----------
+    (function initHomeCardsPicker() {
+        var btn = document.getElementById('homeCardsBtn');
+        var modal = document.getElementById('homeCardsModal');
+        var list = document.getElementById('homeCardsList');
+        if (!btn || !modal || !list) return;
+        var chosen = [];
+
+        function render() {
+            list.innerHTML = '';
+            var rest = HOME_CARD_ORDER.filter(function (k) { return chosen.indexOf(k) === -1; });
+            chosen.concat(rest).forEach(function (k) {
+                var on = chosen.indexOf(k) !== -1;
+                var c = HOME_CARDS[k];
+                var li = document.createElement('li');
+                li.className = 'hc-row' + (on ? ' is-on' : '');
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = on;
+                cb.id = 'hc-' + k;
+                cb.addEventListener('change', function () {
+                    if (cb.checked) {
+                        if (chosen.length >= 6) { cb.checked = false; toast(daText('At most 6 cards.', 'Højst 6 kort.')); return; }
+                        chosen.push(k);
+                    } else chosen = chosen.filter(function (x) { return x !== k; });
+                    render();
+                });
+                var lab = document.createElement('label');
+                lab.htmlFor = cb.id;
+                lab.innerHTML = icon(c.icon, 'ic-lead') + progEsc(daText(c.en, c.da)) + (on && chosen[0] === k ? ' <small>' + progEsc(daText('opens at start', 'åbner ved start')) + '</small>' : '');
+                li.appendChild(cb);
+                li.appendChild(lab);
+                if (on) {
+                    var i = chosen.indexOf(k);
+                    [['↑', -1], ['↓', 1]].forEach(function (d) {
+                        var b = document.createElement('button');
+                        b.type = 'button';
+                        b.className = 'hc-move';
+                        b.textContent = d[0];
+                        b.setAttribute('aria-label', d[1] < 0 ? daText('Move up', 'Flyt op') : daText('Move down', 'Flyt ned'));
+                        b.disabled = i + d[1] < 0 || i + d[1] >= chosen.length;
+                        b.addEventListener('click', function () {
+                            var t = chosen[i + d[1]]; chosen[i + d[1]] = chosen[i]; chosen[i] = t;
+                            render();
+                        });
+                        li.appendChild(b);
+                    });
+                }
+                list.appendChild(li);
+            });
+        }
+        function openModal() {
+            var menu = document.getElementById('topbarMenu');
+            if (menu) menu.removeAttribute('open');
+            (homeCardsReady || Promise.resolve(homeCards)).then(function () {
+                chosen = homeCards.slice();
+                render();
+                modal.hidden = false;
+            });
+        }
+        function closeModal() { modal.hidden = true; }
+        function saveValue(value) {
+            fetch('/api/settings.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                body: JSON.stringify({ key: 'home_cards', value: value })
+            })
+                .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (r) {
+                    if (!r.ok || !r.j || !r.j.ok) { toast((r.j && r.j.error) || daText('Could not save.', 'Kunne ikke gemme.')); return; }
+                    homeCards = cleanHomeCards(String(r.j.value || '').split(','));
+                    renderRail();
+                    closeModal();
+                    toast(homeCards.length ? daText('Start cards saved.', 'Startkort gemt.') : daText('Back to the default.', 'Tilbage til standard.'));
+                })
+                .catch(function () { toast(daText('Network error.', 'Netværksfejl.')); });
+        }
+        btn.addEventListener('click', openModal);
+        document.getElementById('homeCardsClose').addEventListener('click', closeModal);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+        document.getElementById('homeCardsSave').addEventListener('click', function () { saveValue(chosen.join(',')); });
+        document.getElementById('homeCardsReset').addEventListener('click', function () { saveValue(''); });
     })();
 
     // ---------- Receipt photo upload ----------

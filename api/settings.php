@@ -63,6 +63,8 @@ if ($key === 'personality') {
     $value = UserSettings::normalizePersonality($value);
 } elseif (in_array($key, ['theme', 'theme_dark', 'theme_light'], true)) {
     $value = UserSettings::normalizeThemeFor($key, $value);   // theme may be "auto" (follow the device)
+} elseif ($key === 'home_cards') {
+    $value = UserSettings::normalizeHomeCards($value);          // known card keys only; empty = the default rail
 }
 
 $settings = new UserSettings();
