@@ -76,6 +76,10 @@ try {
             // The quarter awaiting filing (previous quarter) — what the nudge is about.
             $card = (new Moms(new Income(), new Receipts()))->card($userId, -1);
             break;
+        case 'routines':
+            // The routines card, with any "ask first" question waiting (the routine_ask push opens this).
+            $card = (new \App\Data\ScheduledTasks())->cardForUser($userId, new \App\Data\Places());
+            break;
         case 'feedback':
             // The developer's open reports (the "new feedback report" push). Admin only.
             if (!$users->isAdmin($userId)) {

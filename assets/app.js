@@ -798,7 +798,7 @@
         email_draft:   ['pencil-line', 'Draft'],
         feedback:      ['wrench', 'Feedback'],
         dev_ideas:     ['lightbulb', 'Dev ideas'],
-        scheduled_tasks: ['repeat', 'Scheduled'],
+        scheduled_tasks: ['repeat', 'Routines'],
         personality:   ['drama', 'Personality'],
         appearance:    ['palette', 'Appearance'],
         notice:        ['circle-alert', 'Note']
@@ -968,7 +968,8 @@
         if (card.kind === 'scheduled_tasks') {
             var on = (card.items || []).filter(function (t) { return t.status === 'active'; }).length;
             var off = (card.items || []).filter(function (t) { return t.status === 'paused'; }).length;
-            return on + ' ' + daText('active', 'aktive') + (off ? ' · ' + off + ' ' + daText('paused', 'på pause') : '');
+            var q = (card.requests || []).length;
+            return (q ? q + ' ' + daText('waiting for you', 'venter på dig') + ' · ' : '') + on + ' ' + daText('active', 'aktive') + (off ? ' · ' + off + ' ' + daText('paused', 'på pause') : '');
         }
         if (card.kind === 'places') {
             var pc = card.count != null ? card.count : (card.places || []).length;
@@ -1316,7 +1317,7 @@
         cash:            { kind: 'cash',            icon: 'landmark',      en: 'Cash',            da: 'Kontanter',      load: cardFromUrl('/api/cash.php') },
         pl:              { kind: 'pl',              icon: 'trending-up',   en: 'P&L',             da: 'Resultat',       load: cardFromUrl('/api/pl.php?granularity=year&offset=0') },
         mileage:         { kind: 'mileage',         icon: 'car',           en: 'Mileage',         da: 'Kørsel',         load: cardFromUrl('/api/mileage.php?offset=0') },
-        scheduled_tasks: { kind: 'scheduled_tasks', icon: 'sparkles',      en: 'Scheduled tasks', da: 'Planlagte opgaver', load: cardFromUrl('/api/scheduled-tasks.php') }
+        scheduled_tasks: { kind: 'scheduled_tasks', icon: 'sparkles',      en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') }
     };
     var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks'];
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
@@ -4469,6 +4470,31 @@
         var wrap = document.createElement('div');
         wrap.className = 'plan-card sched-card';
 
+        // A routine action (Run now, Save, Discard, mode, answer a question) from a button: the card comes back and is redrawn.
+        function act(body, btn, doneMsg) {
+            btn.disabled = true;
+            fetch('/api/scheduled-tasks.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                body: JSON.stringify(body)
+            }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (res) {
+                if (res && res.ok && res.card) {
+                    if (doneMsg) toast(doneMsg);
+                    if (panelCard === card) refreshPanelCard(res.card);
+                } else {
+                    btn.disabled = false;
+                    toast((res && res.error) || daText('Could not do that.', 'Kunne ikke det.'));
+                }
+            }).catch(function () { btn.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
+        }
+        function actBtn(label, cls, onClick) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'sched-btn' + (cls ? ' ' + cls : '');
+            b.textContent = label;
+            b.addEventListener('click', function () { onClick(b); });
+            return b;
+        }
+
         function post(body, sw) {
             sw.disabled = true;
             fetch('/api/scheduled-tasks.php', {
@@ -4555,6 +4581,11 @@
                 done.className = 'sched-pill';
                 done.textContent = daText('Done', 'Færdig');
                 head.appendChild(done);
+            } else if (t.status === 'draft') {
+                var dr = document.createElement('span');
+                dr.className = 'sched-pill draft';
+                dr.textContent = daText('Draft — not saved yet', 'Kladde — ikke gemt endnu');
+                head.appendChild(dr);
             } else {
                 var sw = toggle(t.label, t.status === 'active', function (cb) {
                     var body = { action: cb.checked ? 'resume' : 'pause' };
@@ -4571,6 +4602,8 @@
             if (t.status === 'active' && t.next_run) bits.push(daText('next ', 'næste ') + t.next_run);
             else if (t.status === 'paused') bits.push(daText('paused', 'på pause'));
             if (!isSystem && t.tell_always) bits.push(daText('tells you every time', 'melder hver gang'));
+            if (!isSystem && t.routine && t.conditions_text) bits.push(t.conditions_text);
+            if (!isSystem && t.routine && t.trigger_type === 'place') bits.push(t.run_mode === 'ask' ? daText('asks you first', 'spørger dig først') : daText('runs by itself', 'kører af sig selv'));
             meta.textContent = bits.join(' · ');
             if (isSystem) {
                 var trig = document.createElement('span');
@@ -4591,6 +4624,23 @@
             }
             el.appendChild(lastRun(t, isSystem));
 
+            if (!isSystem && t.status === 'draft') {
+                var da = document.createElement('div');
+                da.className = 'sched-actions';
+                da.appendChild(actBtn(daText('Save', 'Gem'), 'primary', function (b) { act({ id: t.id, action: 'save' }, b, daText('Saved — it is live.', 'Gemt — den er aktiv.')); }));
+                da.appendChild(actBtn(daText('Discard', 'Kassér'), '', function (b) { act({ id: t.id, action: 'discard' }, b); }));
+                el.appendChild(da);
+            } else if (!isSystem && t.status === 'active') {
+                var ra = document.createElement('div');
+                ra.className = 'sched-actions';
+                ra.appendChild(actBtn(daText('Run now', 'Kør nu'), '', function (b) { act({ id: t.id, action: 'run' }, b, daText('Started — you will get a notification when it is done.', 'Startet — du får en besked når den er færdig.')); }));
+                if (t.routine && t.trigger_type === 'place') {
+                    ra.appendChild(actBtn(t.run_mode === 'ask' ? daText('Run by itself', 'Kør af sig selv') : daText('Ask me first', 'Spørg mig først'), '',
+                        function (b) { act({ id: t.id, action: 'mode', value: t.run_mode === 'ask' ? 'auto' : 'ask' }, b); }));
+                }
+                el.appendChild(ra);
+            }
+
             if (!isSystem && t.conversation_id) {
                 var open = document.createElement('button');
                 open.type = 'button';
@@ -4601,6 +4651,21 @@
             }
             return el;
         }
+
+        (card.requests || []).forEach(function (q) {
+            var box = document.createElement('div');
+            box.className = 'sched-ask';
+            var tx = document.createElement('div');
+            tx.className = 'sched-ask-text';
+            tx.textContent = daText('Run “' + q.label + '”? ', 'Kør “' + q.label + '”? ') + q.trigger_text + ' · ' + q.at;
+            box.appendChild(tx);
+            var bt = document.createElement('div');
+            bt.className = 'sched-actions';
+            bt.appendChild(actBtn(daText('Run it', 'Kør den'), 'primary', function (b) { act({ action: 'answer', request_id: q.id, approve: true }, b, daText('Started.', 'Startet.')); }));
+            bt.appendChild(actBtn(daText('Skip', 'Spring over'), '', function (b) { act({ action: 'answer', request_id: q.id, approve: false }, b); }));
+            box.appendChild(bt);
+            wrap.appendChild(box);
+        });
 
         var items = card.items || [];
         if (!items.length) {
@@ -8601,6 +8666,7 @@
     // it isn't just a card over an empty conversation. Language auto-picks from the
     // device (Danish for da-*, English otherwise).
     var CARD_INTRO = {
+        routines:   { en: 'A routine is asking before it runs 🔔',    da: 'En rutine spørger før den kører 🔔' },
         work_week:  { en: "Here's your work summary for last week 📊", da: 'Her er din arbejdsoversigt for sidste uge 📊' },
         work_hours: { en: "Here are today's hours 🕒",                 da: 'Her er dagens timer 🕒' },
         work_log:   { en: "Here's your work log for this week 📝",     da: 'Her er din arbejdslog for denne uge 📝' },
@@ -9423,7 +9489,7 @@
         var TYPE_ICONS = {
             checkout_nudge: 'clock', weekly_summary: 'chart-column', work_log_nudge: 'notebook-pen',
             cycle_upcoming: 'moon', moms_deadline: 'percent', reminder: 'alarm-clock', wfh_prompt: 'clock',
-            tracking_silent: 'map-pin', scheduled_task: 'sparkles', work_clock_gap: 'clock', feedback_report: 'flag', important_email: 'mail', test: 'bell'
+            tracking_silent: 'map-pin', scheduled_task: 'sparkles', work_clock_gap: 'clock', feedback_report: 'flag', important_email: 'mail', routine_ask: 'sparkles', test: 'bell'
         };
         var oldest = null;     // smallest id shown, for "Show older"
 

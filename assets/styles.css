@@ -2832,3 +2832,13 @@ body.voice-on .vd-lang { font-size: 13px; }
 .hc-move { border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; }
 .hc-move:disabled { opacity: .3; cursor: default; }
 .hc-reset { display: block; margin: 8px auto 0; border: 0; background: transparent; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
+
+/* Routines on the scheduled-tasks card */
+.sched-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.sched-btn { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
+.sched-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.sched-btn:disabled { opacity: .5; cursor: default; }
+.sched-pill.draft { background: var(--accent-soft); color: var(--accent); }
+.sched-ask { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; }
+.sched-ask-text { font-weight: 600; }
+.sched-row.draft { border: 1px dashed var(--accent-line); border-radius: var(--radius-sm); padding: 8px; }

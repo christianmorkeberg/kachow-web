@@ -7,6 +7,10 @@ declare(strict_types=1);
  *
  *   GET                                           → { ok, card }   (your tasks; the developer also gets the system jobs)
  *   POST { id:int, action:pause|resume }          → { ok, card }   (your own task)
+ *   POST { id:int, action:run }                   → starts it now (Run now)
+ *   POST { id:int, action:save|discard }          → a routine draft: make it live / remove it
+ *   POST { id:int, action:mode, value:auto|ask }  → a routine: run by itself, or ask first
+ *   POST { request_id:int, action:answer, approve:bool } → an "ask first" question: run it / skip it
  *   POST { system_task:string, action:… }         → { ok, card }   (developer only)
  */
 
@@ -14,7 +18,10 @@ require __DIR__ . '/../bootstrap.php';
 
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\Places;
 use App\Data\RememberTokens;
+use App\Data\Routines;
+use App\Support\BackgroundRun;
 use App\Data\ScheduledTasks;
 use App\Data\SystemTasks;
 use App\Data\Users;
@@ -61,34 +68,61 @@ try {
         $in     = json_decode((string) file_get_contents('php://input'), true);
         $in     = is_array($in) ? $in : [];
         $action = (string) ($in['action'] ?? '');
-        if ($action !== 'pause' && $action !== 'resume') {
-            out(400, ['error' => 'action must be pause or resume.']);
+        $routines = new Routines();
+        $kick     = static fn (): bool => BackgroundRun::kick($appPath . '/bin/scheduled-tasks-cron.php', ['--requested-only']);
+        if ($action === 'answer') {
+            $res = $routines->decideRequest($userId, (int) ($in['request_id'] ?? 0), filter_var($in['approve'] ?? false, FILTER_VALIDATE_BOOLEAN));
+            if ($res === null) {
+                out(404, ['error' => 'That question is no longer open.']);
+            }
+            if ($res > 0) {
+                $kick();
+            }
+            out(200, ['ok' => true, 'card' => $tasks->cardForUser($userId, new Places(), $isAdmin && isset($sysTasks) ? SystemTasks::cardRows($sysTasks->listAll()) : null)]);
         }
-        $active = $action === 'resume';
-
-        $name = trim((string) ($in['system_task'] ?? ''));
-        if ($name !== '') {
-            if (!$isAdmin || $sysTasks === null) {
-                out(403, ['error' => 'Only the developer can change the system jobs.']);
-            }
-            $key = SystemTasks::resolveKey($name);
-            if ($key === null || !$sysTasks->setActive($key, $active)) {
-                out(404, ['error' => 'No such system job.']);
-            }
-        } else {
+        if (in_array($action, ['run', 'save', 'discard', 'mode'], true)) {
             $id = (int) ($in['id'] ?? 0);
-            if ($id <= 0) {
-                out(400, ['error' => 'A task id is required.']);
+            $ok = match ($action) {
+                'run'     => $routines->requestRun($userId, $id, 'run now (card)'),
+                'save'    => $routines->setStatus($userId, $id, 'active'),
+                'discard' => $routines->setStatus($userId, $id, 'cancelled'),
+                'mode'    => $routines->update($userId, $id, ['run_mode' => (string) ($in['value'] ?? '')]),
+            };
+            if (!$ok) {
+                out(409, ['error' => $action === 'run' ? 'It is not active, or a run is already waiting.' : 'That did not work.']);
             }
-            if ($active) {
-                $t = $tasks->find($userId, $id);
-                if ($t !== null && $t['status'] === 'paused' && $tasks->countActive($userId) >= ScheduleTask::MAX_ACTIVE_PER_USER) {
-                    out(409, ['error' => 'You already have ' . ScheduleTask::MAX_ACTIVE_PER_USER . ' scheduled tasks running — pause or cancel one first.']);
+            if ($action === 'run') {
+                $kick();
+            }
+        } elseif ($action !== 'pause' && $action !== 'resume') {
+            out(400, ['error' => 'Unknown action.']);
+        }
+        if ($action === 'pause' || $action === 'resume') {
+            $active = $action === 'resume';
+            $name   = trim((string) ($in['system_task'] ?? ''));
+            if ($name !== '') {
+                if (!$isAdmin || $sysTasks === null) {
+                    out(403, ['error' => 'Only the developer can change the system jobs.']);
                 }
-            }
-            $why = $tasks->setActive($userId, $id, $active);
-            if ($why !== null) {
-                out(409, ['error' => $why]);
+                $key = SystemTasks::resolveKey($name);
+                if ($key === null || !$sysTasks->setActive($key, $active)) {
+                    out(404, ['error' => 'No such system job.']);
+                }
+            } else {
+                $id = (int) ($in['id'] ?? 0);
+                if ($id <= 0) {
+                    out(400, ['error' => 'A task id is required.']);
+                }
+                if ($active) {
+                    $t = $tasks->find($userId, $id);
+                    if ($t !== null && $t['status'] === 'paused' && $tasks->countActive($userId) >= ScheduleTask::MAX_ACTIVE_PER_USER) {
+                        out(409, ['error' => 'You already have ' . ScheduleTask::MAX_ACTIVE_PER_USER . ' scheduled tasks running — pause or cancel one first.']);
+                    }
+                }
+                $why = $tasks->setActive($userId, $id, $active);
+                if ($why !== null) {
+                    out(409, ['error' => $why]);
+                }
             }
         }
     }
@@ -96,7 +130,7 @@ try {
     if ($isAdmin && isset($sysTasks) && $sysTasks !== null) {
         $system = SystemTasks::cardRows($sysTasks->listAll());
     }
-    out(200, ['ok' => true, 'card' => ScheduledTasks::card($tasks->listForCard($userId), $system)]);
+    out(200, ['ok' => true, 'card' => $tasks->cardForUser($userId, new Places(), $system)]);
 } catch (\Throwable $e) {
     error_log('scheduled-tasks.php: ' . $e->getMessage());
     out(500, ['error' => 'Something went wrong.']);
