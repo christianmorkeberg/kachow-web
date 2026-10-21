@@ -2435,7 +2435,9 @@
             r.min = String(min); r.max = String(max);
             r.value = String(value);
             r.className = 'home-range ' + (cls || '');
-            r.addEventListener('input', function () { if (onInput) onInput(parseInt(r.value, 10)); });
+            function fill() { r.style.setProperty('--p', ((r.value - r.min) / (r.max - r.min) * 100) + '%'); }   // the filled part of the track
+            fill();
+            r.addEventListener('input', function () { fill(); if (onInput) onInput(parseInt(r.value, 10)); });
             r.addEventListener('change', function () { onChange(parseInt(r.value, 10)); });
 
             return r;
@@ -9138,7 +9140,11 @@
 
     function autogrow() {
         input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+        // scrollHeight is the content + padding; the box also has a border, so add it — otherwise an empty box is 2 px too short and shows a scrollbar
+        var border = input.offsetHeight - input.clientHeight;
+        var want = input.scrollHeight + border;
+        input.style.height = Math.min(want, 140) + 'px';
+        input.style.overflowY = want > 140 ? 'auto' : 'hidden';
     }
 
     // Does this message plausibly need the device's location? (weather, "near me")
