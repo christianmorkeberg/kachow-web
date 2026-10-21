@@ -2535,8 +2535,8 @@
             ctl.appendChild(minus); ctl.appendChild(target); ctl.appendChild(plus);
             box.appendChild(ctl);
             var meta = [];
-            if (t.valve_open_pct != null) meta.push(daText('valve ', 'ventil ') + t.valve_open_pct + '%');
-            if (t.last_heard_minutes_ago != null) meta.push(t.last_heard_minutes_ago + daText(' min ago', ' min siden'));
+            if (t.valve_open_pct != null) meta.push(t.valve_open_pct + daText('% open', '% åben'));
+            if (t.last_heard_minutes_ago != null) meta.push(t.last_heard_minutes_ago + ' min');
             if (t.battery_pct != null && t.battery_pct < 25) meta.push(daText('battery ', 'batteri ') + t.battery_pct + '%');
             status.textContent = t.status || meta.join(' · ');
             box.appendChild(status);
@@ -2555,6 +2555,7 @@
             h.appendChild(el('span', null, label));
             sec.appendChild(h);
             var grid = el('div', 'home-tiles');
+            grid.style.setProperty('--n', String(Math.min(2, tiles.length)));   // a source with a few tiles takes just their width
             tiles.forEach(function (x) { grid.appendChild(x); });
             sec.appendChild(grid);
 
@@ -2594,8 +2595,10 @@
                     }
                     var ts = thermosFor(room.name);
                     ts.forEach(function (t) { used[t.id] = true; });
-                    if (ts.length) box.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', ts.map(thermoTile)));
-                    if (room.lights.length) box.appendChild(lightSection(room.lights));
+                    var secs = el('div', 'home-sections');   // the sources of a room share a row when there is space
+                    if (ts.length) secs.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', ts.map(thermoTile)));
+                    if (room.lights.length) secs.appendChild(lightSection(room.lights));
+                    box.appendChild(secs);
                     body.appendChild(box);
                 });
             }
@@ -2606,8 +2609,10 @@
             if (rest.length || other.length) {
                 var ob = el('div', 'home-room');
                 ob.appendChild(el('div', 'home-room-head')).appendChild(el('span', 'home-room-name', daText('Other', 'Andet')));
-                if (rest.length) ob.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', rest.map(thermoTile)));
-                if (other.length) ob.appendChild(lightSection(other));
+                var osecs = el('div', 'home-sections');
+                if (rest.length) osecs.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', rest.map(thermoTile)));
+                if (other.length) osecs.appendChild(lightSection(other));
+                ob.appendChild(osecs);
                 body.appendChild(ob);
             }
         }
