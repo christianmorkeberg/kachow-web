@@ -515,7 +515,7 @@
         [/instruction/,                         'list-checks',   'your preferences',   'dine præferencer'],
         [/connection|invite/,                   'users',         'your connections',   'dine forbindelser'],
         [/setting|appearance|my_name|company/,  'settings',      'your settings',      'dine indstillinger'],
-        [/home_/,                               'lightbulb',     'your home devices',  'dine hjemmeenheder'],
+        [/home_/,                               'house',         'your home devices',  'dine hjemmeenheder'],
         [/chart/,                               'chart-column',  'a chart',            'en graf']
     ];
     var TOOL_SPECIAL = {
@@ -801,7 +801,7 @@
         scheduled_tasks: ['repeat', 'Routines'],
         personality:   ['drama', 'Personality'],
         home_cards:    ['list-checks', 'Start cards'],
-        home:          ['lightbulb', 'Home'],
+        home:          ['house', 'Home'],
         appearance:    ['palette', 'Appearance'],
         notice:        ['circle-alert', 'Note']
     };
@@ -1321,7 +1321,7 @@
         mileage:         { kind: 'mileage',         icon: 'car',           en: 'Mileage',         da: 'Kørsel',         load: cardFromUrl('/api/mileage.php?offset=0') },
         scheduled_tasks: { kind: 'scheduled_tasks', icon: 'repeat',        en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
         feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
-        home:            { kind: 'home',            icon: 'lightbulb',     en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
+        home:            { kind: 'home',            icon: 'house',         en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') }
     };
     var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home'];
