@@ -2864,11 +2864,14 @@ body.voice-on .vd-lang { font-size: 13px; }
 
 /* Home card: a box per room, a labelled section per source (Climate, Lights …), equal-size tiles */
 .home-card { --heat: #fb923c; --amber: #f59e0b; --accent: #f59e0b; --accent-line: color-mix(in srgb, #f59e0b 40%, transparent); --accent-soft: color-mix(in srgb, #f59e0b 16%, transparent); }   /* the card's own accent is the lights' amber, so switches and sliders match the tiles */
-.home-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.home-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.home-head .home-title { flex: 1; }
+.home-sync { color: var(--muted); font-size: 12px; }
 .home-title { font-weight: 700; }
-.home-body { display: flex; flex-direction: column; gap: 12px; }
+.home-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.home-body > .home-note, .home-body > .home-loader { flex: 1 0 100%; }
 .home-note { color: var(--muted); font-size: 13px; }
-.home-room { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.home-room { flex: 1 1 auto; min-width: 232px; max-width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
 .home-room.is-on { border-color: var(--accent-line); }
 .home-room-head { display: flex; align-items: center; gap: 10px; }
 .home-room-name { font-weight: 700; font-size: 15px; flex: 1; }
@@ -2881,7 +2884,7 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-ic svg { width: 16px; height: 16px; }
 .home-sections { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-start; }
 .home-section-climate { flex: 0 0 auto; }
-.home-section-lights { flex: 1 1 300px; min-width: 0; }
+.home-section-lights { flex: 1 1 160px; min-width: 0; }
 .home-tiles { display: grid; grid-template-columns: repeat(auto-fill, 160px); gap: 8px; }
 .home-section-climate .home-tiles { grid-template-columns: repeat(var(--n, 1), 160px); }
 .home-tile { position: relative; box-sizing: border-box; width: 160px; height: 148px; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; overflow: hidden; border: 1px solid transparent; }
@@ -2901,17 +2904,20 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--glow, var(--amber)); opacity: .85; transition: width .15s; }
 .home-more { border: 0; background: transparent; color: var(--muted); padding: 2px; border-radius: 6px; cursor: pointer; display: inline-grid; place-items: center; }
 .home-more svg { width: 16px; height: 16px; }
-.home-more:hover { color: var(--text); background: var(--panel); }
+.home-more:hover, .home-more:focus-visible { color: var(--text); background: color-mix(in srgb, var(--text) 12%, transparent); }
 .home-thermo-ctl { display: flex; align-items: center; gap: 6px; margin-top: auto; }
 .home-thermo-target { flex: 1; text-align: center; font-size: 12.5px; }
 .home-step { flex: none; display: inline-grid; place-items: center; box-sizing: border-box; width: 30px; height: 30px; padding: 0; line-height: 1; font-size: 18px; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 8px; cursor: pointer; }
-.home-panel { grid-column: 1 / -1; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--panel-2); padding: 12px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.home-panel-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .22s ease, opacity .2s ease; }
+.home-panel-wrap.is-open { grid-template-rows: 1fr; opacity: 1; }
+.home-panel-clip { min-height: 0; overflow: hidden; }
+.home-panel { border: 1px solid var(--accent-line); border-radius: 12px; background: var(--panel-2); padding: 12px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
 .home-panel-top { flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; }
 .home-x { border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px; }
 .home-wheel-box { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; flex: 1 1 auto; }
 .home-wheel { position: relative; width: 168px; height: 168px; flex: none; touch-action: none; }
 .home-wheel canvas { width: 168px; height: 168px; border-radius: 50%; cursor: crosshair; display: block; box-shadow: 0 0 0 1px var(--border); }
-.home-wheel-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 1px 4px rgba(0, 0, 0, .5); pointer-events: none; }
+.home-wheel-dot { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 3px solid #fff; background: var(--dot, #fff); box-shadow: 0 1px 5px rgba(0, 0, 0, .22); pointer-events: none; }
 .home-wheel-side { flex: 1 1 200px; min-width: 180px; display: flex; flex-direction: column; gap: 12px; }
 .home-quick { display: flex; flex-wrap: wrap; gap: 8px; }
 .home-quick-dot { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--panel-2); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
@@ -2948,3 +2954,12 @@ body.voice-on .vd-lang { font-size: 13px; }
 @keyframes hl-tbulb { 0% { fill: #38bdf8; } 55%, 75% { fill: #fb923c; } 100% { fill: #38bdf8; } }
 @keyframes hl-heat { 0%, 45% { opacity: 0; transform: translateY(4px); } 62% { opacity: .9; transform: translateY(0); } 85%, 100% { opacity: 0; transform: translateY(-5px); } }
 @media (prefers-reduced-motion: reduce) { .hl-glass, .hl-glow, .hl-fil, .hl-rays path, .hl-tbulb, .hl-merc, .hl-heat path { animation-duration: 8s; } }
+
+@media (prefers-reduced-motion: reduce) { .home-panel-wrap { transition: none; } }
+
+/* last-known values shown while the fresh ones load; placeholder tiles keep the layout still */
+.home-body.is-stale-lights .home-tile-light { opacity: .75; }
+.home-body.is-stale-thermos .home-tile-heat { opacity: .7; }
+.home-tile-heat.is-placeholder .home-skel { color: var(--muted); animation: home-skel 1.2s ease-in-out infinite; }
+.home-skel-bar { height: 28px; margin-top: auto; border-radius: 8px; background: color-mix(in srgb, var(--heat) 14%, transparent); animation: home-skel 1.2s ease-in-out infinite; }
+@keyframes home-skel { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }

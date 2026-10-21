@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * The Home card (authenticated session, JSON): lights, rooms and radiator thermostats, read and controlled through the home agent.
  *
- *   GET  ?part=lights                                        → { ok, rooms:[…], other:[…] }       (the bridge's lists, live)
+ *   GET  ?part=lights                                        → { ok, rooms:[…], other:[…], thermostats_known }  (the bridge's lists, live; the saved thermostat names + rooms)
  *   GET  ?part=thermostats                                   → { ok, thermostats:[…] }            (each valve's numbers, with its Hue room)
  *   POST { action:'light', id, on?, brightness?, color? }    → one light (color: a hex like #ff8800, a word, a white)
  *   POST { action:'group', id, on?, brightness? }            → a whole room (its grouped_light id)
@@ -29,6 +29,7 @@ use App\Home\HomeOwner;
 use App\Home\HueSync;
 use App\Home\ThermostatService;
 use App\Support\HomeCard;
+use App\Support\Thermostats;
 use App\Tools\HomeDeviceCall;
 use App\Tools\SetThermostat;
 
@@ -123,7 +124,13 @@ try {
         $rooms  = hueList($home, $userId, 'room');
         $groups = hueList($home, $userId, 'grouped_light');
         $card   = HomeCard::lights($lights['data'], $rooms['data'] ?? [], $groups['data'] ?? []);
-        out(200, ['ok' => true] + $card + (isset($rooms['error']) ? ['note' => $rooms['error']] : []));
+        // Which thermostats exist and in which room, from the saved names alone (no valve is asked): the card reserves their tiles at once.
+        $known = null;
+        if (trim((string) $settings->get($userId, 'thermostats')) !== '') {
+            $svc   = new ThermostatService($home, $settings);
+            $known = array_map(static fn (array $t): array => ['id' => $t['id'], 'name' => $t['name'], 'room' => $svc->roomFor($userId, $t['name'])], Thermostats::parse($settings->get($userId, 'thermostats')));
+        }
+        out(200, ['ok' => true] + $card + ['thermostats_known' => $known] + (isset($rooms['error']) ? ['note' => $rooms['error']] : []));
     }
     if ($part === 'thermostats') {
         $svc  = new ThermostatService($home, $settings);

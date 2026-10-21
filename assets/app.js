@@ -2265,6 +2265,13 @@
     // reason and re-reads the bridge. A light tile switches on tap; its ⋯ opens the panel (brightness, colour wheel, whites).
     // The Home card's loading animation: a bulb that flickers on and a thermometer whose mercury rises, with changing little messages.
     // kind: 'lights' | 'thermo'. The messages stop by themselves once the loader leaves the page.
+    var HOME_CACHE_KEY = 'kachow_home_cache_v1';
+    function homeCacheRead() {
+        try { var j = JSON.parse(localStorage.getItem(HOME_CACHE_KEY) || 'null'); return j && typeof j === 'object' ? j : null; } catch (e) { return null; }
+    }
+    function homeCacheWrite(part, value) {
+        try { var c = homeCacheRead() || {}; c[part] = value; localStorage.setItem(HOME_CACHE_KEY, JSON.stringify(c)); } catch (e) { /* storage blocked: no cache */ }
+    }
     var HOME_LOADER_TEXT = {
         lights: [['Waking up the lamps…', 'Vækker lamperne…'], ['Asking the lights nicely…', 'Spørger lysene pænt…'], ['Counting bulbs…', 'Tæller pærer…'], ['Finding the switch in the dark…', 'Leder efter kontakten i mørket…']],
         thermo: [['Warming up the radiators…', 'Varmer radiatorerne op…'], ['The valves are sleepy — one moment…', 'Ventilerne sover — et øjeblik…'], ['Checking the temperature…', 'Tjekker temperaturen…'], ['Asking the thermostats…', 'Spørger termostaterne…']]
@@ -2329,14 +2336,23 @@
         refresh.type = 'button';
         refresh.className = 'sched-btn';
         refresh.textContent = daText('Refresh', 'Opdatér');
+        var sync = document.createElement('span');
+        sync.className = 'home-sync';
         head.appendChild(title);
+        head.appendChild(sync);
         head.appendChild(refresh);
         wrap.appendChild(head);
         var body = document.createElement('div');
         body.className = 'home-body';
         wrap.appendChild(body);
 
-        var st = { lights: null, lightsErr: null, thermos: null, thermoErr: null, panel: null };
+        var st = { lights: null, lightsErr: null, thermos: null, thermoErr: null, panel: null, panelShown: null, known: null,
+            fresh: { lights: false, thermos: false }, dragging: 0, pending: false };
+        // Last-known state is kept in this browser and shown at once, then replaced in place by the fresh answer — the card opens complete
+        // and nothing jumps when the (slower) thermostats arrive.
+        var cached = homeCacheRead();
+        if (cached && cached.lights && cached.lights.rooms) { st.lights = { rooms: cached.lights.rooms, other: cached.lights.other || [] }; st.known = cached.lights.known || null; }
+        if (cached && cached.thermos) st.thermos = cached.thermos;
         var timers = {}, last = {};
 
         function post(payload) {
@@ -2428,6 +2444,7 @@
                 var a = h * Math.PI / 180;
                 dot.style.left = (R + Math.cos(a) * sat * R) + 'px';
                 dot.style.top = (R + Math.sin(a) * sat * R) + 'px';
+                dot.style.setProperty('--dot', hsvToHex(h, sat, 1));   // the dot is filled with the colour it picks
             }
             var cur = l.hex && /^#[0-9a-f]{6}$/i.test(l.hex) ? hexToHsv(l.hex) : { h: 0, s: 0 };
             place(cur.h, cur.s);
@@ -2475,7 +2492,7 @@
             var close = el('button', 'home-x', '×');
             close.type = 'button';
             close.setAttribute('aria-label', daText('Close', 'Luk'));
-            close.addEventListener('click', function () { st.panel = null; draw(); });
+            close.addEventListener('click', function () { closePanel(); });
             top.appendChild(close);
             p.appendChild(top);
             var bits = el('div', 'home-panel-bits');
@@ -2513,7 +2530,7 @@
                 more.type = 'button';
                 more.innerHTML = icon('sliders-horizontal', '');
                 more.setAttribute('aria-label', daText('Brightness and colour', 'Lysstyrke og farve'));
-                more.addEventListener('click', function (e) { e.stopPropagation(); st.panel = st.panel === l.id ? null : l.id; draw(); });
+                more.addEventListener('click', function (e) { e.stopPropagation(); if (st.panel === l.id) closePanel(); else { st.panel = l.id; draw(); } });
                 topRow.appendChild(more);
             }
             t.appendChild(topRow);
@@ -2536,6 +2553,13 @@
             var box = el('div', 'home-tile home-tile-heat');
             box.appendChild(el('div', 'home-tile-top')).appendChild(ic('thermometer'));
             box.appendChild(el('div', 'home-tile-name', t.name));
+            if (t.placeholder) {                       // the valve has not answered yet: same-size tile, so nothing moves when it does
+                box.classList.add('is-placeholder');
+                box.appendChild(el('div', 'home-big home-skel', '··'));
+                box.appendChild(el('div', 'home-skel-bar'));
+
+                return box;
+            }
             if (t.error) {
                 box.appendChild(el('div', 'home-tile-sub', daText('No answer', 'Intet svar')));
 
@@ -2596,19 +2620,49 @@
             return sec;
         }
         function lightSection(lights) {
-            var tiles = [];
-            lights.forEach(function (l) {
-                tiles.push(lightTile(l));
-                if (st.panel === l.id) tiles.push(lightPanel(l));
-            });
+            return section('lights', daText('Lights', 'Lys'), 'lightbulb', lights.map(lightTile));
+        }
+        // The light panel opens BELOW the whole room's tiles, so nothing moves when it opens or closes; it slides open and shut.
+        function panelFor(lights) {
+            var l = lights.filter(function (x) { return x.id === st.panel; })[0];
+            if (!l) return null;
+            var wrapEl = el('div', 'home-panel-wrap');
+            var clip = el('div', 'home-panel-clip');
+            clip.appendChild(lightPanel(l));
+            wrapEl.appendChild(clip);
+            if (st.panelShown === l.id) wrapEl.classList.add('is-open');      // a redraw while it is open: stay open, no replay
+            else {
+                requestAnimationFrame(function () { requestAnimationFrame(function () { wrapEl.classList.add('is-open'); }); });
+                setTimeout(function () { if (wrapEl.isConnected && wrapEl.scrollIntoView) wrapEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 260);
+            }
+            st.panelShown = l.id;
 
-            return section('lights', daText('Lights', 'Lys'), 'lightbulb', tiles);
+            return wrapEl;
+        }
+        function closePanel() {
+            var w = body.querySelector('.home-panel-wrap');
+            st.panel = null;
+            st.panelShown = null;
+            if (!w) { draw(); return; }
+            w.classList.remove('is-open');
+            setTimeout(draw, 230);
         }
 
+        // A room box's natural width (tiles are 160 px wide, 8 px apart, sections 20 px apart, 16 px padding + border each side): rooms pack into
+        // rows by this width, so two small rooms share a row, and a roomy one still gets Climate and Lights side by side.
+        function roomWidth(nClimate, nLights) {
+            function cols(k) { return k > 0 ? k * 160 + (k - 1) * 8 : 0; }
+            var c = cols(Math.min(2, nClimate)), l = cols(Math.min(6, nLights));
+
+            return Math.max(232, 32 + c + (c && l ? 20 : 0) + l);
+        }
         function draw() {
             body.innerHTML = '';
             var used = {};
-            var thermos = st.thermos || [];
+            var thermos = st.thermos || (st.known || []).map(function (k) { return { name: k.name, id: k.id, room: k.room, placeholder: true }; });
+            body.classList.toggle('is-stale-lights', !!st.lights && !st.fresh.lights);
+            body.classList.toggle('is-stale-thermos', !!st.thermos && !st.fresh.thermos);
+            sync.textContent = (st.fresh.lights && st.fresh.thermos) ? '' : daText('updating…', 'opdaterer…');
             function thermosFor(roomName) {
                 return thermos.filter(function (t) { return String(t.room || '').toLowerCase() === String(roomName).toLowerCase(); });
             }
@@ -2633,11 +2687,14 @@
                     if (ts.length) secs.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', ts.map(thermoTile)));
                     if (room.lights.length) secs.appendChild(lightSection(room.lights));
                     box.appendChild(secs);
+                    box.style.flexBasis = roomWidth(ts.length, room.lights.length) + 'px';
+                    var pnl = panelFor(room.lights);
+                    if (pnl) box.appendChild(pnl);
                     body.appendChild(box);
                 });
             }
             if (st.thermoErr) body.appendChild(el('div', 'home-note', daText('Thermostats: ', 'Termostater: ') + st.thermoErr));
-            if (!st.thermos && !st.thermoErr) body.appendChild(homeLoader('thermo'));
+            if (!st.thermos && !st.thermoErr && !(st.known && st.known.length)) body.appendChild(homeLoader('thermo'));
             var rest = thermos.filter(function (t) { return !used[t.id]; });
             var other = st.lights ? st.lights.other : [];
             if (rest.length || other.length) {
@@ -2647,6 +2704,9 @@
                 if (rest.length) osecs.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', rest.map(thermoTile)));
                 if (other.length) osecs.appendChild(lightSection(other));
                 ob.appendChild(osecs);
+                ob.style.flexBasis = roomWidth(rest.length, other.length) + 'px';
+                var opnl = panelFor(other);
+                if (opnl) ob.appendChild(opnl);
                 body.appendChild(ob);
             }
         }
@@ -2655,19 +2715,40 @@
             return fetch('/api/home.php?part=' + part, { credentials: 'same-origin' })
                 .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok && j && j.ok, j: j || {} }; }); });
         }
+        // a redraw while a slider or the wheel is being dragged would cut the gesture off: it waits for the pointer to be released
+        function redraw() { if (st.dragging) st.pending = true; else draw(); }
+        body.addEventListener('pointerdown', function () { st.dragging = 1; }, true);
+        function released() {
+            if (!wrap.isConnected) { document.removeEventListener('pointerup', released); document.removeEventListener('pointercancel', released); return; }
+            if (st.dragging) { st.dragging = 0; if (st.pending) { st.pending = false; draw(); } }
+        }
+        document.addEventListener('pointerup', released);
+        document.addEventListener('pointercancel', released);
+
         function loadLights() {
             getPart('lights').then(function (r) {
-                if (r.ok) { st.lights = { rooms: r.j.rooms || [], other: r.j.other || [] }; st.lightsErr = null; } else st.lightsErr = r.j.error || daText('could not load', 'kunne ikke hentes');
-                draw();
-            }).catch(function () { st.lightsErr = daText('network error', 'netværksfejl'); draw(); });
+                if (r.ok) {
+                    homeCacheWrite('lights', { rooms: r.j.rooms || [], other: r.j.other || [], known: r.j.thermostats_known || null });
+                    st.lights = { rooms: r.j.rooms || [], other: r.j.other || [] };
+                    st.known = r.j.thermostats_known || null;
+                    st.lightsErr = null;
+                    st.fresh.lights = true;
+                } else st.lightsErr = r.j.error || daText('could not load', 'kunne ikke hentes');
+                redraw();
+            }).catch(function () { st.lightsErr = daText('network error', 'netværksfejl'); redraw(); });
         }
         function loadThermos() {
             getPart('thermostats').then(function (r) {
-                if (r.ok) { st.thermos = r.j.thermostats || []; st.thermoErr = null; } else st.thermoErr = r.j.error || daText('could not load', 'kunne ikke hentes');
-                draw();
-            }).catch(function () { st.thermoErr = daText('network error', 'netværksfejl'); draw(); });
+                if (r.ok) {
+                    homeCacheWrite('thermos', r.j.thermostats || []);
+                    st.thermos = r.j.thermostats || [];
+                    st.thermoErr = null;
+                    st.fresh.thermos = true;
+                } else st.thermoErr = r.j.error || daText('could not load', 'kunne ikke hentes');
+                redraw();
+            }).catch(function () { st.thermoErr = daText('network error', 'netværksfejl'); redraw(); });
         }
-        refresh.addEventListener('click', function () { st.lights = null; st.thermos = null; draw(); loadLights(); loadThermos(); });
+        refresh.addEventListener('click', function () { st.fresh.lights = false; st.fresh.thermos = false; draw(); loadLights(); loadThermos(); });
 
         draw();
         loadLights();
