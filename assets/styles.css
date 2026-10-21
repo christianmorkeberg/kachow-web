@@ -2968,3 +2968,20 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-tile-heat.is-placeholder .home-skel { color: var(--muted); animation: home-skel 1.2s ease-in-out infinite; }
 .home-skel-bar { height: 28px; margin-top: auto; border-radius: 8px; background: color-mix(in srgb, var(--heat) 14%, transparent); animation: home-skel 1.2s ease-in-out infinite; }
 @keyframes home-skel { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
+
+/* Training programme card */
+.tp-head { display: flex; align-items: center; gap: 10px; }
+.tp-name { font-weight: 700; font-size: 16px; flex: 1; min-width: 0; }
+.tp-meta { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; }
+.tp-weeks { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; scrollbar-width: thin; }
+.tp-week { flex: none; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.tp-week.is-now { border-color: var(--accent-line); }
+.tp-week.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.tp-body { display: flex; flex-direction: column; gap: 8px; }
+.tp-day { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-2); padding: 9px 12px; }
+.tp-day.is-today { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.tp-day-head { font-size: 14px; }
+.tp-day-head span { color: var(--muted); }
+.tp-day ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; }
+.tp-day li { margin: 2px 0; }
+.tp-note { margin-top: 4px; font-size: 12px; color: var(--muted); }
