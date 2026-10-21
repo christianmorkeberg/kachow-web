@@ -2862,30 +2862,58 @@ body.voice-on .vd-lang { font-size: 13px; }
 @keyframes card-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .card-loading-spin { animation-duration: 2.4s; } }
 
-/* Home card: rooms with lights and thermostats */
+/* Home card: a box per room, a labelled section per source (Climate, Lights …), equal-size tiles */
+.home-card { --heat: #fb923c; --amber: #f59e0b; }
 .home-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .home-title { font-weight: 700; }
-.home-body { display: flex; flex-direction: column; gap: 10px; }
+.home-body { display: flex; flex-direction: column; gap: 12px; }
 .home-note { color: var(--muted); font-size: 13px; }
-.home-room { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
+.home-room { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
 .home-room.is-on { border-color: var(--accent-line); }
-.home-room-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 600; }
+.home-room-head { display: flex; align-items: center; gap: 10px; }
+.home-room-name { font-weight: 700; font-size: 15px; flex: 1; }
+.home-room-count { color: var(--muted); font-size: 12px; }
 .home-range { width: 100%; accent-color: var(--accent); }
-.home-lights summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-.home-light { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
-.home-light:first-of-type { margin-top: 6px; }
-.home-light-top { display: flex; align-items: center; gap: 8px; }
-.home-light-name { flex: 1; min-width: 0; }
-.home-light-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.home-light-ctl .home-range { flex: 1 1 140px; width: auto; }
-.home-swatch { width: 14px; height: 14px; border-radius: 50%; border: 2px solid; flex: none; }
-.home-color { width: 34px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: transparent; cursor: pointer; }
-.home-white { font: inherit; font-size: 13px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
-.home-thermo { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
-.home-thermo-line { display: flex; justify-content: space-between; align-items: baseline; }
-.home-thermo-name { font-size: 13px; color: var(--muted); }
-.home-thermo-temp { font-size: 20px; font-weight: 700; }
-.home-thermo-ctl { display: flex; align-items: center; gap: 10px; }
-.home-thermo-target { flex: 1; text-align: center; font-size: 14px; }
-.home-step { flex: none; display: inline-grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; padding: 0; line-height: 1; font-size: 20px; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 8px; cursor: pointer; }
-.home-thermo-note { font-size: 12px; color: var(--muted); min-height: 1em; }
+.home-section-head { display: flex; align-items: center; gap: 6px; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.home-section-climate .home-section-head { color: var(--heat); }
+.home-section-lights .home-section-head { color: var(--amber); }
+.home-ic { display: inline-flex; width: 16px; height: 16px; }
+.home-ic svg { width: 16px; height: 16px; }
+.home-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 8px; }
+.home-tile { position: relative; box-sizing: border-box; height: 132px; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; overflow: hidden; border: 1px solid transparent; }
+.home-tile-top { display: flex; align-items: center; justify-content: space-between; }
+.home-tile-name { font-size: 13px; font-weight: 600; }
+.home-tile-sub { font-size: 12px; color: var(--muted); min-height: 1em; }
+.home-big { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.home-tile-heat { background: color-mix(in srgb, var(--heat) 10%, var(--panel-2)); border-color: color-mix(in srgb, var(--heat) 28%, transparent); }
+.home-tile-heat .home-ic { color: var(--heat); }
+.home-tile-light { cursor: pointer; background: color-mix(in srgb, var(--amber) 6%, var(--panel-2)); border-color: color-mix(in srgb, var(--amber) 16%, transparent); transition: background .15s, border-color .15s; }
+.home-tile-light .home-ic { color: color-mix(in srgb, var(--amber) 55%, var(--muted)); }
+.home-tile-light.is-on { background: color-mix(in srgb, var(--glow, var(--amber)) 24%, var(--panel-2)); border-color: color-mix(in srgb, var(--glow, var(--amber)) 55%, transparent); }
+.home-tile-light.is-on .home-ic { color: var(--glow, var(--amber)); }
+.home-tile-light:not(.is-on) .home-tile-name { color: var(--muted); }
+.home-tile-light.is-selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+.home-tile-light:focus-visible { outline: 2px solid var(--accent); }
+.home-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--glow, var(--amber)); opacity: .85; transition: width .15s; }
+.home-more { border: 0; background: transparent; color: var(--muted); padding: 2px; border-radius: 6px; cursor: pointer; display: inline-grid; place-items: center; }
+.home-more svg { width: 16px; height: 16px; }
+.home-more:hover { color: var(--text); background: var(--panel); }
+.home-thermo-ctl { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.home-thermo-target { flex: 1; text-align: center; font-size: 12.5px; }
+.home-step { flex: none; display: inline-grid; place-items: center; box-sizing: border-box; width: 30px; height: 30px; padding: 0; line-height: 1; font-size: 18px; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 8px; cursor: pointer; }
+.home-panel { grid-column: 1 / -1; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--panel-2); padding: 12px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.home-panel-top { flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; }
+.home-x { border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.home-wheel-box { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; flex: 1 1 auto; }
+.home-wheel { position: relative; width: 168px; height: 168px; flex: none; touch-action: none; }
+.home-wheel canvas { width: 168px; height: 168px; border-radius: 50%; cursor: crosshair; display: block; box-shadow: 0 0 0 1px var(--border); }
+.home-wheel-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 1px 4px rgba(0, 0, 0, .5); pointer-events: none; }
+.home-wheel-side { flex: 1 1 200px; min-width: 180px; display: flex; flex-direction: column; gap: 12px; }
+.home-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-quick-dot { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--panel-2); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
+.home-panel-bits { display: flex; flex-direction: column; gap: 10px; flex: 1 1 200px; }
+.home-wheel-side .home-panel-bits { flex: none; }
+.home-panel-row { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.home-white-strip { appearance: none; -webkit-appearance: none; height: 10px; border-radius: 6px; background: linear-gradient(90deg, #cfe3ff, #ffffff 45%, #ffd9a0 75%, #ffb050); }
+.home-white-strip::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
+.home-white-strip::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
