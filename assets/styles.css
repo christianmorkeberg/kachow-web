@@ -2863,7 +2863,7 @@ body.voice-on .vd-lang { font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .card-loading-spin { animation-duration: 2.4s; } }
 
 /* Home card: a box per room, a labelled section per source (Climate, Lights …), equal-size tiles */
-.home-card { --heat: #fb923c; --amber: #f59e0b; }
+.home-card { --heat: #fb923c; --amber: #f59e0b; --accent: #f59e0b; --accent-line: color-mix(in srgb, #f59e0b 40%, transparent); --accent-soft: color-mix(in srgb, #f59e0b 16%, transparent); }   /* the card's own accent is the lights' amber, so switches and sliders match the tiles */
 .home-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .home-title { font-weight: 700; }
 .home-body { display: flex; flex-direction: column; gap: 12px; }
@@ -2879,8 +2879,12 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-section-lights .home-section-head { color: var(--amber); }
 .home-ic { display: inline-flex; width: 16px; height: 16px; }
 .home-ic svg { width: 16px; height: 16px; }
-.home-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 8px; }
-.home-tile { position: relative; box-sizing: border-box; height: 132px; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; overflow: hidden; border: 1px solid transparent; }
+.home-sections { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-start; }
+.home-section-climate { flex: 0 0 auto; }
+.home-section-lights { flex: 1 1 300px; min-width: 0; }
+.home-tiles { display: grid; grid-template-columns: repeat(auto-fill, 160px); gap: 8px; }
+.home-section-climate .home-tiles { grid-template-columns: repeat(var(--n, 1), 160px); }
+.home-tile { position: relative; box-sizing: border-box; width: 160px; height: 148px; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; overflow: hidden; border: 1px solid transparent; }
 .home-tile-top { display: flex; align-items: center; justify-content: space-between; }
 .home-tile-name { font-size: 13px; font-weight: 600; }
 .home-tile-sub { font-size: 12px; color: var(--muted); min-height: 1em; }
