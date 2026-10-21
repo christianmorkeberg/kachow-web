@@ -827,6 +827,7 @@
         personality:   ['drama', 'Personality'],
         home_cards:    ['list-checks', 'Start cards'],
         home:          ['house', 'Home'],
+        training_program: ['dumbbell', 'Programme'],
         appearance:    ['palette', 'Appearance'],
         notice:        ['circle-alert', 'Note']
     };
@@ -965,6 +966,10 @@
     }
 
     function cardSubFor(card) {
+        if (card.kind === 'training_program') {
+            var nw = (card.weeks || []).length;
+            return nw + daText(nw === 1 ? ' week' : ' weeks', nw === 1 ? ' uge' : ' uger');
+        }
         if (card.kind === 'personality' && card.level) {
             return daText('Level ', 'Niveau ') + card.level + '/5';
         }
@@ -1583,6 +1588,7 @@
         if (card.kind === 'appearance') { renderAppearance(card); return; }
         if (card.kind === 'home_cards') { renderHomeCards(card); return; }
         if (card.kind === 'home') { renderHome(card); return; }
+        if (card.kind === 'training_program') { renderTrainingProgram(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
 
         let sections, endpoint, doneKey;
@@ -2780,6 +2786,84 @@
         draw();
         loadLights();
         loadThermos();
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Training programme card: a programme's weeks as chips, the chosen week's days with their exercises — for checking what the assistant saved
+    // from a note. Read-only; changes go through the chat.
+    function renderTrainingProgram(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card tp-card';
+        var p = card.program || {};
+        var head = document.createElement('div');
+        head.className = 'tp-head';
+        var name = document.createElement('div');
+        name.className = 'tp-name';
+        name.textContent = p.name || card.title || daText('Programme', 'Program');
+        head.appendChild(name);
+        var pill = document.createElement('span');
+        pill.className = 'sched-pill' + (p.status === 'active' ? '' : ' draft');
+        pill.textContent = p.status === 'active' ? daText('Active', 'Aktiv') : daText('Archived', 'Arkiveret');
+        head.appendChild(pill);
+        wrap.appendChild(head);
+        var meta = document.createElement('div');
+        meta.className = 'tp-meta';
+        meta.textContent = p.week_mode === 'relative'
+            ? daText('Week 1, 2, 3 … from ', 'Uge 1, 2, 3 … fra ') + (p.start_date || '?') + (p.repeat_weeks ? daText(', repeats every ', ', gentages hver ') + p.repeat_weeks + daText(' weeks', '. uge') : '')
+            : daText('Calendar weeks', 'Kalenderuger');
+        wrap.appendChild(meta);
+
+        var weeks = card.weeks || [];
+        if (!weeks.length) {
+            var empty = document.createElement('div');
+            empty.className = 'prog-empty';
+            empty.textContent = daText('No days in this programme yet.', 'Ingen dage i dette program endnu.');
+            wrap.appendChild(empty);
+            messages.appendChild(wrap);
+            return;
+        }
+        var today = card.today || {};
+        var sel = 0;
+        weeks.forEach(function (w, i) { if (w.week === today.week) sel = i; });
+        var chips = document.createElement('div');
+        chips.className = 'tp-weeks';
+        var body = document.createElement('div');
+        body.className = 'tp-body';
+        function weekLabel(w) { return (p.week_mode === 'relative' ? daText('Week ', 'Uge ') : daText('Wk ', 'Uge ')) + w.week; }
+        function draw() {
+            chips.innerHTML = '';
+            weeks.forEach(function (w, i) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'tp-week' + (i === sel ? ' is-on' : '') + (w.week === today.week ? ' is-now' : '');
+                b.textContent = weekLabel(w);
+                b.addEventListener('click', function () { sel = i; draw(); });
+                chips.appendChild(b);
+            });
+            body.innerHTML = '';
+            var w = weeks[sel];
+            w.days.forEach(function (d) {
+                var row = document.createElement('div');
+                row.className = 'tp-day' + (w.week === today.week && d.weekday === today.weekday ? ' is-today' : '');
+                var h = document.createElement('div');
+                h.className = 'tp-day-head';
+                var dn = document.createElement('b');
+                dn.textContent = daText(d.name, ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'][d.weekday - 1] || d.name);
+                h.appendChild(dn);
+                if (d.title) { var tt = document.createElement('span'); tt.textContent = ' · ' + d.title; h.appendChild(tt); }
+                row.appendChild(h);
+                var ul = document.createElement('ul');
+                (d.items || []).forEach(function (it) { var li = document.createElement('li'); li.textContent = it; ul.appendChild(li); });
+                row.appendChild(ul);
+                if (d.note) { var nt = document.createElement('div'); nt.className = 'tp-note'; nt.textContent = d.note; row.appendChild(nt); }
+                body.appendChild(row);
+            });
+        }
+        wrap.appendChild(chips);
+        wrap.appendChild(body);
+        draw();
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
