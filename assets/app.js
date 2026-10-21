@@ -63,11 +63,36 @@
         hint.className = 'empty-hint';
         hint.textContent = 'Ask about your shopping list, workouts, or calendar.';
         wrap.appendChild(hint);
+        const cards = document.createElement('div');
+        cards.className = 'empty-cards';
+        wrap.appendChild(cards);
+        fillStartTiles(cards);
         const chips = document.createElement('div');
         chips.className = 'chips';
         wrap.appendChild(chips);
         messages.appendChild(wrap);
         renderChips(chips);
+    }
+
+    // The user's start cards as tiles on a fresh chat (phones have no card rail; on desktop the rail already shows them — CSS hides this there).
+    function fillStartTiles(box) {
+        box.innerHTML = '';
+        if (typeof homeCards === 'undefined' || !homeCards || !homeCards.length || typeof HOME_CARDS === 'undefined' || !HOME_CARDS) return;
+        homeCards.forEach(function (k) {
+            var c = HOME_CARDS[k];
+            if (!c) return;
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'start-tile';
+            b.innerHTML = icon(c.icon, 'ic-lead') + '<span></span>';
+            b.querySelector('span').textContent = daText(c.en, c.da);
+            b.addEventListener('click', function () { openHomeCard(k, 'open'); });
+            box.appendChild(b);
+        });
+    }
+    function refreshStartTiles() {
+        var box = messages.querySelector('.empty .empty-cards');
+        if (box) fillStartTiles(box);
     }
 
     // Quick-action chips: frequent-first suggestions from the server, preceded by a
@@ -1388,6 +1413,7 @@
                 if (!r.ok || !r.j || !r.j.ok) { done(false, (r.j && r.j.error) || daText('Could not save.', 'Kunne ikke gemme.')); return; }
                 homeCards = cleanHomeCards(String(r.j.value || '').split(','));
                 renderRail();
+                refreshStartTiles();
                 done(true, homeCards.length ? daText('Start cards saved.', 'Startkort gemt.') : daText('Back to the default.', 'Tilbage til standard.'));
             })
             .catch(function () { done(false, daText('Network error.', 'Netværksfejl.')); });
@@ -1507,6 +1533,7 @@
             var raw = j && j.values && j.values.home_cards ? String(j.values.home_cards) : '';
             homeCards = cleanHomeCards(raw.split(','));
             if (homeCards.length) renderRail();
+            refreshStartTiles();
             return homeCards;
         })
         .catch(function () { return []; });
@@ -9450,7 +9477,7 @@
         if (homeCardsReady) homeCardsReady.then(function (list) {
             if (!list.length || gen !== navGen || panelCard) return;
             var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
-            openHomeCard(list[0], desktop ? 'open' : 'min');
+            if (desktop) openHomeCard(list[0], 'open');   // on a phone the start cards are tiles on the start screen instead
         });
     }
 

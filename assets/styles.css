@@ -346,6 +346,11 @@ button.ghost {
 .row.typing .msg { color: var(--muted); font-style: italic; }
 .empty { margin: auto; color: var(--muted); text-align: center; padding: 0 12px; }
 .empty-hint { margin-bottom: 4px; }
+.empty-cards { display: none; }
+.start-tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 10px; box-sizing: border-box; min-height: 72px; padding: 11px 12px; text-align: left; font-size: 13.5px; font-weight: 600; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; }
+.start-tile:active { background: var(--accent-soft); border-color: var(--accent-line); }
+.start-tile .ic-lead { width: 20px; height: 20px; color: var(--accent); }
+@media (max-width: 1023px) { .empty-cards:not(:empty) { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin: 12px 0 14px; } }
 .chips {
     display: flex;
     flex-wrap: wrap;
