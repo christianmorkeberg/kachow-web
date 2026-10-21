@@ -2901,7 +2901,7 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--glow, var(--amber)); opacity: .85; transition: width .15s; }
 .home-more { border: 0; background: transparent; color: var(--muted); padding: 2px; border-radius: 6px; cursor: pointer; display: inline-grid; place-items: center; }
 .home-more svg { width: 16px; height: 16px; }
-.home-more:hover { color: var(--text); background: var(--panel); }
+.home-more:hover, .home-more:focus-visible { color: var(--text); background: color-mix(in srgb, var(--text) 12%, transparent); }
 .home-thermo-ctl { display: flex; align-items: center; gap: 6px; margin-top: auto; }
 .home-thermo-target { flex: 1; text-align: center; font-size: 12.5px; }
 .home-step { flex: none; display: inline-grid; place-items: center; box-sizing: border-box; width: 30px; height: 30px; padding: 0; line-height: 1; font-size: 18px; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 8px; cursor: pointer; }
@@ -2914,7 +2914,7 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-wheel-box { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; flex: 1 1 auto; }
 .home-wheel { position: relative; width: 168px; height: 168px; flex: none; touch-action: none; }
 .home-wheel canvas { width: 168px; height: 168px; border-radius: 50%; cursor: crosshair; display: block; box-shadow: 0 0 0 1px var(--border); }
-.home-wheel-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 1px 4px rgba(0, 0, 0, .5); pointer-events: none; }
+.home-wheel-dot { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 3px solid #fff; background: var(--dot, #fff); box-shadow: 0 1px 5px rgba(0, 0, 0, .22); pointer-events: none; }
 .home-wheel-side { flex: 1 1 200px; min-width: 180px; display: flex; flex-direction: column; gap: 12px; }
 .home-quick { display: flex; flex-wrap: wrap; gap: 8px; }
 .home-quick-dot { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--panel-2); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }

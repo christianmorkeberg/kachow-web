@@ -2428,6 +2428,7 @@
                 var a = h * Math.PI / 180;
                 dot.style.left = (R + Math.cos(a) * sat * R) + 'px';
                 dot.style.top = (R + Math.sin(a) * sat * R) + 'px';
+                dot.style.setProperty('--dot', hsvToHex(h, sat, 1));   // the dot is filled with the colour it picks
             }
             var cur = l.hex && /^#[0-9a-f]{6}$/i.test(l.hex) ? hexToHsv(l.hex) : { h: 0, s: 0 };
             place(cur.h, cur.s);
