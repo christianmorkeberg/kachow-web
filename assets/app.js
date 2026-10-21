@@ -2259,9 +2259,29 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    // Home card: every room with its lights (switch, brightness, colour) and its radiator thermostat, controlled by hand. The lights and the
-    // (slower) valves load separately, so the rooms appear first and the thermostats fill in. Controls update at once and are sent to
-    // /api/home.php; a failed one puts the card back to what the bridge says.
+    // Home card: one box per room; inside it one labelled section per SOURCE (Climate = thermostats, Lights = Hue …), each a grid of
+    // equal-size tiles. A new kind of device later is one more section. The lights and the (slower) valves load separately, so the
+    // rooms appear first and the thermostats fill in. Controls update at once and are sent to /api/home.php; a failed one toasts the
+    // reason and re-reads the bridge. A light tile switches on tap; its ⋯ opens the panel (brightness, colour wheel, whites).
+    var HOME_QUICK_COLORS = ['#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#00c7be', '#0a84ff', '#7d5cff', '#ff5aa5'];
+
+    function hexToHsv(hex) {
+        var r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
+        var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h = 0;
+        if (d > 0) {
+            if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+            h *= 60; if (h < 0) h += 360;
+        }
+        return { h: h, s: mx === 0 ? 0 : d / mx, v: mx };
+    }
+    function hsvToHex(h, s, v) {
+        var c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c, r = 0, g = 0, b = 0;
+        if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+        else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+        function t(n) { return ('0' + Math.round((n + m) * 255).toString(16)).slice(-2); }
+        return '#' + t(r) + t(g) + t(b);
+    }
+
     function renderHome(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');
@@ -2282,8 +2302,8 @@
         body.className = 'home-body';
         wrap.appendChild(body);
 
-        var st = { lights: null, lightsErr: null, thermos: null, thermoErr: null, open: {} };
-        var timers = {};
+        var st = { lights: null, lightsErr: null, thermos: null, thermoErr: null, panel: null };
+        var timers = {}, last = {};
 
         function post(payload) {
             return fetch('/api/home.php', {
@@ -2298,9 +2318,13 @@
                 loadLights();
             }).catch(function () { toast(daText('Network error.', 'Netværksfejl.')); loadLights(); });
         }
-        function later(key, fn, ms) {
+        function later(key, fn, ms) { clearTimeout(timers[key]); timers[key] = setTimeout(fn, ms || 400); }
+        // at most one send per `ms` while a slider / wheel is dragged, and always the final value
+        function throttled(key, fn, ms) {
+            var now = Date.now();
             clearTimeout(timers[key]);
-            timers[key] = setTimeout(fn, ms || 400);
+            if (!last[key] || now - last[key] >= ms) { last[key] = now; fn(); return; }
+            timers[key] = setTimeout(function () { last[key] = Date.now(); fn(); }, ms - (now - last[key]));
         }
         function el(tag, cls, text) {
             var e = document.createElement(tag);
@@ -2308,6 +2332,7 @@
             if (text != null) e.textContent = text;
             return e;
         }
+        function ic(name) { var s = el('span', 'home-ic'); s.innerHTML = icon(name, ''); return s; }
         function sw(on, onChange, label) {
             var l = el('label', 'sched-switch');
             var cb = document.createElement('input');
@@ -2321,87 +2346,187 @@
 
             return l;
         }
-        function slider(value, onInput, onChange) {
+        function range(min, max, value, cls, onInput, onChange) {
             var r = document.createElement('input');
             r.type = 'range';
-            r.min = '1'; r.max = '100';
-            r.value = String(value == null ? 100 : Math.max(1, value));
-            r.className = 'home-range';
+            r.min = String(min); r.max = String(max);
+            r.value = String(value);
+            r.className = 'home-range ' + (cls || '');
             r.addEventListener('input', function () { if (onInput) onInput(parseInt(r.value, 10)); });
             r.addEventListener('change', function () { onChange(parseInt(r.value, 10)); });
 
             return r;
         }
 
-        function lightRow(l) {
-            var row = el('div', 'home-light');
-            var top = el('div', 'home-light-top');
-            top.appendChild(el('span', 'home-light-name', l.name));
-            if (l.hex) {
-                var sw0 = el('span', 'home-swatch');
-                sw0.style.background = l.on ? l.hex : 'transparent';
-                sw0.style.borderColor = l.hex;
-                top.appendChild(sw0);
-            }
-            top.appendChild(sw(l.on, function (on) { l.on = on; send({ action: 'light', id: l.id, on: on }); }, l.name));
-            row.appendChild(top);
-            var ctl = el('div', 'home-light-ctl');
-            if (l.dim) ctl.appendChild(slider(l.brightness, null, function (v) { l.brightness = v; l.on = true; send({ action: 'light', id: l.id, brightness: v, on: true }); }));
-            if (l.color) {
-                var ci = document.createElement('input');
-                ci.type = 'color';
-                ci.className = 'home-color';
-                ci.value = l.hex && /^#[0-9a-f]{6}$/i.test(l.hex) ? l.hex : '#ffffff';
-                ci.setAttribute('aria-label', daText('Colour', 'Farve'));
-                ci.addEventListener('input', function () { later('c' + l.id, function () { l.hex = ci.value; l.on = true; send({ action: 'light', id: l.id, color: ci.value }, draw); }, 450); });
-                ctl.appendChild(ci);
-            }
-            if (l.ct) {
-                var wsel = document.createElement('select');
-                wsel.className = 'home-white';
-                [['', daText('White…', 'Hvid…')], ['warm white', daText('Warm', 'Varm')], ['white', daText('Neutral', 'Neutral')], ['cool white', daText('Cool', 'Kold')], ['daylight', daText('Daylight', 'Dagslys')]]
-                    .forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; wsel.appendChild(op); });
-                wsel.addEventListener('change', function () { if (wsel.value) { l.on = true; send({ action: 'light', id: l.id, color: wsel.value }, loadLights); } });
-                ctl.appendChild(wsel);
-            }
-            if (ctl.childNodes.length) row.appendChild(ctl);
-
-            return row;
+        // ---- a light's tile and its panel ----
+        function paintLight(l) {
+            var t = l._tile;
+            if (!t) return;
+            t.classList.toggle('is-on', !!l.on);
+            if (l.on && l.hex) { t.style.setProperty('--glow', l.hex); } else t.style.removeProperty('--glow');
+            var sub = t.querySelector('.home-tile-sub');
+            if (sub) sub.textContent = l.on ? (l.brightness != null ? l.brightness + '%' : daText('On', 'Tændt')) : daText('Off', 'Slukket');
+            var bar = t.querySelector('.home-bar');
+            if (bar) bar.style.width = (l.on && l.brightness != null ? l.brightness : 0) + '%';
         }
 
-        function thermoBlock(t) {
-            var box = el('div', 'home-thermo');
-            var line = el('div', 'home-thermo-line');
-            line.appendChild(el('span', 'home-thermo-name', t.name));
+        function wheelPanel(l) {
+            var box = el('div', 'home-wheel-box');
+            var S = 168;
+            var wheelWrap = el('div', 'home-wheel');
+            var cv = document.createElement('canvas');
+            cv.width = S; cv.height = S;
+            var ctx = cv.getContext('2d');
+            var img = ctx.createImageData(S, S), R = S / 2;
+            for (var y = 0; y < S; y++) {
+                for (var x = 0; x < S; x++) {
+                    var dx = x + 0.5 - R, dy = y + 0.5 - R, rr = Math.sqrt(dx * dx + dy * dy), i = (y * S + x) * 4;
+                    if (rr > R) { img.data[i + 3] = 0; continue; }
+                    var hex = hsvToHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, rr / R), 1);
+                    img.data[i] = parseInt(hex.slice(1, 3), 16); img.data[i + 1] = parseInt(hex.slice(3, 5), 16); img.data[i + 2] = parseInt(hex.slice(5, 7), 16); img.data[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+            var dot = el('span', 'home-wheel-dot');
+            wheelWrap.appendChild(cv);
+            wheelWrap.appendChild(dot);
+            function place(h, sat) {
+                var a = h * Math.PI / 180;
+                dot.style.left = (R + Math.cos(a) * sat * R) + 'px';
+                dot.style.top = (R + Math.sin(a) * sat * R) + 'px';
+            }
+            var cur = l.hex && /^#[0-9a-f]{6}$/i.test(l.hex) ? hexToHsv(l.hex) : { h: 0, s: 0 };
+            place(cur.h, cur.s);
+            function pick(e, final) {
+                var rect = cv.getBoundingClientRect();
+                var dx = (e.clientX - rect.left) * (S / rect.width) - R, dy = (e.clientY - rect.top) * (S / rect.height) - R;
+                var rr = Math.min(R, Math.sqrt(dx * dx + dy * dy));
+                var h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, sat = rr / R;
+                place(h, sat);
+                var hex = hsvToHex(h, sat, 1);
+                l.hex = hex; l.on = true; paintLight(l);
+                throttled('c' + l.id, function () { send({ action: 'light', id: l.id, color: hex }); }, 350);
+                if (final) later('cf' + l.id, function () { send({ action: 'light', id: l.id, color: hex }); }, 0);
+            }
+            var drag = false;
+            cv.addEventListener('pointerdown', function (e) { drag = true; cv.setPointerCapture(e.pointerId); pick(e, false); });
+            cv.addEventListener('pointermove', function (e) { if (drag) pick(e, false); });
+            cv.addEventListener('pointerup', function (e) { if (drag) { drag = false; pick(e, true); } });
+            box.appendChild(wheelWrap);
+
+            var side = el('div', 'home-wheel-side');
+            var quick = el('div', 'home-quick');
+            HOME_QUICK_COLORS.forEach(function (c) {
+                var q = el('button', 'home-quick-dot');
+                q.type = 'button';
+                q.style.background = c;
+                q.setAttribute('aria-label', c);
+                q.addEventListener('click', function () {
+                    var hv = hexToHsv(c); place(hv.h, hv.s);
+                    l.hex = c; l.on = true; paintLight(l);
+                    send({ action: 'light', id: l.id, color: c });
+                });
+                quick.appendChild(q);
+            });
+            side.appendChild(quick);
+            box.appendChild(side);
+
+            return { box: box, side: side };
+        }
+
+        function lightPanel(l) {
+            var p = el('div', 'home-panel');
+            var top = el('div', 'home-panel-top');
+            top.appendChild(el('b', null, l.name));
+            var close = el('button', 'home-x', '×');
+            close.type = 'button';
+            close.setAttribute('aria-label', daText('Close', 'Luk'));
+            close.addEventListener('click', function () { st.panel = null; draw(); });
+            top.appendChild(close);
+            p.appendChild(top);
+            var bits = el('div', 'home-panel-bits');
+            if (l.dim) {
+                var bl = el('label', 'home-panel-row');
+                bl.appendChild(el('span', null, daText('Brightness', 'Lysstyrke')));
+                bl.appendChild(range(1, 100, l.brightness == null ? 100 : Math.max(1, l.brightness), 'home-bri',
+                    function (v) { l.brightness = v; l.on = true; paintLight(l); throttled('b' + l.id, function () { send({ action: 'light', id: l.id, brightness: v, on: true }); }, 350); },
+                    function (v) { l.brightness = v; l.on = true; paintLight(l); send({ action: 'light', id: l.id, brightness: v, on: true }); }));
+                bits.appendChild(bl);
+            }
+            if (l.ct) {
+                var wl = el('label', 'home-panel-row');
+                wl.appendChild(el('span', null, daText('White', 'Hvid')));
+                wl.appendChild(range(153, 500, 366, 'home-white-strip',
+                    function (v) { throttled('w' + l.id, function () { send({ action: 'light', id: l.id, mirek: v }); }, 350); },
+                    function (v) { l.on = true; paintLight(l); send({ action: 'light', id: l.id, mirek: v }, loadLights); }));
+                bits.appendChild(wl);
+            }
+            if (l.color) {
+                var w = wheelPanel(l);
+                p.appendChild(w.box);
+                w.side.appendChild(bits);
+            } else p.appendChild(bits);
+            return p;
+        }
+
+        function lightTile(l) {
+            var t = el('div', 'home-tile home-tile-light');
+            l._tile = t;
+            var topRow = el('div', 'home-tile-top');
+            topRow.appendChild(ic('lightbulb'));
+            if (l.dim || l.color || l.ct) {
+                var more = el('button', 'home-more');
+                more.type = 'button';
+                more.innerHTML = icon('sliders-horizontal', '');
+                more.setAttribute('aria-label', daText('Brightness and colour', 'Lysstyrke og farve'));
+                more.addEventListener('click', function (e) { e.stopPropagation(); st.panel = st.panel === l.id ? null : l.id; draw(); });
+                topRow.appendChild(more);
+            }
+            t.appendChild(topRow);
+            t.appendChild(el('div', 'home-tile-name', l.name));
+            t.appendChild(el('div', 'home-tile-sub'));
+            t.appendChild(el('div', 'home-bar'));
+            t.setAttribute('role', 'button');
+            t.tabIndex = 0;
+            function toggle() { l.on = !l.on; paintLight(l); send({ action: 'light', id: l.id, on: l.on }); }
+            t.addEventListener('click', toggle);
+            t.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+            if (st.panel === l.id) t.classList.add('is-selected');
+            paintLight(l);
+
+            return t;
+        }
+
+        // ---- a thermostat's tile ----
+        function thermoTile(t) {
+            var box = el('div', 'home-tile home-tile-heat');
+            box.appendChild(el('div', 'home-tile-top')).appendChild(ic('thermometer'));
+            box.appendChild(el('div', 'home-tile-name', t.name));
             if (t.error) {
-                box.appendChild(line);
-                box.appendChild(el('div', 'home-thermo-note', daText('No answer from this thermostat.', 'Intet svar fra denne termostat.')));
+                box.appendChild(el('div', 'home-tile-sub', daText('No answer', 'Intet svar')));
 
                 return box;
             }
-            var temp = el('span', 'home-thermo-temp', (t.current_c != null ? t.current_c.toFixed(1) : '–') + ' °C');
-            line.appendChild(temp);
-            box.appendChild(line);
+            box.appendChild(el('div', 'home-big', (t.current_c != null ? Number(t.current_c).toFixed(1) : '–') + '°'));
             var ctl = el('div', 'home-thermo-ctl');
             var minus = el('button', 'home-step', '−');
             var plus = el('button', 'home-step', '+');
             minus.type = plus.type = 'button';
             var target = el('span', 'home-thermo-target');
-            var status = el('div', 'home-thermo-note');
-            function showTarget() { target.textContent = daText('set to ', 'sat til ') + (t.target_c != null ? Number(t.target_c).toFixed(1) : '–') + ' °C'; }
+            var status = el('div', 'home-tile-sub');
+            t._statusEl = status;                 // the CURRENT element: a redraw while a send is pending must not strand the answer
+            function showTarget() { target.textContent = daText('set ', 'sat ') + (t.target_c != null ? Number(t.target_c).toFixed(1) : '–') + '°'; }
             function step(d) {
                 var v = (t.target_c != null ? Number(t.target_c) : (t.current_c != null ? t.current_c : 20)) + d;
                 t.target_c = Math.max(4, Math.min(30, Math.round(v * 2) / 2));
                 showTarget();
                 t.status = daText('sending…', 'sender…');
-                status.textContent = t.status;
+                t._statusEl.textContent = t.status;
                 later('t' + t.id, function () {
                     send({ action: 'thermostat', id: String(t.id), target: t.target_c }, function (j) {
                         // kept on the thermostat itself: a redraw (a light changed) must not wipe it
-                        t.status = j.set === 'sent'
-                            ? daText('sent — the valve confirms within a minute or two', 'sendt — ventilen bekræfter inden for et minut eller to')
-                            : daText('set', 'sat');
-                        status.textContent = t.status;
+                        t.status = j.set === 'sent' ? daText('sent — valve confirms soon', 'sendt — ventilen bekræfter snart') : daText('set', 'sat');
+                        t._statusEl.textContent = t.status;
                     });
                 }, 900);
             }
@@ -2411,14 +2536,38 @@
             box.appendChild(ctl);
             var meta = [];
             if (t.valve_open_pct != null) meta.push(daText('valve ', 'ventil ') + t.valve_open_pct + '%');
-            if (t.last_heard_minutes_ago != null) meta.push(daText('heard ', 'hørt for ') + t.last_heard_minutes_ago + daText(' min ago', ' min siden'));
+            if (t.last_heard_minutes_ago != null) meta.push(t.last_heard_minutes_ago + daText(' min ago', ' min siden'));
             if (t.battery_pct != null && t.battery_pct < 25) meta.push(daText('battery ', 'batteri ') + t.battery_pct + '%');
-            if (meta.length) box.appendChild(el('div', 'home-thermo-note', meta.join(' · ')));
-            status.textContent = t.status || '';
+            status.textContent = t.status || meta.join(' · ');
             box.appendChild(status);
             showTarget();
 
             return box;
+        }
+
+        // ---- boxes and sections ----
+        // A section = one source of devices in a room: a label with its icon, then equal-size tiles. The light panel opens right under the
+        // tile it belongs to, as a full-width row of the same grid.
+        function section(kind, label, iconName, tiles) {
+            var sec = el('div', 'home-section home-section-' + kind);
+            var h = el('div', 'home-section-head');
+            h.appendChild(ic(iconName));
+            h.appendChild(el('span', null, label));
+            sec.appendChild(h);
+            var grid = el('div', 'home-tiles');
+            tiles.forEach(function (x) { grid.appendChild(x); });
+            sec.appendChild(grid);
+
+            return sec;
+        }
+        function lightSection(lights) {
+            var tiles = [];
+            lights.forEach(function (l) {
+                tiles.push(lightTile(l));
+                if (st.panel === l.id) tiles.push(lightPanel(l));
+            });
+
+            return section('lights', daText('Lights', 'Lys'), 'lightbulb', tiles);
         }
 
         function draw() {
@@ -2432,43 +2581,34 @@
             if (!st.lights && !st.lightsErr) body.appendChild(el('div', 'home-note', daText('Loading lights…', 'Henter lys…')));
             if (st.lights) {
                 st.lights.rooms.forEach(function (room) {
-                    var sec = el('div', 'home-room' + (room.on ? ' is-on' : ''));
+                    var box = el('div', 'home-room' + (room.on ? ' is-on' : ''));
                     var h = el('div', 'home-room-head');
                     h.appendChild(el('span', 'home-room-name', room.name));
+                    var onCount = room.lights.filter(function (l) { return l.on; }).length;
+                    if (room.lights.length) h.appendChild(el('span', 'home-room-count', onCount + '/' + room.lights.length + daText(' on', ' tændt')));
                     if (room.group_id) h.appendChild(sw(room.on, function (on) { room.on = on; send({ action: 'group', id: room.group_id, on: on }, loadLights); }, room.name));
-                    sec.appendChild(h);
+                    box.appendChild(h);
                     if (room.group_id && room.brightness != null) {
-                        sec.appendChild(slider(room.brightness, null, function (v) { room.on = true; send({ action: 'group', id: room.group_id, brightness: v, on: true }, loadLights); }));
+                        box.appendChild(range(1, 100, Math.max(1, room.brightness), 'home-room-range',
+                            null, function (v) { room.on = true; send({ action: 'group', id: room.group_id, brightness: v, on: true }, loadLights); }));
                     }
-                    thermosFor(room.name).forEach(function (t) { used[t.id] = true; sec.appendChild(thermoBlock(t)); });
-                    if (room.lights.length) {
-                        var det = document.createElement('details');
-                        det.className = 'home-lights';
-                        det.open = !!st.open[room.name];
-                        det.addEventListener('toggle', function () { st.open[room.name] = det.open; });
-                        var sm = document.createElement('summary');
-                        sm.textContent = room.lights.length + daText(room.lights.length === 1 ? ' light' : ' lights', room.lights.length === 1 ? ' lys' : ' lys');
-                        det.appendChild(sm);
-                        room.lights.forEach(function (l) { det.appendChild(lightRow(l)); });
-                        sec.appendChild(det);
-                    }
-                    body.appendChild(sec);
+                    var ts = thermosFor(room.name);
+                    ts.forEach(function (t) { used[t.id] = true; });
+                    if (ts.length) box.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', ts.map(thermoTile)));
+                    if (room.lights.length) box.appendChild(lightSection(room.lights));
+                    body.appendChild(box);
                 });
-                if (st.lights.other.length) {
-                    var o = el('div', 'home-room');
-                    o.appendChild(el('div', 'home-room-head', daText('Other lights', 'Andre lys')));
-                    st.lights.other.forEach(function (l) { o.appendChild(lightRow(l)); });
-                    body.appendChild(o);
-                }
             }
             if (st.thermoErr) body.appendChild(el('div', 'home-note', daText('Thermostats: ', 'Termostater: ') + st.thermoErr));
             if (!st.thermos && !st.thermoErr) body.appendChild(el('div', 'home-note', daText('Loading thermostats…', 'Henter termostater…')));
             var rest = thermos.filter(function (t) { return !used[t.id]; });
-            if (rest.length) {
-                var ts = el('div', 'home-room');
-                ts.appendChild(el('div', 'home-room-head', daText('Thermostats', 'Termostater')));
-                rest.forEach(function (t) { ts.appendChild(thermoBlock(t)); });
-                body.appendChild(ts);
+            var other = st.lights ? st.lights.other : [];
+            if (rest.length || other.length) {
+                var ob = el('div', 'home-room');
+                ob.appendChild(el('div', 'home-room-head')).appendChild(el('span', 'home-room-name', daText('Other', 'Andet')));
+                if (rest.length) ob.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', rest.map(thermoTile)));
+                if (other.length) ob.appendChild(lightSection(other));
+                body.appendChild(ob);
             }
         }
 
