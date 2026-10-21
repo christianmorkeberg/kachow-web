@@ -2864,11 +2864,14 @@ body.voice-on .vd-lang { font-size: 13px; }
 
 /* Home card: a box per room, a labelled section per source (Climate, Lights …), equal-size tiles */
 .home-card { --heat: #fb923c; --amber: #f59e0b; --accent: #f59e0b; --accent-line: color-mix(in srgb, #f59e0b 40%, transparent); --accent-soft: color-mix(in srgb, #f59e0b 16%, transparent); }   /* the card's own accent is the lights' amber, so switches and sliders match the tiles */
-.home-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.home-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.home-head .home-title { flex: 1; }
+.home-sync { color: var(--muted); font-size: 12px; }
 .home-title { font-weight: 700; }
-.home-body { display: flex; flex-direction: column; gap: 12px; }
+.home-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.home-body > .home-note, .home-body > .home-loader { flex: 1 0 100%; }
 .home-note { color: var(--muted); font-size: 13px; }
-.home-room { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.home-room { flex: 1 1 auto; min-width: 232px; max-width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
 .home-room.is-on { border-color: var(--accent-line); }
 .home-room-head { display: flex; align-items: center; gap: 10px; }
 .home-room-name { font-weight: 700; font-size: 15px; flex: 1; }
@@ -2881,7 +2884,7 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-ic svg { width: 16px; height: 16px; }
 .home-sections { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-start; }
 .home-section-climate { flex: 0 0 auto; }
-.home-section-lights { flex: 1 1 300px; min-width: 0; }
+.home-section-lights { flex: 1 1 160px; min-width: 0; }
 .home-tiles { display: grid; grid-template-columns: repeat(auto-fill, 160px); gap: 8px; }
 .home-section-climate .home-tiles { grid-template-columns: repeat(var(--n, 1), 160px); }
 .home-tile { position: relative; box-sizing: border-box; width: 160px; height: 148px; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; overflow: hidden; border: 1px solid transparent; }
@@ -2953,3 +2956,10 @@ body.voice-on .vd-lang { font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .hl-glass, .hl-glow, .hl-fil, .hl-rays path, .hl-tbulb, .hl-merc, .hl-heat path { animation-duration: 8s; } }
 
 @media (prefers-reduced-motion: reduce) { .home-panel-wrap { transition: none; } }
+
+/* last-known values shown while the fresh ones load; placeholder tiles keep the layout still */
+.home-body.is-stale-lights .home-tile-light { opacity: .75; }
+.home-body.is-stale-thermos .home-tile-heat { opacity: .7; }
+.home-tile-heat.is-placeholder .home-skel { color: var(--muted); animation: home-skel 1.2s ease-in-out infinite; }
+.home-skel-bar { height: 28px; margin-top: auto; border-radius: 8px; background: color-mix(in srgb, var(--heat) 14%, transparent); animation: home-skel 1.2s ease-in-out infinite; }
+@keyframes home-skel { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
