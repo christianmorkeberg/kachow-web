@@ -2263,6 +2263,40 @@
     // equal-size tiles. A new kind of device later is one more section. The lights and the (slower) valves load separately, so the
     // rooms appear first and the thermostats fill in. Controls update at once and are sent to /api/home.php; a failed one toasts the
     // reason and re-reads the bridge. A light tile switches on tap; its ⋯ opens the panel (brightness, colour wheel, whites).
+    // The Home card's loading animation: a bulb that flickers on and a thermometer whose mercury rises, with changing little messages.
+    // kind: 'lights' | 'thermo'. The messages stop by themselves once the loader leaves the page.
+    var HOME_LOADER_TEXT = {
+        lights: [['Waking up the lamps…', 'Vækker lamperne…'], ['Asking the lights nicely…', 'Spørger lysene pænt…'], ['Counting bulbs…', 'Tæller pærer…'], ['Finding the switch in the dark…', 'Leder efter kontakten i mørket…']],
+        thermo: [['Warming up the radiators…', 'Varmer radiatorerne op…'], ['The valves are sleepy — one moment…', 'Ventilerne sover — et øjeblik…'], ['Checking the temperature…', 'Tjekker temperaturen…'], ['Asking the thermostats…', 'Spørger termostaterne…']]
+    };
+    var HOME_BULB_SVG = '<svg class="hl-svg hl-bulb" viewBox="0 0 64 64" aria-hidden="true"><circle class="hl-glow" cx="32" cy="26" r="24"/>'
+        + '<g class="hl-rays"><path d="M32 1v4M10 10l3 3M54 10l-3 3M3 28h4M57 28h4"/></g>'
+        + '<path class="hl-glass" d="M32 6c-9.4 0-17 7.4-17 16.6 0 6 3 10.2 6.4 13.4 1.8 1.7 2.6 3.2 2.6 5.5V46h16v-2.5c0-2.3.8-3.8 2.6-5.5C46 32.8 49 28.6 49 22.6 49 13.4 41.4 6 32 6z"/>'
+        + '<path class="hl-fil" d="M26 25l3 8 3-8 3 8 3-8"/><path class="hl-base" d="M25 49h14M27 54h10M29 59h6"/></svg>';
+    var HOME_THERMO_SVG = '<svg class="hl-svg hl-thermo" viewBox="0 0 64 64" aria-hidden="true">'
+        + '<g class="hl-heat"><path d="M46 14c-2 2 2 4 0 6M52 10c-2 2 2 4 0 6M52 24c-2 2 2 4 0 6"/></g>'
+        + '<rect class="hl-tube" x="25" y="5" width="14" height="40" rx="7"/><circle class="hl-tbulb" cx="32" cy="49" r="11"/>'
+        + '<rect class="hl-merc" x="29.5" y="9" width="5" height="40" rx="2.5"/><path class="hl-ticks" d="M42 14h4M42 22h4M42 30h4"/></svg>';
+    function homeLoader(kind) {
+        var box = document.createElement('div');
+        box.className = 'home-loader home-loader-' + kind;
+        box.innerHTML = kind === 'lights' ? HOME_BULB_SVG : HOME_THERMO_SVG;
+        var tx = document.createElement('span');
+        tx.className = 'home-loader-text';
+        var list = HOME_LOADER_TEXT[kind], n = Math.floor(Math.random() * list.length);
+        function show() { tx.textContent = daText(list[n][0], list[n][1]); }
+        show();
+        box.appendChild(tx);
+        var iv = setInterval(function () {
+            if (!box.isConnected) { clearInterval(iv); return; }
+            n = (n + 1) % list.length;
+            tx.classList.add('is-swap');
+            setTimeout(function () { show(); tx.classList.remove('is-swap'); }, 220);
+        }, 2600);
+
+        return box;
+    }
+
     var HOME_QUICK_COLORS = ['#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#00c7be', '#0a84ff', '#7d5cff', '#ff5aa5'];
 
     function hexToHsv(hex) {
@@ -2579,7 +2613,7 @@
                 return thermos.filter(function (t) { return String(t.room || '').toLowerCase() === String(roomName).toLowerCase(); });
             }
             if (st.lightsErr) body.appendChild(el('div', 'home-note', daText('Lights: ', 'Lys: ') + st.lightsErr));
-            if (!st.lights && !st.lightsErr) body.appendChild(el('div', 'home-note', daText('Loading lights…', 'Henter lys…')));
+            if (!st.lights && !st.lightsErr) body.appendChild(homeLoader('lights'));
             if (st.lights) {
                 st.lights.rooms.forEach(function (room) {
                     var box = el('div', 'home-room' + (room.on ? ' is-on' : ''));
@@ -2603,7 +2637,7 @@
                 });
             }
             if (st.thermoErr) body.appendChild(el('div', 'home-note', daText('Thermostats: ', 'Termostater: ') + st.thermoErr));
-            if (!st.thermos && !st.thermoErr) body.appendChild(el('div', 'home-note', daText('Loading thermostats…', 'Henter termostater…')));
+            if (!st.thermos && !st.thermoErr) body.appendChild(homeLoader('thermo'));
             var rest = thermos.filter(function (t) { return !used[t.id]; });
             var other = st.lights ? st.lights.other : [];
             if (rest.length || other.length) {

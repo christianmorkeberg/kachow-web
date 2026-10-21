@@ -2921,3 +2921,30 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-white-strip { appearance: none; -webkit-appearance: none; height: 10px; border-radius: 6px; background: linear-gradient(90deg, #cfe3ff, #ffffff 45%, #ffd9a0 75%, #ffb050); }
 .home-white-strip::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
 .home-white-strip::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
+
+/* Home card loading: a bulb that flickers on, a thermometer whose mercury rises */
+.home-loader { display: flex; align-items: center; gap: 14px; padding: 14px 10px; color: var(--muted); font-size: 13px; }
+.hl-svg { width: 56px; height: 56px; flex: none; overflow: visible; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.home-loader-text { transition: opacity .22s, transform .22s; }
+.home-loader-text.is-swap { opacity: 0; transform: translateY(4px); }
+.hl-bulb { color: color-mix(in srgb, var(--amber, #f59e0b) 60%, var(--muted)); }
+.hl-glow { fill: var(--amber, #f59e0b); stroke: none; opacity: 0; animation: hl-glow 2.6s ease-in-out infinite; transform-origin: 32px 26px; }
+.hl-glass { animation: hl-bulb 2.6s linear infinite; }
+.hl-fil { stroke: var(--amber, #f59e0b); animation: hl-fil 2.6s linear infinite; }
+.hl-rays path { stroke: var(--amber, #f59e0b); opacity: 0; animation: hl-rays 2.6s ease-out infinite; }
+@keyframes hl-bulb { 0%, 8% { fill: transparent; } 11% { fill: rgba(245, 158, 11, .55); } 14% { fill: transparent; } 17% { fill: rgba(245, 158, 11, .7); } 19% { fill: transparent; } 24%, 72% { fill: rgba(245, 158, 11, .9); } 80%, 100% { fill: transparent; } }
+@keyframes hl-glow { 0%, 8% { opacity: 0; } 11% { opacity: .25; } 14% { opacity: 0; } 17% { opacity: .35; } 19% { opacity: 0; } 24% { opacity: .5; transform: scale(.9); } 48% { opacity: .65; transform: scale(1.08); } 72% { opacity: .5; transform: scale(.95); } 82%, 100% { opacity: 0; } }
+@keyframes hl-fil { 0%, 8% { opacity: .3; } 24%, 72% { opacity: 1; } 82%, 100% { opacity: .3; } }
+@keyframes hl-rays { 0%, 20% { opacity: 0; transform: scale(.7); } 34%, 66% { opacity: .9; transform: scale(1); } 80%, 100% { opacity: 0; } }
+.hl-rays { transform-origin: 32px 26px; }
+.hl-thermo { color: color-mix(in srgb, var(--heat, #fb923c) 55%, var(--muted)); }
+.hl-tbulb { fill: transparent; animation: hl-tbulb 3s ease-in-out infinite; }
+.hl-merc { stroke: none; transform-box: fill-box; transform-origin: 50% 100%; animation: hl-merc 3s ease-in-out infinite; }
+.hl-ticks { opacity: .6; }
+.hl-heat path { stroke: var(--heat, #fb923c); opacity: 0; animation: hl-heat 3s ease-in-out infinite; }
+.hl-heat path:nth-child(2) { animation-delay: .25s; }
+.hl-heat path:nth-child(3) { animation-delay: .5s; }
+@keyframes hl-merc { 0% { transform: scaleY(.08); fill: #38bdf8; } 55% { transform: scaleY(1); fill: #fb923c; } 75% { transform: scaleY(.96); fill: #fb923c; } 100% { transform: scaleY(.08); fill: #38bdf8; } }
+@keyframes hl-tbulb { 0% { fill: #38bdf8; } 55%, 75% { fill: #fb923c; } 100% { fill: #38bdf8; } }
+@keyframes hl-heat { 0%, 45% { opacity: 0; transform: translateY(4px); } 62% { opacity: .9; transform: translateY(0); } 85%, 100% { opacity: 0; transform: translateY(-5px); } }
+@media (prefers-reduced-motion: reduce) { .hl-glass, .hl-glow, .hl-fil, .hl-rays path, .hl-tbulb, .hl-merc, .hl-heat path { animation-duration: 8s; } }
