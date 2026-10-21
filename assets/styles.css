@@ -2905,7 +2905,10 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-thermo-ctl { display: flex; align-items: center; gap: 6px; margin-top: auto; }
 .home-thermo-target { flex: 1; text-align: center; font-size: 12.5px; }
 .home-step { flex: none; display: inline-grid; place-items: center; box-sizing: border-box; width: 30px; height: 30px; padding: 0; line-height: 1; font-size: 18px; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 8px; cursor: pointer; }
-.home-panel { grid-column: 1 / -1; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--panel-2); padding: 12px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.home-panel-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .22s ease, opacity .2s ease; }
+.home-panel-wrap.is-open { grid-template-rows: 1fr; opacity: 1; }
+.home-panel-clip { min-height: 0; overflow: hidden; }
+.home-panel { border: 1px solid var(--accent-line); border-radius: 12px; background: var(--panel-2); padding: 12px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
 .home-panel-top { flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; }
 .home-x { border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px; }
 .home-wheel-box { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; flex: 1 1 auto; }
@@ -2948,3 +2951,5 @@ body.voice-on .vd-lang { font-size: 13px; }
 @keyframes hl-tbulb { 0% { fill: #38bdf8; } 55%, 75% { fill: #fb923c; } 100% { fill: #38bdf8; } }
 @keyframes hl-heat { 0%, 45% { opacity: 0; transform: translateY(4px); } 62% { opacity: .9; transform: translateY(0); } 85%, 100% { opacity: 0; transform: translateY(-5px); } }
 @media (prefers-reduced-motion: reduce) { .hl-glass, .hl-glow, .hl-fil, .hl-rays path, .hl-tbulb, .hl-merc, .hl-heat path { animation-duration: 8s; } }
+
+@media (prefers-reduced-motion: reduce) { .home-panel-wrap { transition: none; } }

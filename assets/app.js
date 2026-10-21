@@ -2336,7 +2336,7 @@
         body.className = 'home-body';
         wrap.appendChild(body);
 
-        var st = { lights: null, lightsErr: null, thermos: null, thermoErr: null, panel: null };
+        var st = { lights: null, lightsErr: null, thermos: null, thermoErr: null, panel: null, panelShown: null };
         var timers = {}, last = {};
 
         function post(payload) {
@@ -2475,7 +2475,7 @@
             var close = el('button', 'home-x', '×');
             close.type = 'button';
             close.setAttribute('aria-label', daText('Close', 'Luk'));
-            close.addEventListener('click', function () { st.panel = null; draw(); });
+            close.addEventListener('click', function () { closePanel(); });
             top.appendChild(close);
             p.appendChild(top);
             var bits = el('div', 'home-panel-bits');
@@ -2513,7 +2513,7 @@
                 more.type = 'button';
                 more.innerHTML = icon('sliders-horizontal', '');
                 more.setAttribute('aria-label', daText('Brightness and colour', 'Lysstyrke og farve'));
-                more.addEventListener('click', function (e) { e.stopPropagation(); st.panel = st.panel === l.id ? null : l.id; draw(); });
+                more.addEventListener('click', function (e) { e.stopPropagation(); if (st.panel === l.id) closePanel(); else { st.panel = l.id; draw(); } });
                 topRow.appendChild(more);
             }
             t.appendChild(topRow);
@@ -2596,13 +2596,32 @@
             return sec;
         }
         function lightSection(lights) {
-            var tiles = [];
-            lights.forEach(function (l) {
-                tiles.push(lightTile(l));
-                if (st.panel === l.id) tiles.push(lightPanel(l));
-            });
+            return section('lights', daText('Lights', 'Lys'), 'lightbulb', lights.map(lightTile));
+        }
+        // The light panel opens BELOW the whole room's tiles, so nothing moves when it opens or closes; it slides open and shut.
+        function panelFor(lights) {
+            var l = lights.filter(function (x) { return x.id === st.panel; })[0];
+            if (!l) return null;
+            var wrapEl = el('div', 'home-panel-wrap');
+            var clip = el('div', 'home-panel-clip');
+            clip.appendChild(lightPanel(l));
+            wrapEl.appendChild(clip);
+            if (st.panelShown === l.id) wrapEl.classList.add('is-open');      // a redraw while it is open: stay open, no replay
+            else {
+                requestAnimationFrame(function () { requestAnimationFrame(function () { wrapEl.classList.add('is-open'); }); });
+                setTimeout(function () { if (wrapEl.isConnected && wrapEl.scrollIntoView) wrapEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 260);
+            }
+            st.panelShown = l.id;
 
-            return section('lights', daText('Lights', 'Lys'), 'lightbulb', tiles);
+            return wrapEl;
+        }
+        function closePanel() {
+            var w = body.querySelector('.home-panel-wrap');
+            st.panel = null;
+            st.panelShown = null;
+            if (!w) { draw(); return; }
+            w.classList.remove('is-open');
+            setTimeout(draw, 230);
         }
 
         function draw() {
@@ -2633,6 +2652,8 @@
                     if (ts.length) secs.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', ts.map(thermoTile)));
                     if (room.lights.length) secs.appendChild(lightSection(room.lights));
                     box.appendChild(secs);
+                    var pnl = panelFor(room.lights);
+                    if (pnl) box.appendChild(pnl);
                     body.appendChild(box);
                 });
             }
@@ -2647,6 +2668,8 @@
                 if (rest.length) osecs.appendChild(section('climate', daText('Climate', 'Klima'), 'thermometer', rest.map(thermoTile)));
                 if (other.length) osecs.appendChild(lightSection(other));
                 ob.appendChild(osecs);
+                var opnl = panelFor(other);
+                if (opnl) ob.appendChild(opnl);
                 body.appendChild(ob);
             }
         }
