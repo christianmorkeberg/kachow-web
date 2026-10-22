@@ -8373,9 +8373,10 @@
                 typeSel.appendChild(o);
             });
             radius.min = card.min_radius_m || 25;
-            radius.max = Math.min(card.max_radius_m || 2000, 1000);
+            // the slider covers 25–1000 m; a wider circle the assistant made (a stretch of motorway) keeps its radius and widens the slider to it
+            radius.max = Math.min(card.max_radius_m || 2000, Math.max(1000, draft.radius_m || 0));
             radius.value = draft.radius_m || 100;
-            radiusV.textContent = radius.value + ' m';
+            radiusV.textContent = radius.value >= 1000 ? (radius.value / 1000).toFixed(1).replace(/\.0$/, '') + ' km' : radius.value + ' m';
 
             function syncShape() {
                 f.querySelectorAll('.pf-shape button').forEach(function (b) {
@@ -8399,7 +8400,7 @@
             typeSel.addEventListener('change', function () { draft.type = typeSel.value; drawDraft(); });
             radius.addEventListener('input', function () {
                 draft.radius_m = Number(radius.value);
-                radiusV.textContent = radius.value + ' m';
+                radiusV.textContent = radius.value >= 1000 ? (radius.value / 1000).toFixed(1).replace(/\.0$/, '') + ' km' : radius.value + ' m';
                 drawDraft();
             });
             f.querySelector('.pf-undo').addEventListener('click', function () { draft.polygon.pop(); drawDraft(); });
