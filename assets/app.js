@@ -2435,7 +2435,9 @@
             r.min = String(min); r.max = String(max);
             r.value = String(value);
             r.className = 'home-range ' + (cls || '');
-            r.addEventListener('input', function () { if (onInput) onInput(parseInt(r.value, 10)); });
+            function fill() { r.style.setProperty('--p', ((r.value - r.min) / (r.max - r.min) * 100) + '%'); }   // the filled part of the track
+            fill();
+            r.addEventListener('input', function () { fill(); if (onInput) onInput(parseInt(r.value, 10)); });
             r.addEventListener('change', function () { onChange(parseInt(r.value, 10)); });
 
             return r;
@@ -5416,6 +5418,9 @@
                 form.appendChild(l);
                 return cb;
             }
+            var until = input('date', cond.until && /^\d{4}-\d{2}-\d{2}$/.test(cond.until) ? cond.until : '');
+            field(daText('Only until (date, optional)', 'Kun til og med (dato, valgfri)'), until);
+            var once = check(daText('One-off: finish after the first run', 'Engangs: afslut efter første kørsel'), cond.once);
             var away = check(daText('Only when I am away from home', 'Kun når jeg er væk hjemmefra'), cond.away);
             var others = check(daText('Only if nobody else is home', 'Kun hvis ingen andre er hjemme'), cond.others_away);
             var ask = check(daText('Ask me first, then run', 'Spørg mig først, og kør så'), t && t.run_mode === 'ask');
@@ -5430,7 +5435,11 @@
                     mode: ask.checked ? 'ask' : 'auto'
                 };
                 if (editing) body.id = t.id;
+                // keep what the form has no field for (place conditions, a start date, an until time of day) — editing must not drop it
                 var c = {};
+                ['in_places', 'out_places', 'from'].forEach(function (k) { if (cond[k] && cond[k].length) c[k] = cond[k]; });
+                if (until.value) c.until = until.value; else if (cond.until && !/^\d{4}-\d{2}-\d{2}$/.test(cond.until)) c.until = cond.until;
+                if (once.checked) c.once = true;
                 var wd = dayBtns.filter(function (x) { return x.classList.contains('on'); }).map(function (x) { return parseInt(x.dataset.day, 10); });
                 if (wd.length) c.weekdays = wd;
                 if (from.value && to.value) c.between = [from.value, to.value];
@@ -8364,9 +8373,10 @@
                 typeSel.appendChild(o);
             });
             radius.min = card.min_radius_m || 25;
-            radius.max = Math.min(card.max_radius_m || 2000, 1000);
+            // the slider covers 25–1000 m; a wider circle the assistant made (a stretch of motorway) keeps its radius and widens the slider to it
+            radius.max = Math.min(card.max_radius_m || 2000, Math.max(1000, draft.radius_m || 0));
             radius.value = draft.radius_m || 100;
-            radiusV.textContent = radius.value + ' m';
+            radiusV.textContent = radius.value >= 1000 ? (radius.value / 1000).toFixed(1).replace(/\.0$/, '') + ' km' : radius.value + ' m';
 
             function syncShape() {
                 f.querySelectorAll('.pf-shape button').forEach(function (b) {
@@ -8390,7 +8400,7 @@
             typeSel.addEventListener('change', function () { draft.type = typeSel.value; drawDraft(); });
             radius.addEventListener('input', function () {
                 draft.radius_m = Number(radius.value);
-                radiusV.textContent = radius.value + ' m';
+                radiusV.textContent = radius.value >= 1000 ? (radius.value / 1000).toFixed(1).replace(/\.0$/, '') + ' km' : radius.value + ' m';
                 drawDraft();
             });
             f.querySelector('.pf-undo').addEventListener('click', function () { draft.polygon.pop(); drawDraft(); });
@@ -9131,7 +9141,11 @@
 
     function autogrow() {
         input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+        // scrollHeight is the content + padding; the box also has a border, so add it — otherwise an empty box is 2 px too short and shows a scrollbar
+        var border = input.offsetHeight - input.clientHeight;
+        var want = input.scrollHeight + border;
+        input.style.height = Math.min(want, 140) + 'px';
+        input.style.overflowY = want > 140 ? 'auto' : 'hidden';
     }
 
     // Does this message plausibly need the device's location? (weather, "near me")
