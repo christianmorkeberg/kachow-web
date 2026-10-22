@@ -5416,6 +5416,9 @@
                 form.appendChild(l);
                 return cb;
             }
+            var until = input('date', cond.until && /^\d{4}-\d{2}-\d{2}$/.test(cond.until) ? cond.until : '');
+            field(daText('Only until (date, optional)', 'Kun til og med (dato, valgfri)'), until);
+            var once = check(daText('One-off: finish after the first run', 'Engangs: afslut efter første kørsel'), cond.once);
             var away = check(daText('Only when I am away from home', 'Kun når jeg er væk hjemmefra'), cond.away);
             var others = check(daText('Only if nobody else is home', 'Kun hvis ingen andre er hjemme'), cond.others_away);
             var ask = check(daText('Ask me first, then run', 'Spørg mig først, og kør så'), t && t.run_mode === 'ask');
@@ -5430,7 +5433,11 @@
                     mode: ask.checked ? 'ask' : 'auto'
                 };
                 if (editing) body.id = t.id;
+                // keep what the form has no field for (place conditions, a start date, an until time of day) — editing must not drop it
                 var c = {};
+                ['in_places', 'out_places', 'from'].forEach(function (k) { if (cond[k] && cond[k].length) c[k] = cond[k]; });
+                if (until.value) c.until = until.value; else if (cond.until && !/^\d{4}-\d{2}-\d{2}$/.test(cond.until)) c.until = cond.until;
+                if (once.checked) c.once = true;
                 var wd = dayBtns.filter(function (x) { return x.classList.contains('on'); }).map(function (x) { return parseInt(x.dataset.day, 10); });
                 if (wd.length) c.weekdays = wd;
                 if (from.value && to.value) c.between = [from.value, to.value];
