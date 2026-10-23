@@ -2809,12 +2809,18 @@
         head.appendChild(name);
         var actions = document.createElement('div');
         actions.className = 'ep-actions';
+        var pdf = document.createElement('button');
+        pdf.type = 'button';
+        pdf.className = 'ep-btn is-main';
+        setIconText(pdf, 'file-down', 'PDF');
+        pdf.addEventListener('click', function () { downloadUrl(card.pdf_url); });
+        actions.appendChild(pdf);
         var open = document.createElement('a');
         open.className = 'ep-btn';
         open.href = card.print_url || '#';
         open.target = '_blank';
         open.rel = 'noopener';
-        setIconText(open, 'file-text', daText('Open / print', 'Åbn / udskriv'));
+        setIconText(open, 'file-text', daText('Open', 'Åbn'));
         actions.appendChild(open);
         var csv = document.createElement('button');
         csv.type = 'button';
@@ -3401,6 +3407,18 @@
         field('Subject', 'subject', card.subject, false);
         field('Message', 'body', card.body, true);
 
+        // Attached files (e.g. a timesheet PDF): shown as a chip that opens the file.
+        var attach = (card.attachments && card.attachments[0]) || null;
+        if (attach) {
+            var chip = document.createElement('a');
+            chip.className = 'email-attach';
+            chip.href = attach.url || '#';
+            chip.target = '_blank';
+            chip.rel = 'noopener';
+            setIconText(chip, 'file-down', attach.name || 'Attachment');
+            wrap.appendChild(chip);
+        }
+
         var note = null;
         if (card.note) {
             note = document.createElement('div');
@@ -3442,6 +3460,7 @@
                         subject: inputs.subject ? inputs.subject.value : card.subject,
                         body: bodyVal,
                         thread_id: card.thread_id || undefined,
+                        attach_url: attach ? attach.url : undefined,
                     }),
                 })
                     .then(function (res) { return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, d: d }; }); })

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Send a confirmed draft (authenticated session, JSON) — the Send button on an
  * email-draft card posts here. Enforces the global send lock (EMAIL_SEND_ENABLED).
  *
- *   POST { account_id?, draft_id?, to, subject, body, cc?, thread_id? }
+ *   POST { account_id?, draft_id?, to, subject, body, cc?, thread_id?, attach_url? }
  *     → { ok, sent, card }  or  { error }
  */
 
@@ -19,6 +19,10 @@ use App\Data\Users;
 use App\Email\EmailDraft;
 use App\Email\EmailService;
 use App\Email\SendLockedException;
+use App\Data\Memories;
+use App\Data\UserInstructions;
+use App\Tools\ExportData;
+use App\Tools\RegistryFactory;
 
 header('Content-Type: application/json');
 
@@ -53,12 +57,29 @@ if ($to === '' || $body === '') {
     out(400, ['error' => 'Missing recipient or body.']);
 }
 
+// An attached export (a timesheet …) is rebuilt from its link when sending, as the logged-in user.
+$attachments = [];
+$attachUrl   = trim((string) ($in['attach_url'] ?? ''));
+if ($attachUrl !== '') {
+    $file = ExportData::attachmentFromUrl(
+        RegistryFactory::standard($users, new Memories(), new UserInstructions()),
+        $attachUrl,
+        $userId,
+        (string) (($users->findById($userId)['name'] ?? '') ?: '')
+    );
+    if (isset($file['error'])) {
+        out(400, ['error' => 'Could not attach the file: ' . $file['error']]);
+    }
+    $attachments[] = $file;
+}
+
 $draft = new EmailDraft(
     to:       $to,
     subject:  (string) ($in['subject'] ?? ''),
     bodyText: $body,
     cc:       trim((string) ($in['cc'] ?? '')),
     threadId: isset($in['thread_id']) && trim((string) $in['thread_id']) !== '' ? (string) $in['thread_id'] : null,
+    attachments: $attachments,
 );
 
 try {
@@ -82,5 +103,6 @@ out(200, [
         'body'    => $body,
         'note'    => 'Sent.',
         'sent'    => true,
+        'attachments' => $attachments === [] ? [] : [['name' => $attachments[0]['filename'], 'url' => $attachUrl]],
     ],
 ]);
