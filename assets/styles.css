@@ -2976,12 +2976,16 @@ body.voice-on .vd-lang { font-size: 13px; }
 .home-skel-bar { height: 28px; margin-top: auto; border-radius: 8px; background: color-mix(in srgb, var(--heat) 14%, transparent); animation: home-skel 1.2s ease-in-out infinite; }
 @keyframes home-skel { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
 
+.email-attach { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 8px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--text); text-decoration: none; }
+.email-attach:hover { border-color: var(--accent-line); }
+
 /* Export preview card: the printable page in a frame (white paper, like the print) */
 .ep-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ep-name { font-weight: 700; font-size: 16px; flex: 1; min-width: 0; }
 .ep-actions { display: flex; gap: 6px; }
 .ep-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; text-decoration: none; }
 .ep-btn:hover { border-color: var(--accent-line); }
+.ep-btn.is-main { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .ep-sum { color: var(--muted); font-size: 12.5px; margin: 2px 0 8px; }
 .ep-frame { width: 100%; height: min(70vh, 520px); margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
 

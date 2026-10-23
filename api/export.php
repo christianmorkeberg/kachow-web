@@ -5,8 +5,8 @@ declare(strict_types=1);
 /**
  * Export of what a read tool returns (authenticated session) — the link export_data hands out.
  *
- *   GET ?spec=<json: source, args, layout, columns, title, customer, round, lang>&format=csv|html
- *     → csv downloads a spreadsheet file (semicolon, UTF-8 BOM); html is a printable page ("save as PDF").
+ *   GET ?spec=<json: source, args, layout, columns, title, customer, round, lang, …>&format=pdf|csv|html
+ *     → pdf and csv download as files (csv: semicolon, UTF-8 BOM); html is the printable page (embed=1: for the preview card).
  * The spec is re-run as the logged-in user when the link is opened; only whitelisted read tools run (ExportData::SOURCES).
  */
 
@@ -18,8 +18,7 @@ use App\Data\Memories;
 use App\Data\RememberTokens;
 use App\Data\UserInstructions;
 use App\Data\Users;
-use App\Support\DataExport;
-use App\Support\Timesheet;
+use App\Support\ExportPage;
 use App\Tools\ExportData;
 use App\Tools\RegistryFactory;
 
@@ -57,88 +56,20 @@ if (isset($built['error'])) {
     exit;
 }
 
-$csv   = ($_GET['format'] ?? 'html') === 'csv';
+$format = in_array($_GET['format'] ?? 'html', ['csv', 'pdf'], true) ? (string) $_GET['format'] : 'html';
 // embed=1: the page inside a card — no print button, tighter padding.
-if (!$csv && !empty($_GET['embed'])) {
-    ob_start(static fn (string $html): string => str_replace('</head>', '<style>.bar{display:none}body{padding:14px;max-width:none}</style></head>', $html));
-}
-$stamp = date('Y-m-d');
-$name  = preg_replace('/[^a-z0-9_-]+/i', '', (string) $spec['source']) . '_' . $stamp;
-$lang  = ($spec['lang'] ?? 'da') === 'en' ? 'en' : 'da';
-$title = trim((string) ($spec['title'] ?? ''));
+$person = (string) (($users->findById($userId)['name'] ?? '') ?: '');
+$file   = ExportPage::render($built, $spec, $format, $person);
 
-$extra = [];
-foreach (is_array($spec['header'] ?? null) ? $spec['header'] : [] as $k => $v) {
-    if (is_string($k) && (is_scalar($v) || $v === null)) {
-        $extra[mb_substr($k, 0, 60)] = mb_substr((string) $v, 0, 160); // an empty value deletes an automatic timesheet line
-    }
-}
-$footer = mb_substr((string) ($spec['footer'] ?? ''), 0, 600);
-
-if (isset($built['sheet'])) {
-    $opt  = $built['options'];
-    $args = is_array($spec['args'] ?? null) ? $spec['args'] : [];
-    $days = $built['sheet']['days'];
-    // The period is the one asked for (from / to), not the first and last day that happened to have hours.
-    $fromD  = !empty($args['from']) && strtotime((string) $args['from']) ? (string) $args['from'] : $days[0]['date'];
-    $toD    = !empty($args['to']) && strtotime((string) $args['to']) ? (string) $args['to'] : $days[count($days) - 1]['date'];
-    $headAll = [
-        'title' => mb_substr($title, 0, 120), 'person' => mb_substr(trim((string) ($spec['from_name'] ?? '')), 0, 120) ?: (string) (($users->findById($userId)['name'] ?? '') ?: ''),
-        'customer' => mb_substr((string) ($spec['customer'] ?? ''), 0, 120), 'job' => mb_substr((string) ($args['place'] ?? ''), 0, 120),
-        'period' => date('d.m.Y', strtotime($fromD)) . ' – ' . date('d.m.Y', strtotime($toD)), 'made' => date('d.m.Y'), 'extra' => $extra,
-    ];
-    if ($csv) {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="timesheet_' . $stamp . '.csv"');
-        $out = fopen('php://output', 'w');
-        fprintf($out, "\xEF\xBB\xBF");
-        $lines = Timesheet::metaLines($headAll, $lang, $spec['labels'] ?? []);
-        foreach ($lines as $k => $v) {
-            fputcsv($out, [$k, $v], ';');
-        }
-        if ($lines !== []) {
-            fputcsv($out, [], ';');
-        }
-        foreach (Timesheet::csvRows($built['sheet'], $lang, $opt) as $row) {
-            fputcsv($out, $row, ';');
-        }
-        fclose($out);
-        exit;
-    }
-    header('Content-Type: text/html; charset=utf-8');
+header('Content-Type: ' . $file['mime']);
+if ($format === 'html') {
     header('Cache-Control: no-store');
-    echo Timesheet::html($built['sheet'], $lang, $headAll, $opt);
+    $body = $file['body'];
+    if (!empty($_GET['embed'])) {
+        $body = str_replace('</head>', '<style>.bar{display:none}body{padding:14px;max-width:none}</style></head>', $body);
+    }
+    echo $body;
     exit;
 }
-
-if ($csv) {
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $name . '.csv"');
-    $out = fopen('php://output', 'w');
-    fprintf($out, "\xEF\xBB\xBF");
-    foreach ($extra as $k => $v) {
-        fputcsv($out, [$k, $v], ';');
-    }
-    if ($extra !== []) {
-        fputcsv($out, [], ';');
-    }
-    fputcsv($out, $built['labels'], ';');
-    foreach ($built['rows'] as $row) {
-        fputcsv($out, $row, ';');
-    }
-    if ($built['total'] !== null) {
-        fputcsv($out, $built['total'], ';');
-    }
-    fclose($out);
-    exit;
-}
-
-header('Content-Type: text/html; charset=utf-8');
-header('Cache-Control: no-store');
-echo DataExport::html(
-    $title !== '' ? mb_substr($title, 0, 120) : DataExport::label((string) $spec['source']),
-    ['columns' => $built['columns'], 'labels' => $built['labels'], 'rows' => $built['rows'], 'total' => $built['total']],
-    $extra + ['Date' => date('d.m.Y')],
-    $footer,
-    $lang
-);
+header('Content-Disposition: ' . (!empty($_GET['inline']) && $format === 'pdf' ? 'inline' : 'attachment') . '; filename="' . $file['filename'] . '"');
+echo $file['body'];
