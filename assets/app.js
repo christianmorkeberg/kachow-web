@@ -809,6 +809,7 @@
         receipt:       ['receipt', 'Receipt'],
         expenses:      ['credit-card', 'Expenses'],
         income:        ['file-text', 'Income'],
+        export_preview: ['file-text', 'Export'],
         income_summary:['trending-up', 'Income'],
         owner_draws:   ['wallet', 'Owner draws'],
         bookkeeping:   ['book-open', 'Books'],
@@ -1590,6 +1591,7 @@
         if (card.kind === 'home') { renderHome(card); return; }
         if (card.kind === 'training_program') { renderTrainingProgram(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
+        if (card.kind === 'export_preview') { renderExportPreview(card); return; }
 
         let sections, endpoint, doneKey;
         if (card.kind === 'workout_plan') {
@@ -2794,6 +2796,49 @@
 
     // Training programme card: a programme's weeks as chips, the chosen week's days with their exercises — for checking what the assistant saved
     // from a note. Read-only; changes go through the chat.
+    // A preview of an export (timesheet / table): the printable page in a frame, with buttons to open it (print / save as PDF) and to download the CSV.
+    function renderExportPreview(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card ep-card';
+        var head = document.createElement('div');
+        head.className = 'ep-head';
+        var name = document.createElement('div');
+        name.className = 'ep-name';
+        name.textContent = card.title || daText('Export', 'Eksport');
+        head.appendChild(name);
+        var actions = document.createElement('div');
+        actions.className = 'ep-actions';
+        var open = document.createElement('a');
+        open.className = 'ep-btn';
+        open.href = card.print_url || '#';
+        open.target = '_blank';
+        open.rel = 'noopener';
+        setIconText(open, 'file-text', daText('Open / print', 'Åbn / udskriv'));
+        actions.appendChild(open);
+        var csv = document.createElement('button');
+        csv.type = 'button';
+        csv.className = 'ep-btn';
+        csv.textContent = 'CSV';
+        csv.addEventListener('click', function () { downloadUrl(card.csv_url); });
+        actions.appendChild(csv);
+        head.appendChild(actions);
+        wrap.appendChild(head);
+        if (card.summary) {
+            var sum = document.createElement('div');
+            sum.className = 'ep-sum';
+            sum.textContent = card.summary;
+            wrap.appendChild(sum);
+        }
+        var frame = document.createElement('iframe');
+        frame.className = 'ep-frame';
+        frame.title = card.title || 'Export';
+        frame.loading = 'lazy';
+        frame.src = (card.print_url || '') + '&embed=1';
+        wrap.appendChild(frame);
+        messages.appendChild(wrap);
+    }
+
     function renderTrainingProgram(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');
