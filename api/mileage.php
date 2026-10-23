@@ -10,6 +10,7 @@ declare(strict_types=1);
  *   GET  /api/mileage.php?offset=0                          → this year's card (-1 = last year)
  *   POST { action:'log', destination_id[, date, km, note] } → log a driving day
  *   POST { action:'delete', id }                            → remove a logged day
+ *   POST { action:'confirm_suggestion', date, km?, destination_id? | (place_id + as_type business|commute) } → logs it; for a place with no destination it links / creates one in the same step
  *   POST { action:'add_destination', name, type, km,
  *          home_address, dest_address }                     → add a destination
  *   POST { action:'update_destination', id, ...fields }     → edit a destination
@@ -139,13 +140,33 @@ try {
 
                 // no break (out() exits)
             case 'confirm_suggestion':
-                // Log a suggested driving day for a linked destination.
-                $destId = (int) ($in['destination_id'] ?? 0);
-                $date   = isset($in['date']) ? (string) $in['date'] : '';
-                if ($destId <= 0 || $date === '') {
-                    out(400, ['error' => 'Confirming needs a linked destination and a date.']);
+                // Log a suggested driving day. For a place with no destination yet this does the linking in the same step: either a NEW
+                // destination made from the place (as_type business | commute), or an existing destination (destination_id) the place is linked to.
+                $destId  = (int) ($in['destination_id'] ?? 0);
+                $placeId = (int) ($in['place_id'] ?? 0);
+                $date    = isset($in['date']) ? (string) $in['date'] : '';
+                $km      = isset($in['km']) && $in['km'] !== '' ? (float) $in['km'] : null;
+                if ($date === '') {
+                    out(400, ['error' => 'Confirming needs a date.']);
                 }
-                $km = isset($in['km']) && $in['km'] !== '' ? (float) $in['km'] : null;
+                if ($placeId > 0 && ($destId <= 0 || !empty($in['link']))) {
+                    $existing = $mileage->destinationForPlace($userId, $placeId);
+                    if ($existing !== null) {
+                        $destId = $existing['id'];                    // it got linked meanwhile (another tab): just log
+                    } elseif ($destId > 0) {
+                        $mileage->updateDestination($userId, $destId, ['place_id' => $placeId]);
+                    } else {
+                        $place = (new \App\Data\Places())->get($userId, $placeId);
+                        if ($place === null) {
+                            out(404, ['error' => 'That place is gone.']);
+                        }
+                        $asType = ($in['as_type'] ?? '') === 'commute' ? 'commute' : 'business';
+                        $destId = $mileage->addDestination($userId, (string) $place['name'], $asType, $km !== null ? $km : 0.0, null, null, $placeId);
+                    }
+                }
+                if ($destId <= 0) {
+                    out(400, ['error' => 'Confirming needs a destination.']);
+                }
                 $mileage->logTrip($userId, $destId, $date, $km, null);
                 out(200, ['ok' => true, 'card' => $card()]);
 

@@ -7569,7 +7569,7 @@
     }
 
     // One suggested drive awaiting confirmation. Confirm → log_trip; Dismiss → never re-suggest.
-    // If the place isn't linked to a destination yet, offer to link it first.
+    // If the place isn't linked to a destination yet, the same Log it makes / links the destination (pick what it counts as).
     function buildSuggestRow(wrap, s, cur, card) {
         var row = document.createElement('div'); row.className = 'mileage-sug';
 
@@ -7584,20 +7584,28 @@
 
         var actions = document.createElement('div'); actions.className = 'mileage-sug-actions';
         if (s.needs_link) {
+            // ONE step: say what it counts as, then Log it — a new destination is made from the place (or the place is linked to an existing one)
+            // in the same go. (Linking used to be a separate button before "Log it" could appear.)
             var sel = document.createElement('select'); sel.className = 'books-addinput mileage-sug-sel';
-            var ph = document.createElement('option'); ph.value = ''; ph.textContent = daText('Link to…', 'Knyt til…'); sel.appendChild(ph);
+            var guess = (s.type === 'business') ? 'business' : 'commute';
+            [['new:business', daText('Business', 'Erhverv')], ['new:commute', daText('Commute', 'Pendling')]].forEach(function (o) {
+                var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; if (o[0] === 'new:' + guess) op.selected = true; sel.appendChild(op);
+            });
             (card.destinations || []).forEach(function (d) {
-                var o = document.createElement('option'); o.value = d.id;
-                o.textContent = d.name + (d.type === 'commute' ? ' · ' + daText('commute', 'pendling') : '');
+                var o = document.createElement('option'); o.value = 'dest:' + d.id;
+                o.textContent = daText('Same as ', 'Samme som ') + d.name + (d.type === 'commute' ? ' · ' + daText('commute', 'pendling') : '');
                 sel.appendChild(o);
             });
-            var link = document.createElement('button'); link.type = 'button'; link.className = 'books-addsave';
-            link.textContent = daText('Link', 'Knyt');
-            link.addEventListener('click', function () {
-                if (!sel.value) { sel.focus(); return; }
-                mileagePost(wrap, { action: 'link_place', destination_id: parseInt(sel.value, 10), place_id: s.place_id });
+            var logIt = document.createElement('button'); logIt.type = 'button'; logIt.className = 'books-addsave';
+            logIt.textContent = daText('Log it', 'Registrér');
+            logIt.addEventListener('click', function () {
+                var body = { action: 'confirm_suggestion', date: s.date, place_id: s.place_id };
+                if (s.km != null) body.km = s.km;
+                if (sel.value.indexOf('dest:') === 0) { body.destination_id = parseInt(sel.value.slice(5), 10); body.link = true; }
+                else body.as_type = sel.value.slice(4);
+                mileagePost(wrap, body);
             });
-            actions.appendChild(sel); actions.appendChild(link);
+            actions.appendChild(sel); actions.appendChild(logIt);
         } else {
             var conf = document.createElement('button'); conf.type = 'button'; conf.className = 'books-addsave';
             conf.textContent = daText('Log it', 'Registrér');
@@ -8503,7 +8511,8 @@
         commute:  ['Commute', 'Pendling', '#7c3aed'],
         home:     ['Home', 'Hjem', '#16a34a'],
         private:  ['Private', 'Privat', '#db2777'],
-        other:    ['Other', 'Andet', '#64748b']
+        other:    ['Other', 'Andet', '#64748b'],
+        region:   ['Region', 'Område', '#0891b2']   // an area for routines ("east of Roskilde"): never a destination in the timeline or mileage
     };
     function placeColor(type) { return (PLACE_TYPES[type] || PLACE_TYPES.other)[2]; }
     function placeTypeLabel(type) { var t = PLACE_TYPES[type] || PLACE_TYPES.other; return daText(t[0], t[1]); }
@@ -8512,6 +8521,7 @@
     function drawPlace(L, map, pl, focused) {
         var style = { color: placeColor(pl.type), weight: focused ? 3 : 2, opacity: 0.9,
             fillColor: placeColor(pl.type), fillOpacity: focused ? 0.22 : 0.12 };
+        if (pl.type === 'region') { style.dashArray = '6 6'; style.fillOpacity = focused ? 0.12 : 0.05; }   // an area, not a spot: dashed and faint
         var layer = pl.shape === 'polygon' && (pl.polygon || []).length >= 3
             ? L.polygon(pl.polygon, style)
             : L.circle([pl.lat, pl.lon], Object.assign({ radius: pl.radius_m || 100 }, style));
