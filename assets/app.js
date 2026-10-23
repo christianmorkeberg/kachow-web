@@ -2958,8 +2958,65 @@
         btn(daText('Save', 'Gem'), 'primary', function () { return state.chosen.join(','); });
         btn(daText('Back to default', 'Tilbage til standard'), '', function () { return ''; });
         wrap.appendChild(actions);
+        wrap.appendChild(shortcutBox());
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
+    }
+
+    // "Home-screen shortcut": pick a card, get a link that opens the app straight on it. On iPhone: open the link in Safari →
+    // Share → Add to Home Screen (it gets its own icon); on Android the same, or long-press the app icon for the built-in ones.
+    function shortcutBox() {
+        var box = document.createElement('details');
+        box.className = 'hc-shortcut';
+        var sum = document.createElement('summary');
+        sum.textContent = daText('Home-screen shortcut', 'Genvej på hjemmeskærmen');
+        box.appendChild(sum);
+        var row = document.createElement('div');
+        row.className = 'hc-sc-row';
+        var sel = document.createElement('select');
+        sel.className = 'hc-sc-select';
+        HOME_CARD_ORDER.forEach(function (k) {
+            var o = document.createElement('option');
+            o.value = k;
+            o.textContent = daText(HOME_CARDS[k].en, HOME_CARDS[k].da);
+            sel.appendChild(o);
+        });
+        var link = document.createElement('input');
+        link.type = 'text';
+        link.readOnly = true;
+        link.className = 'hc-sc-link';
+        function url() { return location.origin + '/?open=' + encodeURIComponent(sel.value); }
+        function sync() { link.value = url(); }
+        sel.addEventListener('change', sync);
+        sync();
+        var copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'sched-btn';
+        copy.textContent = daText('Copy link', 'Kopiér link');
+        copy.addEventListener('click', function () {
+            function done() { toast(daText('Link copied', 'Link kopieret')); }
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url()).then(done, function () { link.select(); });
+            else { link.select(); try { document.execCommand('copy'); done(); } catch (e) { /* the text is selected */ } }
+        });
+        var open = document.createElement('a');
+        open.className = 'sched-btn';
+        open.target = '_blank';
+        open.rel = 'noopener';
+        open.textContent = daText('Open', 'Åbn');
+        function syncOpen() { open.href = url(); }
+        sel.addEventListener('change', syncOpen);
+        syncOpen();
+        row.appendChild(sel);
+        row.appendChild(link);
+        row.appendChild(copy);
+        row.appendChild(open);
+        box.appendChild(row);
+        var how = document.createElement('div');
+        how.className = 'persona-intro';
+        how.textContent = daText('iPhone: open the link in Safari → Share → Add to Home Screen. Android: the browser menu → Add to Home screen (or long-press the Kachow icon for the built-in shortcuts).',
+            'iPhone: åbn linket i Safari → Del → Føj til hjemmeskærm. Android: browsermenuen → Føj til startskærm (eller hold fingeren på Kachow-ikonet for de indbyggede genveje).');
+        box.appendChild(how);
+        return box;
     }
 
     // Appearance picker card: "Match my device" (light by day, dark at night) or one fixed look. Each swatch
@@ -9507,6 +9564,8 @@
     // (?conv=<id>, set by notify_me) rather than a card — so the user sees exactly what
     // that run did/found, not just a generic card.
     var convParam = _params.get('conv');
+    // A home-screen shortcut (?open=<card key>, see Shortcuts in the cards picker / the manifest): lands on that card.
+    var openParam = _params.get('open');
     // A tapped notification wins over restoring the last conversation. The service worker
     // parks the tap (with the notification's own text) in CacheStorage, because iOS often
     // drops its postMessage to a suspended or discarded page — so check that first.
@@ -9515,6 +9574,7 @@
         if (p) startFromNotification(p);
         else if (convParam) loadConversation(Number(convParam), gen).catch(function () { if (gen === navGen) decideStartupChat(); });
         else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
+        else if (openParam && HOME_CARDS[openParam]) openShortcutCard(openParam);
         else decideStartupChat();
     });
     document.addEventListener('visibilitychange', function () {
@@ -9637,6 +9697,7 @@
         });
     })();
 
+    var skipStartCard = false;      // a shortcut opens its own card, so the first start card must not
     function startFreshChat(recent) {
         conversationId = null;
         localStorage.removeItem(CONV_KEY);
@@ -9647,10 +9708,20 @@
         // one tap to unfold) — unless a notification or another card got there first.
         var gen = navGen;
         if (homeCardsReady) homeCardsReady.then(function (list) {
-            if (!list.length || gen !== navGen || panelCard) return;
+            if (!list.length || gen !== navGen || panelCard || skipStartCard) return;
             var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
             if (desktop) openHomeCard(list[0], 'open');   // on a phone the start cards are tiles on the start screen instead
         });
+    }
+
+    // A home-screen shortcut: a fresh chat with the chosen card open on top. The query is dropped so a refresh does not repeat it.
+    function openShortcutCard(key) {
+        navGen++;
+        try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
+        skipStartCard = true;
+        startFreshChat(null);
+        skipStartCard = false;
+        openHomeCard(key);
     }
 
     // Short contextual line shown in the fresh chat when a notification card opens, so
@@ -10136,6 +10207,74 @@
             label.checkbox = input;
             return label;
         }
+    })();
+
+    // ---------- Cards button (phones / tablets): a sheet with every card, your own first, then the ones opened this session ----------
+    (function initCardSheet() {
+        var btn = document.getElementById('cardsBtn');
+        var composer = document.getElementById('composer');
+        if (!btn || !composer) return;
+        var sheet = document.createElement('div');
+        sheet.className = 'card-sheet';
+        sheet.id = 'cardSheet';
+        sheet.hidden = true;
+        document.body.appendChild(sheet);
+
+        function head(text) {
+            var h = document.createElement('div');
+            h.className = 'cs-head';
+            h.textContent = text;
+            sheet.appendChild(h);
+        }
+        function tile(grid, iconName, label, open, mine, isOpen) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'cs-tile' + (mine ? ' is-mine' : '') + (isOpen ? ' is-open' : '');
+            b.innerHTML = icon(iconName);
+            var t = document.createElement('span');
+            t.textContent = label;
+            b.appendChild(t);
+            b.addEventListener('click', function () { close(); open(); });
+            grid.appendChild(b);
+        }
+        function fill() {
+            sheet.innerHTML = '';
+            var mine = homeCards.length ? homeCards.slice() : [];
+            var rest = HOME_CARD_ORDER.filter(function (k) { return mine.indexOf(k) === -1; });
+            var grid = document.createElement('div');
+            grid.className = 'cs-grid';
+            if (mine.length) {
+                head(daText('Your cards', 'Dine kort'));
+                mine.forEach(function (k) { var c = HOME_CARDS[k]; tile(grid, c.icon, daText(c.en, c.da), function () { openHomeCard(k); }, true, railKind(panelKind) === c.kind); });
+                sheet.appendChild(grid);
+                grid = document.createElement('div');
+                grid.className = 'cs-grid';
+                head(daText('All cards', 'Alle kort'));
+            }
+            rest.forEach(function (k) { var c = HOME_CARDS[k]; tile(grid, c.icon, daText(c.en, c.da), function () { openHomeCard(k); }, false, railKind(panelKind) === c.kind); });
+            RAIL_STAPLES.forEach(function (s) {                 // the default staples that are not in HOME_CARDS (Appearance …)
+                if (HOME_CARD_ORDER.some(function (k) { return HOME_CARDS[k].kind === s.kind; })) return;
+                tile(grid, s.icon, s.label, s.open, false, railKind(panelKind) === s.kind);
+            });
+            sheet.appendChild(grid);
+            if (railRecents.length) {
+                head(daText('Opened this session', 'Åbnet i denne session'));
+                var g2 = document.createElement('div');
+                g2.className = 'cs-grid';
+                railRecents.forEach(function (r) { tile(g2, r.icon, r.label, function () { presentCard(r.card); }, false, railKind(panelKind) === r.kind); });
+                sheet.appendChild(g2);
+            }
+        }
+        function place() {
+            var top = composer.getBoundingClientRect().top;
+            sheet.style.bottom = Math.max(8, Math.round(window.innerHeight - top + 8)) + 'px';
+        }
+        function open() { fill(); place(); sheet.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+        function close() { sheet.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+        btn.addEventListener('click', function (ev) { ev.stopPropagation(); if (sheet.hidden) open(); else close(); });
+        document.addEventListener('click', function (ev) { if (!sheet.hidden && !sheet.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) close(); });
+        document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !sheet.hidden) close(); });
+        window.addEventListener('resize', function () { if (!sheet.hidden) place(); });
     })();
 
     // ---------- Composer overflow menu (＋ → New chat / Add receipt) ----------

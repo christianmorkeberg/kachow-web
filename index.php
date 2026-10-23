@@ -409,6 +409,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             <input type="file" id="receiptInput" accept="image/*" hidden>
             <input type="file" id="photoInput" accept="image/*" hidden>
             <input type="file" id="invoiceInput" accept="image/*,application/pdf" hidden>
+            <button type="button" id="cardsBtn" class="ghost cards-btn" title="Cards" aria-label="Open a card" aria-haspopup="true" aria-expanded="false"><span data-icon="layout-grid" data-icon-only></span></button>
             <textarea id="input" rows="1" placeholder="Message Kachow…" autocomplete="off"></textarea>
             <button type="button" id="mic" class="ghost mic" title="Talk to Kachow" aria-label="Talk to Kachow" hidden><span data-icon="mic" data-icon-only></span></button>
             <button type="submit" id="send" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
