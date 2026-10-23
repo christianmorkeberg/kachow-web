@@ -2979,6 +2979,13 @@ body.voice-on .vd-lang { font-size: 13px; }
 .email-attach { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 8px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--text); text-decoration: none; }
 .email-attach:hover { border-color: var(--accent-line); }
 
+/* Home-screen shortcut (cards picker) */
+.hc-shortcut { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.hc-shortcut summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.hc-sc-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
+.hc-sc-select, .hc-sc-link { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font: inherit; font-size: 13px; }
+.hc-sc-link { flex: 1 1 200px; min-width: 0; }
+
 /* Export preview card: the printable page in a frame (white paper, like the print) */
 .ep-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ep-name { font-weight: 700; font-size: 16px; flex: 1; min-width: 0; }

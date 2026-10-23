@@ -7,6 +7,12 @@
     "display": "standalone",
     "background_color": "#0f172a",
     "theme_color": "#0f172a",
+    "shortcuts": [
+        { "name": "Today's hours", "short_name": "Hours", "url": "/index.php?open=work_hours", "icons": [{ "src": "/assets/icon-192.png", "sizes": "192x192" }] },
+        { "name": "Calendar", "short_name": "Calendar", "url": "/index.php?open=calendar", "icons": [{ "src": "/assets/icon-192.png", "sizes": "192x192" }] },
+        { "name": "Home", "short_name": "Home", "url": "/index.php?open=home", "icons": [{ "src": "/assets/icon-192.png", "sizes": "192x192" }] },
+        { "name": "Location", "short_name": "Location", "url": "/index.php?open=location", "icons": [{ "src": "/assets/icon-192.png", "sizes": "192x192" }] }
+    ],
     "icons": [
         {
             "src": "/assets/icon-192.png",
