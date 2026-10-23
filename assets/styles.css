@@ -3006,6 +3006,18 @@ body.voice-on .vd-lang { font-size: 13px; }
 .hc-sc-select, .hc-sc-link { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font: inherit; font-size: 13px; }
 .hc-sc-link { flex: 1 1 200px; min-width: 0; }
 
+/* Mail card: mailbox picker */
+.email-boxes { margin-bottom: 8px; }
+.email-list.is-loading { opacity: .5; pointer-events: none; transition: opacity .15s; }
+.email-acct { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-left: auto; margin-right: 8px; white-space: nowrap; }
+
+/* Feedback reports: compact, unfold on tap */
+.fb-report.is-compact .fb-head { cursor: pointer; }
+.fb-chev { display: inline-block; width: 10px; color: var(--muted); transition: transform .15s; }
+.fb-report.is-open .fb-chev { transform: rotate(90deg); }
+.fb-report.is-compact:not(.is-open) .fb-note { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.fb-report.is-compact:not(.is-open) .fb-more { display: none; }
+
 /* Export preview card: the printable page in a frame (white paper, like the print) */
 .ep-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ep-name { font-weight: 700; font-size: 16px; flex: 1; min-width: 0; }
