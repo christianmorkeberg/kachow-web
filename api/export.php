@@ -65,23 +65,34 @@ $title = trim((string) ($spec['title'] ?? ''));
 
 $extra = [];
 foreach (is_array($spec['header'] ?? null) ? $spec['header'] : [] as $k => $v) {
-    if (is_string($k) && is_scalar($v)) {
-        $extra[mb_substr($k, 0, 60)] = mb_substr((string) $v, 0, 160);
+    if (is_string($k) && (is_scalar($v) || $v === null)) {
+        $extra[mb_substr($k, 0, 60)] = mb_substr((string) $v, 0, 160); // an empty value deletes an automatic timesheet line
     }
 }
 $footer = mb_substr((string) ($spec['footer'] ?? ''), 0, 600);
 
 if (isset($built['sheet'])) {
-    $opt = $built['options'];
+    $opt  = $built['options'];
+    $args = is_array($spec['args'] ?? null) ? $spec['args'] : [];
+    $days = $built['sheet']['days'];
+    // The period is the one asked for (from / to), not the first and last day that happened to have hours.
+    $fromD  = !empty($args['from']) && strtotime((string) $args['from']) ? (string) $args['from'] : $days[0]['date'];
+    $toD    = !empty($args['to']) && strtotime((string) $args['to']) ? (string) $args['to'] : $days[count($days) - 1]['date'];
+    $headAll = [
+        'title' => mb_substr($title, 0, 120), 'person' => mb_substr(trim((string) ($spec['from_name'] ?? '')), 0, 120) ?: (string) (($users->findById($userId)['name'] ?? '') ?: ''),
+        'customer' => mb_substr((string) ($spec['customer'] ?? ''), 0, 120), 'job' => mb_substr((string) ($args['place'] ?? ''), 0, 120),
+        'period' => date('d.m.Y', strtotime($fromD)) . ' – ' . date('d.m.Y', strtotime($toD)), 'made' => date('d.m.Y'), 'extra' => $extra,
+    ];
     if ($csv) {
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="timesheet_' . $stamp . '.csv"');
         $out = fopen('php://output', 'w');
         fprintf($out, "\xEF\xBB\xBF");
-        foreach ($extra as $k => $v) {
+        $lines = Timesheet::metaLines($headAll, $lang, $spec['labels'] ?? []);
+        foreach ($lines as $k => $v) {
             fputcsv($out, [$k, $v], ';');
         }
-        if ($extra !== []) {
+        if ($lines !== []) {
             fputcsv($out, [], ';');
         }
         foreach (Timesheet::csvRows($built['sheet'], $lang, $opt) as $row) {
@@ -90,16 +101,9 @@ if (isset($built['sheet'])) {
         fclose($out);
         exit;
     }
-    $days   = $built['sheet']['days'];
-    $period = date('d.m.Y', strtotime($days[0]['date'])) . ' – ' . date('d.m.Y', strtotime($days[count($days) - 1]['date']));
-    $args   = is_array($spec['args'] ?? null) ? $spec['args'] : [];
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
-    echo Timesheet::html($built['sheet'], $lang, [
-        'title' => mb_substr($title, 0, 120), 'person' => mb_substr(trim((string) ($spec['from_name'] ?? '')), 0, 120) ?: (string) (($users->findById($userId)['name'] ?? '') ?: ''),
-        'customer' => mb_substr((string) ($spec['customer'] ?? ''), 0, 120), 'job' => mb_substr((string) ($args['place'] ?? ''), 0, 120),
-        'period' => $period, 'made' => date('d.m.Y'), 'extra' => $extra,
-    ], $opt);
+    echo Timesheet::html($built['sheet'], $lang, $headAll, $opt);
     exit;
 }
 
