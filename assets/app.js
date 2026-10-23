@@ -8503,7 +8503,8 @@
         commute:  ['Commute', 'Pendling', '#7c3aed'],
         home:     ['Home', 'Hjem', '#16a34a'],
         private:  ['Private', 'Privat', '#db2777'],
-        other:    ['Other', 'Andet', '#64748b']
+        other:    ['Other', 'Andet', '#64748b'],
+        region:   ['Region', 'Område', '#0891b2']   // an area for routines ("east of Roskilde"): never a destination in the timeline or mileage
     };
     function placeColor(type) { return (PLACE_TYPES[type] || PLACE_TYPES.other)[2]; }
     function placeTypeLabel(type) { var t = PLACE_TYPES[type] || PLACE_TYPES.other; return daText(t[0], t[1]); }
@@ -8512,6 +8513,7 @@
     function drawPlace(L, map, pl, focused) {
         var style = { color: placeColor(pl.type), weight: focused ? 3 : 2, opacity: 0.9,
             fillColor: placeColor(pl.type), fillOpacity: focused ? 0.22 : 0.12 };
+        if (pl.type === 'region') { style.dashArray = '6 6'; style.fillOpacity = focused ? 0.12 : 0.05; }   // an area, not a spot: dashed and faint
         var layer = pl.shape === 'polygon' && (pl.polygon || []).length >= 3
             ? L.polygon(pl.polygon, style)
             : L.circle([pl.lat, pl.lon], Object.assign({ radius: pl.radius_m || 100 }, style));
