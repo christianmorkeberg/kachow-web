@@ -3138,3 +3138,50 @@ body.voice-on .vd-lang { font-size: 13px; }
 
     .pl-statement { padding: 5px 10px; }
 }
+
+/* ---------- Compact forms on phones: receipt / expense, invoice, email draft ---------- */
+/* Fields sit side by side where they belong together (Date · Total · Currency, VAT · Category …) instead of one per row. */
+@media (max-width: 700px) {
+    .receipt-fields { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 5px 8px; width: 100%; box-sizing: border-box; }
+    .receipt-field { gap: 1px; min-width: 0; }
+    .receipt-label { font-size: 10.5px; letter-spacing: .02em; }
+    .receipt-field input, .receipt-field select { padding: 5px 8px; min-width: 0; width: 100%; box-sizing: border-box; }
+    /* expense: Vendor | Date · Total · Currency | VAT · Category | Note */
+    .receipt-card:not(.income-card) .rf-vendor   { grid-column: span 12; order: 1; }
+    .receipt-card:not(.income-card) .rf-date     { grid-column: span 5;  order: 2; }
+    .receipt-card:not(.income-card) .rf-total    { grid-column: span 4;  order: 3; }
+    .receipt-card:not(.income-card) .rf-currency { grid-column: span 3;  order: 4; }
+    .receipt-card:not(.income-card) .rf-vat      { grid-column: span 5;  order: 5; }
+    .receipt-card:not(.income-card) .rf-category { grid-column: span 7;  order: 6; }
+    .receipt-card:not(.income-card) .rf-note     { grid-column: span 12; order: 7; }
+    /* invoice: Customer · No. | Date · Currency · Category | Ex · VAT · Total | Note */
+    .income-card .rf-customer      { grid-column: span 7;  order: 1; }
+    .income-card .rf-doc_number    { grid-column: span 5;  order: 2; }
+    .income-card .rf-date          { grid-column: span 5;  order: 3; }
+    .income-card .rf-currency      { grid-column: span 3;  order: 4; }
+    .income-card .rf-category      { grid-column: span 4;  order: 5; }
+    .income-card .rf-amount_ex_vat { grid-column: span 4;  order: 6; }
+    .income-card .rf-vat           { grid-column: span 4;  order: 7; }
+    .income-card .rf-total         { grid-column: span 4;  order: 8; }
+    .income-card .rf-note          { grid-column: span 12; order: 9; }
+    .receipt-thumb { max-width: 96px; max-height: 110px; margin: 0 0 6px; }
+    .receipt-actions { margin-top: 8px; gap: 6px; }
+    .receipt-confirm, .receipt-discard { padding: 7px 12px; font-size: 13px; }
+    .receipt-items-head { font-size: 11.5px; }
+    .receipt-vat-hint, .receipt-dup-hint, .receipt-saved { margin-top: 5px; font-size: 11.5px; }
+
+    /* email draft: label beside the single-line fields, the message box keeps its label on top */
+    .email-field { margin-top: 5px; }
+    .email-field:not(:has(textarea)) { display: flex; align-items: center; gap: 8px; }
+    .email-field:not(:has(textarea)) .email-field-label { flex: 0 0 52px; margin: 0; font-size: 10.5px; }
+    .email-field-input { padding: 5px 8px; font-size: 13.5px; }
+    .email-field-body { min-height: 84px; }
+    .email-note { margin-top: 5px; font-size: 12px; }
+    .email-actions { margin-top: 6px; }
+    .email-draft .email-meta { font-size: 12px; }
+}
+@media (max-width: 700px) {
+    .receipt-item { gap: 5px; margin-bottom: 4px; }
+    .receipt-item-desc, .receipt-item-qty, .receipt-item-amt-in { padding: 4px 7px; }
+    .receipt-add-line { padding: 4px 0; font-size: 12px; }
+}
