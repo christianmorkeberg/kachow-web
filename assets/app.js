@@ -10209,6 +10209,74 @@
         }
     })();
 
+    // ---------- Cards button (phones / tablets): a sheet with every card, your own first, then the ones opened this session ----------
+    (function initCardSheet() {
+        var btn = document.getElementById('cardsBtn');
+        var composer = document.getElementById('composer');
+        if (!btn || !composer) return;
+        var sheet = document.createElement('div');
+        sheet.className = 'card-sheet';
+        sheet.id = 'cardSheet';
+        sheet.hidden = true;
+        document.body.appendChild(sheet);
+
+        function head(text) {
+            var h = document.createElement('div');
+            h.className = 'cs-head';
+            h.textContent = text;
+            sheet.appendChild(h);
+        }
+        function tile(grid, iconName, label, open, mine, isOpen) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'cs-tile' + (mine ? ' is-mine' : '') + (isOpen ? ' is-open' : '');
+            b.innerHTML = icon(iconName);
+            var t = document.createElement('span');
+            t.textContent = label;
+            b.appendChild(t);
+            b.addEventListener('click', function () { close(); open(); });
+            grid.appendChild(b);
+        }
+        function fill() {
+            sheet.innerHTML = '';
+            var mine = homeCards.length ? homeCards.slice() : [];
+            var rest = HOME_CARD_ORDER.filter(function (k) { return mine.indexOf(k) === -1; });
+            var grid = document.createElement('div');
+            grid.className = 'cs-grid';
+            if (mine.length) {
+                head(daText('Your cards', 'Dine kort'));
+                mine.forEach(function (k) { var c = HOME_CARDS[k]; tile(grid, c.icon, daText(c.en, c.da), function () { openHomeCard(k); }, true, railKind(panelKind) === c.kind); });
+                sheet.appendChild(grid);
+                grid = document.createElement('div');
+                grid.className = 'cs-grid';
+                head(daText('All cards', 'Alle kort'));
+            }
+            rest.forEach(function (k) { var c = HOME_CARDS[k]; tile(grid, c.icon, daText(c.en, c.da), function () { openHomeCard(k); }, false, railKind(panelKind) === c.kind); });
+            RAIL_STAPLES.forEach(function (s) {                 // the default staples that are not in HOME_CARDS (Appearance …)
+                if (HOME_CARD_ORDER.some(function (k) { return HOME_CARDS[k].kind === s.kind; })) return;
+                tile(grid, s.icon, s.label, s.open, false, railKind(panelKind) === s.kind);
+            });
+            sheet.appendChild(grid);
+            if (railRecents.length) {
+                head(daText('Opened this session', 'Åbnet i denne session'));
+                var g2 = document.createElement('div');
+                g2.className = 'cs-grid';
+                railRecents.forEach(function (r) { tile(g2, r.icon, r.label, function () { presentCard(r.card); }, false, railKind(panelKind) === r.kind); });
+                sheet.appendChild(g2);
+            }
+        }
+        function place() {
+            var top = composer.getBoundingClientRect().top;
+            sheet.style.bottom = Math.max(8, Math.round(window.innerHeight - top + 8)) + 'px';
+        }
+        function open() { fill(); place(); sheet.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+        function close() { sheet.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+        btn.addEventListener('click', function (ev) { ev.stopPropagation(); if (sheet.hidden) open(); else close(); });
+        document.addEventListener('click', function (ev) { if (!sheet.hidden && !sheet.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) close(); });
+        document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !sheet.hidden) close(); });
+        window.addEventListener('resize', function () { if (!sheet.hidden) place(); });
+    })();
+
     // ---------- Composer overflow menu (＋ → New chat / Add receipt) ----------
     (function initComposerMenu() {
         var menu = document.getElementById('composerMenu');
