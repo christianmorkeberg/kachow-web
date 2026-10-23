@@ -63,13 +63,28 @@ $name  = preg_replace('/[^a-z0-9_-]+/i', '', (string) $spec['source']) . '_' . $
 $lang  = ($spec['lang'] ?? 'da') === 'en' ? 'en' : 'da';
 $title = trim((string) ($spec['title'] ?? ''));
 
+$extra = [];
+foreach (is_array($spec['header'] ?? null) ? $spec['header'] : [] as $k => $v) {
+    if (is_string($k) && is_scalar($v)) {
+        $extra[mb_substr($k, 0, 60)] = mb_substr((string) $v, 0, 160);
+    }
+}
+$footer = mb_substr((string) ($spec['footer'] ?? ''), 0, 600);
+
 if (isset($built['sheet'])) {
+    $opt = $built['options'];
     if ($csv) {
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="timesheet_' . $stamp . '.csv"');
         $out = fopen('php://output', 'w');
         fprintf($out, "\xEF\xBB\xBF");
-        foreach (Timesheet::csvRows($built['sheet'], $lang, false) as $row) {
+        foreach ($extra as $k => $v) {
+            fputcsv($out, [$k, $v], ';');
+        }
+        if ($extra !== []) {
+            fputcsv($out, [], ';');
+        }
+        foreach (Timesheet::csvRows($built['sheet'], $lang, $opt) as $row) {
             fputcsv($out, $row, ';');
         }
         fclose($out);
@@ -81,9 +96,10 @@ if (isset($built['sheet'])) {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
     echo Timesheet::html($built['sheet'], $lang, [
-        'title' => mb_substr($title, 0, 120), 'person' => mb_substr(trim((string) ($spec['from_name'] ?? '')), 0, 120) ?: (string) (($users->findById($userId)['name'] ?? '') ?: ''), 'customer' => mb_substr((string) ($spec['customer'] ?? ''), 0, 120),
-        'job' => mb_substr((string) ($args['place'] ?? ''), 0, 120), 'period' => $period, 'made' => date('d.m.Y'),
-    ], false, !empty($spec['signature']));
+        'title' => mb_substr($title, 0, 120), 'person' => mb_substr(trim((string) ($spec['from_name'] ?? '')), 0, 120) ?: (string) (($users->findById($userId)['name'] ?? '') ?: ''),
+        'customer' => mb_substr((string) ($spec['customer'] ?? ''), 0, 120), 'job' => mb_substr((string) ($args['place'] ?? ''), 0, 120),
+        'period' => $period, 'made' => date('d.m.Y'), 'extra' => $extra,
+    ], $opt);
     exit;
 }
 
@@ -92,9 +108,18 @@ if ($csv) {
     header('Content-Disposition: attachment; filename="' . $name . '.csv"');
     $out = fopen('php://output', 'w');
     fprintf($out, "\xEF\xBB\xBF");
-    fputcsv($out, array_map([DataExport::class, 'label'], $built['columns']), ';');
+    foreach ($extra as $k => $v) {
+        fputcsv($out, [$k, $v], ';');
+    }
+    if ($extra !== []) {
+        fputcsv($out, [], ';');
+    }
+    fputcsv($out, $built['labels'], ';');
     foreach ($built['rows'] as $row) {
         fputcsv($out, $row, ';');
+    }
+    if ($built['total'] !== null) {
+        fputcsv($out, $built['total'], ';');
     }
     fclose($out);
     exit;
@@ -102,4 +127,10 @@ if ($csv) {
 
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
-echo DataExport::html($title !== '' ? mb_substr($title, 0, 120) : DataExport::label((string) $spec['source']), ['columns' => $built['columns'], 'rows' => $built['rows']], ['Date' => date('d.m.Y')]);
+echo DataExport::html(
+    $title !== '' ? mb_substr($title, 0, 120) : DataExport::label((string) $spec['source']),
+    ['columns' => $built['columns'], 'labels' => $built['labels'], 'rows' => $built['rows'], 'total' => $built['total']],
+    $extra + ['Date' => date('d.m.Y')],
+    $footer,
+    $lang
+);
