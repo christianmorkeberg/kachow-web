@@ -5831,7 +5831,7 @@
         var inputs = {};
         function field(label, key, type, value, options) {
             var row = document.createElement('label');
-            row.className = 'receipt-field';
+            row.className = 'receipt-field rf-' + key;
             var l = document.createElement('span');
             l.className = 'receipt-label';
             l.textContent = label;
@@ -6237,7 +6237,7 @@
         var inputs = {};
         function field(label, key, type, value, options) {
             var row = document.createElement('label');
-            row.className = 'receipt-field';
+            row.className = 'receipt-field rf-' + key;
             var l = document.createElement('span');
             l.className = 'receipt-label';
             l.textContent = label;
