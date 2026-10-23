@@ -3250,43 +3250,107 @@
         head.textContent = card.title || 'Email';
         wrap.appendChild(head);
 
-        var items = card.items || [];
-        if (!items.length) {
-            var empty = document.createElement('div');
-            empty.className = 'email-empty';
-            empty.textContent = 'Nothing to show.';
-            wrap.appendChild(empty);
+        // Mailbox picker: "All" + one chip per connected mailbox; a tap reloads this list in place (api/email-list.php).
+        var accounts = card.accounts || [];
+        var chips = null;
+        var list = document.createElement('div');
+        list.className = 'email-list';
+        function drawChips() {
+            chips.innerHTML = '';
+            [{ id: null, label: daText('All', 'Alle'), email: '' }].concat(accounts).forEach(function (a) {
+                var on = (card.account_id == null ? null : Number(card.account_id)) === a.id;
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'di-chip' + (on ? ' on' : '');
+                b.textContent = a.label;
+                if (a.email) b.title = a.email;
+                b.addEventListener('click', function () { if (!on) switchMailbox(a.id, b); });
+                chips.appendChild(b);
+            });
         }
-        items.forEach(function (m) {
-            var row = document.createElement('button');
-            row.type = 'button';
-            row.className = 'email-row' + (m.unread ? ' unread' : '');
+        function switchMailbox(id, btn) {
+            var url = '/api/email-list.php?account=' + (id == null ? '' : encodeURIComponent(id)) + (card.query ? '&q=' + encodeURIComponent(card.query) : '');
+            list.classList.add('is-loading');
+            if (btn) btn.disabled = true;
+            fetch(url, { credentials: 'same-origin' })
+                .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+                .then(function (r) {
+                    list.classList.remove('is-loading');
+                    if (r.ok && r.d && r.d.card) {
+                        card.account_id = r.d.card.account_id;
+                        card.items = r.d.card.items;
+                        card.title = r.d.card.title;
+                        head.textContent = card.title || 'Email';
+                        drawChips();
+                        fillList();
+                        if (r.d.failed && r.d.failed.length) toast(daText('Could not reach: ', 'Kunne ikke nå: ') + r.d.failed.map(function (f) { return f.account; }).join(', '));
+                    } else {
+                        if (btn) btn.disabled = false;
+                        toast((r.d && r.d.error) || daText('Could not load that mailbox.', 'Kunne ikke hente den postkasse.'));
+                    }
+                })
+                .catch(function () { list.classList.remove('is-loading'); if (btn) btn.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
+        }
+        if (accounts.length > 1) {
+            chips = document.createElement('div');
+            chips.className = 'di-chips email-boxes';
+            drawChips();
+            wrap.appendChild(chips);
+        }
+        wrap.appendChild(list);
 
-            var top = document.createElement('div');
-            top.className = 'email-row-top';
-            var who = document.createElement('span');
-            who.className = 'email-from';
-            who.textContent = senderName(m.from) || '(unknown)';
-            var when = document.createElement('span');
-            when.className = 'email-date';
-            when.textContent = emailDate(m.date);
-            top.appendChild(who);
-            top.appendChild(when);
+        function acctLabel(m) {
+            for (var i = 0; i < accounts.length; i++) if (accounts[i].id === m.account_id) return accounts[i].label;
+            return '';
+        }
+        function fillList() {
+            list.innerHTML = '';
+            var items = card.items || [];
+            if (!items.length) {
+                var empty = document.createElement('div');
+                empty.className = 'email-empty';
+                empty.textContent = daText('Nothing to show.', 'Intet at vise.');
+                list.appendChild(empty);
+            }
+            items.forEach(function (m) {
+                var row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'email-row' + (m.unread ? ' unread' : '');
 
-            var subj = document.createElement('div');
-            subj.className = 'email-subject';
-            subj.textContent = m.subject || '(no subject)';
+                var top = document.createElement('div');
+                top.className = 'email-row-top';
+                var who = document.createElement('span');
+                who.className = 'email-from';
+                who.textContent = senderName(m.from) || '(unknown)';
+                var when = document.createElement('span');
+                when.className = 'email-date';
+                when.textContent = emailDate(m.date);
+                top.appendChild(who);
+                top.appendChild(when);
 
-            var snip = document.createElement('div');
-            snip.className = 'email-snippet';
-            snip.textContent = m.snippet || '';
+                var subj = document.createElement('div');
+                subj.className = 'email-subject';
+                subj.textContent = m.subject || '(no subject)';
 
-            row.appendChild(top);
-            row.appendChild(subj);
-            row.appendChild(snip);
-            row.addEventListener('click', function () { openEmail(m.account_id != null ? m.account_id : card.account_id, m); });   // a merged list: each mail knows its own mailbox
-            wrap.appendChild(row);
-        });
+                var snip = document.createElement('div');
+                snip.className = 'email-snippet';
+                snip.textContent = m.snippet || '';
+
+                row.appendChild(top);
+                row.appendChild(subj);
+                row.appendChild(snip);
+                // In an "All" list each mail says which mailbox it is in.
+                if (card.account_id == null && accounts.length > 1 && acctLabel(m)) {
+                    var tag = document.createElement('span');
+                    tag.className = 'email-acct';
+                    tag.textContent = acctLabel(m);
+                    top.insertBefore(tag, when);
+                }
+                row.addEventListener('click', function () { openEmail(m.account_id != null ? m.account_id : card.account_id, m); });   // a merged list: each mail knows its own mailbox
+                list.appendChild(row);
+            });
+        }
+        fillList();
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
@@ -4994,32 +5058,42 @@
                 wrap.appendChild(fbReport(r, function () {
                     // A report was resolved from the card: keep the chip numbers right.
                     if (card.counts) { card.counts.open = Math.max(0, card.counts.open - 1); card.counts.resolved++; drawChips(); }
-                }));
+                }, n === 1));
             });
         }
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
 
-    function fbReport(r, onResolved) {
+    // Compact by default: id · from · status · date, the note (two lines) and the buttons; a tap on the header unfolds the thread and diagnostics.
+    function fbReport(r, onResolved, startOpen) {
         var box = document.createElement('div');
-        box.className = 'fb-report';
+        box.className = 'fb-report is-compact' + (startOpen ? ' is-open' : '');
 
         var head = document.createElement('div');
         head.className = 'fb-head';
-        head.innerHTML = '<span class="fb-id">#' + r.id + '</span>'
+        head.innerHTML = '<span class="fb-chev" aria-hidden="true">›</span><span class="fb-id">#' + r.id + '</span>'
             + '<span class="fb-from">' + progEsc(r.from || '') + '</span>'
             + '<span class="fb-status ' + progEsc(r.status || '') + '">' + progEsc(r.status || '') + '</span>'
             + '<span class="fb-when">' + progEsc(fbDate(r.when)) + '</span>';
         box.appendChild(head);
+        head.setAttribute('role', 'button');
+        head.tabIndex = 0;
+        function toggle() { box.classList.toggle('is-open'); head.setAttribute('aria-expanded', box.classList.contains('is-open') ? 'true' : 'false'); }
+        head.setAttribute('aria-expanded', startOpen ? 'true' : 'false');
+        head.addEventListener('click', toggle);
+        head.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
 
         if (r.note) {
             var note = document.createElement('div');
             note.className = 'fb-note';
             note.textContent = '“' + r.note + '”';
+            note.addEventListener('click', toggle);
             box.appendChild(note);
         }
 
+        var more = document.createElement('div');   // everything long: the conversation and the diagnostics
+        more.className = 'fb-more';
         var conv = r.conversation || [];
         if (conv.length) {
             var thread = document.createElement('div');
@@ -5052,7 +5126,7 @@
                 el.appendChild(txt);
                 thread.appendChild(el);
             });
-            box.appendChild(thread);
+            more.appendChild(thread);
         }
 
         var det = document.createElement('details');
@@ -5078,7 +5152,8 @@
         }
         db.innerHTML = parts.join('');
         det.appendChild(db);
-        box.appendChild(det);
+        more.appendChild(det);
+        box.appendChild(more);
 
         var actions = document.createElement('div');
         actions.className = 'fb-actions';

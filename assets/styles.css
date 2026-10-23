@@ -3006,6 +3006,18 @@ body.voice-on .vd-lang { font-size: 13px; }
 .hc-sc-select, .hc-sc-link { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font: inherit; font-size: 13px; }
 .hc-sc-link { flex: 1 1 200px; min-width: 0; }
 
+/* Mail card: mailbox picker */
+.email-boxes { margin-bottom: 8px; }
+.email-list.is-loading { opacity: .5; pointer-events: none; transition: opacity .15s; }
+.email-acct { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-left: auto; margin-right: 8px; white-space: nowrap; }
+
+/* Feedback reports: compact, unfold on tap */
+.fb-report.is-compact .fb-head { cursor: pointer; }
+.fb-chev { display: inline-block; width: 10px; color: var(--muted); transition: transform .15s; }
+.fb-report.is-open .fb-chev { transform: rotate(90deg); }
+.fb-report.is-compact:not(.is-open) .fb-note { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.fb-report.is-compact:not(.is-open) .fb-more { display: none; }
+
 /* Export preview card: the printable page in a frame (white paper, like the print) */
 .ep-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ep-name { font-weight: 700; font-size: 16px; flex: 1; min-width: 0; }
@@ -3032,3 +3044,97 @@ body.voice-on .vd-lang { font-size: 13px; }
 .tp-day ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; }
 .tp-day li { margin: 2px 0; }
 .tp-note { margin-top: 4px; font-size: 12px; color: var(--muted); }
+
+/* ---------- Compact cards on phones ---------- */
+/* Tighter rhythm for every card: a small muted title, smaller type, slimmer rows. Money / list cards share the same classes, so they
+   all follow. (The panel already scales cards with --card-scale; this trims the padding and the oversized bits on top of that.) */
+@media (max-width: 700px) {
+    .plan-card { padding: 9px 11px; }
+    .plan-card-title { font-size: 12.5px; font-weight: 600; letter-spacing: .01em; color: var(--muted); margin-bottom: 4px; }
+    .shop-head .plan-card-title { margin-bottom: 0; }
+    .plan-empty, .email-empty, .prog-empty { font-size: 13px; }
+
+    /* chips: one scrollable row instead of a wrapped block */
+    .exp-breakdown, .worklog-jobs, .di-chips {
+        flex-wrap: nowrap; overflow-x: auto; gap: 5px; margin: 2px 0 6px; padding-bottom: 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .exp-breakdown::-webkit-scrollbar, .worklog-jobs::-webkit-scrollbar, .di-chips::-webkit-scrollbar { display: none; }
+    .exp-cat, .worklog-job, .di-chip { flex: 0 0 auto; white-space: nowrap; font-size: 11.5px; padding: 2px 9px; }
+
+    /* expenses / income / owner draws */
+    .exp-totals { margin-bottom: 5px; }
+    .exp-total { font-size: 24px; line-height: 1.15; margin: 0; letter-spacing: -.01em; }
+    .exp-sub { font-size: 11.5px; }
+    .exp-cur + .exp-cur { margin-top: 4px; padding-top: 4px; }
+    .exp-list li { padding: 4px 0; gap: 6px; font-size: 13px; }
+    .exp-list li .exp-main { font-size: 13px; }
+    .exp-note { font-size: 11px; margin-top: 0; }
+    .exp-amt { font-size: 13px; padding-top: 0; }
+    .row-date { margin-right: .45em; font-size: 12px; color: var(--muted); }
+    .icon-del { padding: 2px 3px; }
+    .icon-del svg { width: 14px; height: 14px; }
+
+    /* books / moms / cash / P&L rows */
+    .books-list .books-row { padding-top: 4px; padding-bottom: 4px; }
+
+    /* work log */
+    .worklog-entry { padding: 5px 0; }
+    .worklog-entry-meta { font-size: 11px; }
+    .worklog-entry-desc { font-size: 13.5px; margin-top: 1px; line-height: 1.35; }
+
+    /* mail */
+    .email-row { padding: 6px 9px; margin: 4px 0; }
+    .email-subject { font-size: 13px; }
+    .email-snippet { font-size: 11.5px; }
+
+    /* feedback reports, dev ideas */
+    .fb-report { padding: 7px 9px; margin-top: 6px; }
+    .fb-head { font-size: 12px; gap: 6px; }
+    .fb-note { margin: 4px 0 2px; font-size: 13px; }
+    .fb-actions button { padding: 4px 10px; font-size: 12px; }
+    .di-list > * { padding-top: 7px; padding-bottom: 7px; }
+}
+@media (max-width: 700px) {
+    .email-from { font-size: 14px; }
+    .email-row-top { margin-bottom: 1px; }
+}
+@media (max-width: 700px) {
+    /* books / moms / cash / P&L: smaller heroes and KPIs, tighter gaps and rows */
+    .moms-card, .cash-card, .pl-card { gap: 8px; }
+    .books-kpis { gap: 6px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+    .books-kpi { padding: 7px 10px; }
+    .books-kpi-label { font-size: 11px; }
+    .books-kpi-val { font-size: 19px; margin: 1px 0; }
+    .books-kpi-sub { font-size: 10.5px; }
+    .books-modules { gap: 8px; }
+    .books-module { padding: 8px 10px; }
+    .books-module-head { margin-bottom: 4px; }
+    .books-module-title { font-size: 13px; }
+    .books-module-total { font-size: 14px; }
+    .books-navlabel { font-size: 12px; min-width: 70px; }
+    .books-navbtn { width: 24px; height: 24px; }
+
+    .moms-hero { padding: 9px 12px; }
+    .moms-hero-label { font-size: 11.5px; }
+    .moms-hero-val { font-size: 23px; margin-top: 1px; }
+    .moms-calc { padding: 3px 10px; }
+    .moms-row { padding: 4px 0; font-size: 12.5px; }
+    .moms-row.is-total .moms-row-val { font-size: 14px; }
+    .moms-deadline { padding: 5px 10px; font-size: 12px; }
+    .moms-note { font-size: 11.5px; }
+    .moms-foot { font-size: 10.5px; }
+    .moms-record { padding: 6px 12px; font-size: 12.5px; }
+
+    .cash-heroes { gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cash-hero { padding: 8px 10px; }
+    .cash-hero-label { font-size: 11px; }
+    .cash-hero-val { font-size: 19px; margin-top: 1px; }
+    .cash-hero-sub { font-size: 10.5px; }
+    .cash-flow { gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cash-col { padding: 6px 9px; }
+    .cash-col-head { font-size: 12px; margin-bottom: 3px; }
+    .cash-col-row { font-size: 11.5px; padding: 2px 0; }
+    .cash-reserve, .cash-refund, .cash-opening { font-size: 11.5px; }
+
+    .pl-statement { padding: 5px 10px; }
+}
