@@ -81,9 +81,9 @@ if (isset($built['sheet'])) {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
     echo Timesheet::html($built['sheet'], $lang, [
-        'person' => (string) (($users->findById($userId)['name'] ?? '') ?: ''), 'customer' => mb_substr((string) ($spec['customer'] ?? ''), 0, 120),
+        'title' => mb_substr($title, 0, 120), 'person' => mb_substr(trim((string) ($spec['from_name'] ?? '')), 0, 120) ?: (string) (($users->findById($userId)['name'] ?? '') ?: ''), 'customer' => mb_substr((string) ($spec['customer'] ?? ''), 0, 120),
         'job' => mb_substr((string) ($args['place'] ?? ''), 0, 120), 'period' => $period, 'made' => date('d.m.Y'),
-    ], false);
+    ], false, !empty($spec['signature']));
     exit;
 }
 
