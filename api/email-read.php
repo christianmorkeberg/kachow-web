@@ -65,7 +65,13 @@ $card = ['kind' => 'email', 'account_id' => $accountId] + $msg->toArray(true);
 // Return the email to the client first, then mark it read — the extra round-trip
 // to the mail provider happens after the response is flushed, so it never slows
 // down opening the mail. Best-effort: a failure here is logged, not surfaced.
-echo json_encode(['ok' => true, 'card' => $card], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$json = json_encode(['ok' => true, 'card' => $card], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+if ($json === false) {
+    // Never answer with an empty body (the page would only say "Could not open that email").
+    error_log('email-read.php json: ' . json_last_error_msg());
+    out(500, ['error' => 'Could not open that email.', 'debug' => 'json: ' . json_last_error_msg()]);
+}
+echo $json;
 if (function_exists('fastcgi_finish_request')) {
     fastcgi_finish_request();
 }
