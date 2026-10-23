@@ -58,6 +58,10 @@ if (isset($built['error'])) {
 }
 
 $csv   = ($_GET['format'] ?? 'html') === 'csv';
+// embed=1: the page inside a card — no print button, tighter padding.
+if (!$csv && !empty($_GET['embed'])) {
+    ob_start(static fn (string $html): string => str_replace('</head>', '<style>.bar{display:none}body{padding:14px;max-width:none}</style></head>', $html));
+}
 $stamp = date('Y-m-d');
 $name  = preg_replace('/[^a-z0-9_-]+/i', '', (string) $spec['source']) . '_' . $stamp;
 $lang  = ($spec['lang'] ?? 'da') === 'en' ? 'en' : 'da';
