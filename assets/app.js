@@ -562,7 +562,17 @@
         web_search:           ['Searching the web', 'Søger på nettet'],
         fetch_webpage:        ['Reading the web page', 'Læser websiden'],
         set_place_reminder:   ['Setting a place reminder', 'Sætter en stedpåmindelse'],
-        get_calendar_month:   ['Opening your month', 'Åbner din måned']
+        get_calendar_month:   ['Opening your month', 'Åbner din måned'],
+        get_workout_plan:     ['Checking the day’s training', 'Tjekker dagens træning'],
+        get_week_plan:        ['Checking the week’s training', 'Tjekker ugens træning'],
+        get_training_program: ['Opening your training programme', 'Åbner dit træningsprogram'],
+        check_off_exercise:   ['Ticking off exercises', 'Afkrydser øvelser'],
+        log_workout:          ['Logging your sets', 'Logger dine sæt'],
+        export_data:          ['Building the export', 'Laver eksporten'],
+        add_to_shopping_list: ['Adding to the shopping list', 'Lægger på indkøbslisten'],
+        where_am_i:           ['Checking where you are', 'Tjekker hvor du er'],
+        run_routine:          ['Running the routine', 'Kører rutinen'],
+        undo_routine:         ['Undoing the routine', 'Fortryder rutinen']
     };
     function toolInfo(name) {
         name = String(name || '');
@@ -573,7 +583,9 @@
         var iconName = dom ? dom[1] : 'sparkles';
         if (TOOL_SPECIAL[name]) return { icon: iconName, text: daText(TOOL_SPECIAL[name][0], TOOL_SPECIAL[name][1]) };
         var obj = dom ? daText(dom[2], dom[3]) : daText('something', 'noget');
-        var verb = /^(get|list|read|search|export)_/.test(name) ? ['Looking up', 'Slår op i']
+        var verb = /^(get|list|read|search|export|find)_/.test(name) ? ['Looking up', 'Slår op i']
+            : /^add_/.test(name) ? ['Adding to', 'Tilføjer til']
+            : /^log_/.test(name) ? ['Logging to', 'Logger i']
             : /^(delete|remove|forget|cancel|clear)_/.test(name) ? ['Removing from', 'Fjerner fra']
             : /^(update|merge|mark|rate|check_off|uncheck|resolve|set_diagnostics)/.test(name) ? ['Updating', 'Opdaterer']
             : /^(send|accept)_/.test(name) ? ['Sending via', 'Sender via']
@@ -598,26 +610,37 @@
         var stopped = false, timer = null, failures = 0, lastKey = '', shown = 0;
         function render(st) {
             var steps = (st && st.steps) || [];
-            if (!steps.length) return;
-            // Redraw only on change, and fade in only NEW steps (a full redraw per poll
+            // Only the TWO newest lines are shown at a time (dev idea #68): the steps so far, then a last line for what the model
+            // is doing between them — reading the message, going through a result, writing the answer.
+            var lines = steps.map(function (x) { return { kind: 'step', x: x }; });
+            if (st && st.phase === 'thinking' && !steps.length) {
+                lines.push({ kind: 'phase', ic: 'message-square', text: daText('Reading your message', 'Læser din besked') });
+            } else if (st && st.phase === 'answering') {
+                lines.push({ kind: 'phase', ic: 'sparkles', text: steps.length
+                    ? daText('Going through what I found', 'Gennemgår det jeg fandt')
+                    : daText('Putting the answer together', 'Samler svaret') });
+            }
+            if (!lines.length) return;
+            // Redraw only on change, and fade in only NEW lines (a full redraw per poll
             // would restart the animation and leave every line half-transparent).
             var key = JSON.stringify([st.phase, steps]);
             if (key === lastKey) return;
             lastKey = key;
             row.classList.add('has-tools');
-            var first = Math.max(0, steps.length - 5), prevShown = shown;
-            shown = steps.length;
-            box.innerHTML = steps.slice(first).map(function (x, i) {
-                var info = toolInfo(x.tool);
+            var first = Math.max(0, lines.length - 2), prevShown = shown;
+            shown = lines.length;
+            box.innerHTML = lines.slice(first).map(function (ln, i) {
+                var fresh = (first + i) >= prevShown ? ' tl-new' : '';
+                if (ln.kind === 'phase') {
+                    return '<div class="tl-step tl-running' + fresh + '">' + icon(ln.ic, 'tl-ic')
+                        + '<span class="tl-text">' + progEsc(ln.text) + '</span>' + icon('loader-circle', 'tl-spin') + '</div>';
+                }
+                var x = ln.x, info = toolInfo(x.tool);
                 var mark = x.status === 'running' ? icon('loader-circle', 'tl-spin')
                     : x.status === 'error' ? icon('circle-x', 'tl-err') : icon('check', 'tl-ok');
-                var fresh = (first + i) >= prevShown ? ' tl-new' : '';
                 return '<div class="tl-step tl-' + progEsc(x.status) + fresh + '">' + icon(info.icon, 'tl-ic')
                     + '<span class="tl-text">' + progEsc(info.text) + '</span>' + mark + '</div>';
-            }).join('') + (st.phase === 'answering'
-                ? '<div class="tl-step tl-running">' + icon('sparkles', 'tl-ic') + '<span class="tl-text">'
-                    + progEsc(daText('Putting the answer together', 'Samler svaret')) + '</span>' + icon('loader-circle', 'tl-spin') + '</div>'
-                : '');
+            }).join('');
         }
         function tick() {
             if (stopped) return;
