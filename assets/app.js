@@ -9834,6 +9834,7 @@
         var gen = navGen;
         if (p) startFromNotification(p);
         else if (convParam) loadConversation(Number(convParam), gen).catch(function () { if (gen === navGen) decideStartupChat(); });
+        else if (_params.get('ask')) { var askId = Number(_params.get('ask')) || 0; try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ } decideStartupChat(); if (askId) openRoutineAsk(askId); }
         else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
         else if (openParam && HOME_CARDS[openParam]) openShortcutCard(openParam);
         else decideStartupChat();
@@ -10067,8 +10068,13 @@
         try { u = new URL(p.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
         var convId = Number(u.searchParams.get('conv')) || 0;
         var key = u.searchParams.get('card'), rid = u.searchParams.get('rid');
+        var ask = Number(u.searchParams.get('ask')) || 0;
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
 
+        if (ask) {                         // a question that needs a yes / no: a small sheet over whatever you were doing
+            openRoutineAsk(ask);
+            return;
+        }
         if (convId && convId === conversationId) {
             showNoticeBubble(p, false);
             return;
@@ -10088,6 +10094,138 @@
             return;
         }
         openNotificationCard(key, rid, p);
+    }
+
+    // "Open" button under the notification bubble at the bottom of the chat: the notification's own card on demand.
+    function addOpenCardButton(key, rid) {
+        var bubbles = messages.querySelectorAll('.msg.notification');
+        var bubble = bubbles.length ? bubbles[bubbles.length - 1] : null;
+        if (!bubble || bubble.querySelector('.notif-open')) return;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'notif-open';
+        b.textContent = daText('Open the card', 'Åbn kortet');
+        b.addEventListener('click', function () {
+            var url = '/api/card.php?for=' + encodeURIComponent(key) + (rid ? '&rid=' + encodeURIComponent(rid) : '');
+            fetch(url, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+                .then(function (data) { if (data && data.card) presentCard(data.card, 'open'); })
+                .catch(function () { toast(daText('Could not open it.', 'Kunne ikke åbne den.')); });
+        });
+        bubble.appendChild(b);
+    }
+
+    // An "ask first" routine question (the routine_ask push): a small sheet with Run / Skip over whatever is on screen, and
+    // after a yes the result of the run ("the lights are off") — no card, no chat, and you are back where you were.
+    function closeAskSheet() {
+        var old = document.getElementById('askSheet');
+        if (old) old.remove();
+    }
+    function openRoutineAsk(requestId) {
+        closeAskSheet();
+        var wrap = document.createElement('div');
+        wrap.className = 'ask-sheet';
+        wrap.id = 'askSheet';
+        var box = document.createElement('div');
+        box.className = 'ask-box';
+        wrap.appendChild(box);
+        wrap.addEventListener('click', function (e) { if (e.target === wrap) closeAskSheet(); });
+        document.body.appendChild(wrap);
+        var closeTimer = null;
+        function say(title, sub, buttons, busyIcon) {
+            if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+            box.innerHTML = '';
+            var h = document.createElement('div');
+            h.className = 'ask-title';
+            if (busyIcon) h.innerHTML = icon('loader-circle', 'tl-spin') + ' ';
+            h.appendChild(document.createTextNode(title));
+            box.appendChild(h);
+            if (sub) {
+                var p = document.createElement('div');
+                p.className = 'ask-sub';
+                p.textContent = sub;
+                box.appendChild(p);
+            }
+            if (buttons && buttons.length) {
+                var row = document.createElement('div');
+                row.className = 'ask-actions';
+                buttons.forEach(function (bt) {
+                    var el = document.createElement('button');
+                    el.type = 'button';
+                    el.className = 'ask-btn' + (bt.primary ? ' primary' : '');
+                    el.textContent = bt.label;
+                    el.addEventListener('click', bt.fn);
+                    row.appendChild(el);
+                });
+                box.appendChild(row);
+            }
+        }
+        var closeBtn = { label: daText('Close', 'Luk'), fn: closeAskSheet };
+        function load() {
+            return fetch('/api/scheduled-tasks.php', { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+                .then(function (j) { return (j && j.card) || { items: [], requests: [] }; });
+        }
+        function taskOf(card, id) {
+            return (card.items || []).filter(function (t) { return t.id === id; })[0] || null;
+        }
+        function answer(q, approve, before) {
+            say(approve ? daText('Running…', 'Kører…') : daText('Skipping…', 'Springer over…'), q.label, [], true);
+            fetch('/api/scheduled-tasks.php', {
+                method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'answer', request_id: q.id, approve: approve })
+            }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('answer failed')); })
+              .then(function () {
+                  if (!approve) {
+                      say(daText('Skipped', 'Sprunget over'), q.label, [closeBtn]);
+                      closeTimer = setTimeout(closeAskSheet, 2500);
+                      return;
+                  }
+                  watchRun(q, before, 0);
+              })
+              .catch(function () { say(daText('That did not work', 'Det virkede ikke'), daText('It may already have been answered.', 'Den er måske allerede besvaret.'), [closeBtn]); });
+        }
+        // The run happens in the background: once the routine has started (its last-run time moves) wait for its summary to change,
+        // or for a few more seconds if the new summary happens to read the same as the old one, then show what it says.
+        function watchRun(q, before, n, startedAt) {
+            if (!document.getElementById('askSheet')) return;
+            load().then(function (card) {
+                var t = taskOf(card, q.task_id);
+                var started = startedAt !== undefined ? startedAt : null;
+                if (started === null && t && before && t.last_run !== before.last_run) started = n;
+                var changed = t && before && t.last_summary !== before.last_summary && started !== null;
+                if (changed || (started !== null && n - started >= 6)) {
+                    var failed = t.last_status === 'error';
+                    say(failed ? daText('It did not go through', 'Det lykkedes ikke') : daText('Done', 'Færdig'),
+                        t.last_summary || q.label, [closeBtn]);
+                    closeTimer = setTimeout(closeAskSheet, failed ? 12000 : 5000);
+                    return;
+                }
+                if (n >= 20) {
+                    say(daText('Started', 'Sat i gang'), daText('It is still running — you will see the result on the routines card.',
+                        'Den kører stadig — du kan se resultatet på rutinekortet.'), [closeBtn]);
+                    return;
+                }
+                setTimeout(function () { watchRun(q, before, n + 1, started === null ? undefined : started); }, 2000);
+            }).catch(function () { setTimeout(function () { watchRun(q, before, n + 1, startedAt); }, 2000); });
+        }
+        say(daText('One moment…', 'Et øjeblik…'), '', [], true);
+        load().then(function (card) {
+            var q = (card.requests || []).filter(function (r) { return r.id === requestId; })[0] || null;
+            if (!q) {
+                say(daText('Already answered', 'Allerede besvaret'), daText('That question is no longer open.', 'Det spørgsmål er ikke længere åbent.'), [closeBtn]);
+                closeTimer = setTimeout(closeAskSheet, 3000);
+                return;
+            }
+            var t = taskOf(card, q.task_id);
+            var before = t ? { last_run: t.last_run, last_summary: t.last_summary } : null;
+            say(daText('Run “', 'Kør “') + q.label + '”?', [q.trigger_text, q.at].filter(Boolean).join(' · '), [
+                { label: daText('Run it', 'Kør den'), primary: true, fn: function () { answer(q, true, before); } },
+                { label: daText('Skip', 'Spring over'), fn: function () { answer(q, false, before); } }
+            ]);
+        }).catch(function () {
+            say(daText('Could not load the question', 'Kunne ikke hente spørgsmålet'), '', [closeBtn]);
+        });
     }
 
     // A chat is warm while it has content and was last used within IDLE_RESUME_SECONDS.
@@ -10127,6 +10265,10 @@
         var replies = notifReplies(note && note.type);
         if (replies && added) renderSuggestions(replies);
         if (!key) return;
+        if (note && (note.title || note.body)) {          // the notification says it all; its card is one tap away, not forced open
+            if (added) addOpenCardButton(key, rid);
+            return;
+        }
         var url = '/api/card.php?for=' + encodeURIComponent(key);
         if (rid) url += '&rid=' + encodeURIComponent(rid);
         fetch(url, { credentials: 'same-origin' })
@@ -10166,6 +10308,11 @@
 
         if (!key) {                                   // a notification without a card
             if (!noticeText) showEmptyHint();
+            if (replies) renderSuggestions(replies);
+            return;
+        }
+        if (noticeText) {                              // the notification says it all; its card is one tap away, not forced open
+            addOpenCardButton(key, rid);
             if (replies) renderSuggestions(replies);
             return;
         }

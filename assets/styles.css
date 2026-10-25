@@ -3185,3 +3185,14 @@ body.voice-on .vd-lang { font-size: 13px; }
     .receipt-item-desc, .receipt-item-qty, .receipt-item-amt-in { padding: 4px 7px; }
     .receipt-add-line { padding: 4px 0; font-size: 12px; }
 }
+
+/* Notification landing: the question sheet for "ask first" routines, and the Open button under a notification bubble */
+.notif-open { margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border, rgba(127,127,127,.35)); background: none; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
+.ask-sheet { position: fixed; inset: 0; z-index: 200; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.45); }
+.ask-box { width: 100%; max-width: 480px; box-sizing: border-box; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; background: var(--panel, var(--bg, #1b1b1f)); color: var(--text); box-shadow: 0 -6px 24px rgba(0,0,0,.35); }
+.ask-title { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.ask-sub { margin-top: 6px; color: var(--muted); font-size: 14px; }
+.ask-actions { display: flex; gap: 10px; margin-top: 16px; }
+.ask-btn { flex: 1; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border, rgba(127,127,127,.35)); background: none; color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
+.ask-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+@media (min-width: 700px) { .ask-sheet { align-items: center; } .ask-box { border-radius: 16px; } }
