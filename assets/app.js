@@ -543,6 +543,157 @@
         [/home_/,                               'house',         'your home devices',  'dine hjemmeenheder'],
         [/chart/,                               'chart-column',  'a chart',            'en graf']
     ];
+    // Every tool has its own line (the generic verb + domain fallback below only catches tools added later).
+    var TOOL_TEXT = {
+        accept_connection_request: ['Accepting the connection request', 'Accepterer forbindelsesanmodningen'],
+        add_expense: ['Saving the expense', 'Gemmer udgiften'],
+        add_income: ['Saving the income', 'Gemmer indtægten'],
+        add_owner_draw: ['Recording the owner draw', 'Registrerer ejeruddraget'],
+        add_plan_exercise: ['Adding an exercise to the plan', 'Tilføjer en øvelse til planen'],
+        add_program_days: ['Adding days to the programme', 'Tilføjer dage til programmet'],
+        add_to_shopping_list: ['Adding to the shopping list', 'Lægger på indkøbslisten'],
+        add_vinyl: ['Adding the record to your collection', 'Tilføjer pladen til din samling'],
+        add_wishlist_item: ['Adding to the wishlist', 'Tilføjer til ønskelisten'],
+        attach_email_file: ['Attaching the file to the email', 'Vedhæfter filen til mailen'],
+        cancel_reminder: ['Cancelling the reminder', 'Annullerer påmindelsen'],
+        cancel_scheduled_task: ['Cancelling the scheduled task', 'Annullerer den planlagte opgave'],
+        check_off_exercise: ['Ticking off exercises', 'Afkrydser øvelser'],
+        check_off_item: ['Ticking off on the list', 'Afkrydser på listen'],
+        clear_checked_items: ['Clearing the ticked items', 'Rydder de afkrydsede'],
+        create_invite: ['Creating an invitation', 'Opretter en invitation'],
+        create_routine: ['Creating the routine', 'Opretter rutinen'],
+        create_workout_plan: ['Creating the workout plan', 'Opretter træningsplanen'],
+        delete_calendar_event: ['Deleting the calendar event', 'Sletter kalenderbegivenheden'],
+        delete_place: ['Deleting the place', 'Sletter stedet'],
+        delete_receipt: ['Deleting the receipt', 'Sletter kvitteringen'],
+        delete_shopping_list: ['Deleting the shopping list', 'Sletter indkøbslisten'],
+        delete_training_program: ['Deleting the training programme', 'Sletter træningsprogrammet'],
+        delete_trip: ['Deleting the trip', 'Sletter turen'],
+        delete_wishlist_item: ['Removing from the wishlist', 'Fjerner fra ønskelisten'],
+        delete_work_event: ['Deleting the work entry', 'Sletter arbejdsregistreringen'],
+        delete_workout: ['Deleting the workout', 'Sletter træningen'],
+        delete_workout_plan: ['Deleting the workout plan', 'Sletter træningsplanen'],
+        explain_capabilities: ['Listing what I can do', 'Gennemgår hvad jeg kan'],
+        export_data: ['Building the export', 'Laver eksporten'],
+        export_expenses_csv: ['Exporting the expenses', 'Eksporterer udgifterne'],
+        export_work_log: ['Exporting the work log', 'Eksporterer arbejdsloggen'],
+        find_program_in_memory: ['Looking for a saved programme in memory', 'Leder efter et gemt program i hukommelsen'],
+        forget_about_me: ['Forgetting that', 'Glemmer det'],
+        forget_instruction: ['Removing the preference', 'Fjerner præferencen'],
+        get_about_me: ['Recalling what I know about you', 'Husker hvad jeg ved om dig'],
+        get_appearance: ['Checking your appearance settings', 'Tjekker dine udseendeindstillinger'],
+        get_books: ['Opening your books', 'Åbner dit regnskab'],
+        get_calendar_events: ['Reading your calendar', 'Læser din kalender'],
+        get_cash: ['Checking your cash position', 'Tjekker din kassebeholdning'],
+        get_connected_calendar: ['Reading their calendar', 'Læser deres kalender'],
+        get_connected_cycle: ['Checking their cycle', 'Tjekker deres cyklus'],
+        get_connected_vinyls: ['Looking at their records', 'Kigger på deres plader'],
+        get_connected_wishlist: ['Reading their wishlist', 'Læser deres ønskeliste'],
+        get_connected_work_hours: ['Checking their work hours', 'Tjekker deres arbejdstimer'],
+        get_connected_workout_plan: ['Reading their workout plan', 'Læser deres træningsplan'],
+        get_connected_workout_progress: ['Checking their training progress', 'Tjekker deres træningsfremgang'],
+        get_connected_workouts: ['Reading their workouts', 'Læser deres træninger'],
+        get_cycle_status: ['Checking your cycle', 'Tjekker din cyklus'],
+        get_expenses: ['Reading your expenses', 'Læser dine udgifter'],
+        get_income: ['Reading your income', 'Læser dine indtægter'],
+        get_instructions: ['Reading your preferences', 'Læser dine præferencer'],
+        get_location_day: ['Reading your day on the map', 'Læser din dag på kortet'],
+        get_location_tracking_setup: ['Checking the location tracking setup', 'Tjekker opsætningen af positionssporing'],
+        get_mileage: ['Reading your driving log', 'Læser din kørebog'],
+        get_moms: ['Working out the VAT', 'Beregner momsen'],
+        get_owner_draws: ['Reading the owner draws', 'Læser ejeruddragene'],
+        get_profit_loss: ['Working out profit and loss', 'Beregner resultatet'],
+        get_sensor_setup: ['Checking the sensor setup', 'Tjekker sensoropsætningen'],
+        get_settings: ['Reading your settings', 'Læser dine indstillinger'],
+        get_shopping_list: ['Opening the shopping list', 'Åbner indkøbslisten'],
+        get_stays: ['Reading your stays', 'Læser dine ophold'],
+        get_thermostats: ['Checking the thermostats', 'Tjekker termostaterne'],
+        get_training_program: ['Opening your training programme', 'Åbner dit træningsprogram'],
+        get_trips: ['Reading your trips', 'Læser dine ture'],
+        get_vinyls: ['Looking through your records', 'Kigger dine plader igennem'],
+        get_voice_log: ['Reading the voice log', 'Læser stemmeloggen'],
+        get_week_plan: ['Checking the week’s training', 'Tjekker ugens træning'],
+        get_wishlist: ['Reading the wishlist', 'Læser ønskelisten'],
+        get_work_clock: ['Checking the work clock', 'Tjekker arbejdsuret'],
+        get_work_hours: ['Adding up your work hours', 'Lægger dine arbejdstimer sammen'],
+        get_work_log: ['Reading your work log', 'Læser din arbejdslog'],
+        get_work_tracking_setup: ['Checking the work tracking setup', 'Tjekker opsætningen af arbejdssporing'],
+        get_workout_history: ['Reading your workout history', 'Læser din træningshistorik'],
+        get_workout_plan: ['Checking the day’s training', 'Tjekker dagens træning'],
+        get_workout_progress: ['Checking your progress', 'Tjekker din fremgang'],
+        hue_color: ['Setting the light colour', 'Sætter lysets farve'],
+        insert_calendar_event: ['Adding the event to your calendar', 'Lægger begivenheden i din kalender'],
+        list_calendars: ['Listing your calendars', 'Finder dine kalendere'],
+        list_connections: ['Listing your connections', 'Finder dine forbindelser'],
+        list_dev_ideas: ['Reading the dev ideas', 'Læser udviklingsidéerne'],
+        list_email_accounts: ['Listing your mailboxes', 'Finder dine postkasser'],
+        list_feedback: ['Reading the error reports', 'Læser fejlrapporterne'],
+        list_places: ['Listing your places', 'Finder dine steder'],
+        list_reminders: ['Listing your reminders', 'Finder dine påmindelser'],
+        list_scheduled_tasks: ['Listing your scheduled tasks', 'Finder dine planlagte opgaver'],
+        list_shopping_lists: ['Listing your shopping lists', 'Finder dine indkøbslister'],
+        log_connected_workout: ['Logging a workout for them', 'Logger en træning for dem'],
+        log_cycle_day: ['Logging the cycle day', 'Logger cyklusdagen'],
+        log_period: ['Logging the period', 'Logger menstruationen'],
+        log_trip: ['Logging the trip', 'Logger turen'],
+        log_work_event: ['Logging the work entry', 'Logger arbejdsregistreringen'],
+        log_work_time: ['Logging the work time', 'Logger arbejdstiden'],
+        log_workout: ['Logging your sets', 'Logger dine sæt'],
+        mark_emails_read: ['Marking the emails as read', 'Markerer mails som læst'],
+        mark_expense_reimbursed: ['Marking the expense as reimbursed', 'Markerer udgiften som refunderet'],
+        mark_invoice_paid: ['Marking the invoice as paid', 'Markerer fakturaen som betalt'],
+        merge_exercises: ['Merging the exercises', 'Slår øvelserne sammen'],
+        note_dev_idea: ['Saving the dev idea', 'Gemmer udviklingsidéen'],
+        notify_me: ['Setting up the notification', 'Sætter notifikationen op'],
+        rate_vinyl: ['Rating the record', 'Bedømmer pladen'],
+        record_cash_movement: ['Recording the cash movement', 'Registrerer kassebevægelsen'],
+        refresh_home_devices: ['Refreshing your home devices', 'Opdaterer dine hjemmeenheder'],
+        remember_instruction: ['Saving the preference', 'Gemmer præferencen'],
+        remove_connection: ['Removing the connection', 'Fjerner forbindelsen'],
+        remove_dev_idea: ['Removing the dev idea', 'Fjerner udviklingsidéen'],
+        remove_from_shopping_list: ['Taking it off the shopping list', 'Tager det af indkøbslisten'],
+        remove_period: ['Removing the period', 'Fjerner menstruationen'],
+        remove_plan_exercise: ['Removing an exercise from the plan', 'Fjerner en øvelse fra planen'],
+        remove_program_days: ['Removing days from the programme', 'Fjerner dage fra programmet'],
+        remove_vinyl: ['Removing the record', 'Fjerner pladen'],
+        resolve_feedback: ['Resolving the error report', 'Lukker fejlrapporten'],
+        run_routine: ['Running the routine', 'Kører rutinen'],
+        save_place: ['Saving the place', 'Gemmer stedet'],
+        save_region: ['Saving the region', 'Gemmer området'],
+        save_training_program: ['Saving the training programme', 'Gemmer træningsprogrammet'],
+        schedule_task: ['Scheduling the task', 'Planlægger opgaven'],
+        send_connection_request: ['Sending the connection request', 'Sender forbindelsesanmodningen'],
+        set_company_profile: ['Saving your company details', 'Gemmer dine firmaoplysninger'],
+        set_dev_idea_status: ['Updating the dev idea status', 'Opdaterer udviklingsidéens status'],
+        set_diagnostics: ['Updating the error report', 'Opdaterer fejlrapporten'],
+        set_list_grouping: ['Changing how the list is grouped', 'Ændrer listens gruppering'],
+        set_my_name: ['Saving your name', 'Gemmer dit navn'],
+        set_reminder: ['Setting the reminder', 'Sætter påmindelsen'],
+        set_scheduled_task_active: ['Switching the scheduled task', 'Skifter den planlagte opgave'],
+        set_thermostat: ['Setting the thermostat', 'Indstiller termostaten'],
+        show_home: ['Opening your home devices', 'Åbner dine hjemmeenheder'],
+        suggest_places: ['Finding places nearby', 'Finder steder i nærheden'],
+        training_load: ['Working out your training load', 'Beregner din træningsbelastning'],
+        uncheck_exercise: ['Unticking an exercise', 'Fjerner afkrydsning af en øvelse'],
+        uncheck_item: ['Unticking on the list', 'Fjerner afkrydsning på listen'],
+        undo_routine: ['Undoing the routine', 'Fortryder rutinen'],
+        update_about_me: ['Updating what I know about you', 'Opdaterer hvad jeg ved om dig'],
+        update_calendar_event: ['Changing the calendar event', 'Ændrer kalenderbegivenheden'],
+        update_connection_sharing: ['Changing what you share', 'Ændrer hvad du deler'],
+        update_dev_idea: ['Editing the dev idea', 'Redigerer udviklingsidéen'],
+        update_income: ['Editing the income', 'Redigerer indtægten'],
+        update_place: ['Editing the place', 'Redigerer stedet'],
+        update_receipt: ['Editing the receipt', 'Redigerer kvitteringen'],
+        update_routine: ['Editing the routine', 'Redigerer rutinen'],
+        update_setting: ['Changing the setting', 'Ændrer indstillingen'],
+        update_system_task: ['Updating the system task', 'Opdaterer systemopgaven'],
+        update_training_program: ['Editing the training programme', 'Redigerer træningsprogrammet'],
+        update_trip: ['Editing the trip', 'Redigerer turen'],
+        update_vinyl: ['Editing the record', 'Redigerer pladen'],
+        update_wishlist_item: ['Editing the wishlist item', 'Redigerer ønskelisteemnet'],
+        update_workout: ['Editing the workout', 'Redigerer træningen'],
+        where_am_i: ['Checking where you are', 'Tjekker hvor du er']
+    };
     var TOOL_SPECIAL = {
         get_current_weather:  ['Checking the weather', 'Tjekker vejret'],
         get_weather_forecast: ['Checking the forecast', 'Tjekker vejrudsigten'],
@@ -562,7 +713,17 @@
         web_search:           ['Searching the web', 'Søger på nettet'],
         fetch_webpage:        ['Reading the web page', 'Læser websiden'],
         set_place_reminder:   ['Setting a place reminder', 'Sætter en stedpåmindelse'],
-        get_calendar_month:   ['Opening your month', 'Åbner din måned']
+        get_calendar_month:   ['Opening your month', 'Åbner din måned'],
+        get_workout_plan:     ['Checking the day’s training', 'Tjekker dagens træning'],
+        get_week_plan:        ['Checking the week’s training', 'Tjekker ugens træning'],
+        get_training_program: ['Opening your training programme', 'Åbner dit træningsprogram'],
+        check_off_exercise:   ['Ticking off exercises', 'Afkrydser øvelser'],
+        log_workout:          ['Logging your sets', 'Logger dine sæt'],
+        export_data:          ['Building the export', 'Laver eksporten'],
+        add_to_shopping_list: ['Adding to the shopping list', 'Lægger på indkøbslisten'],
+        where_am_i:           ['Checking where you are', 'Tjekker hvor du er'],
+        run_routine:          ['Running the routine', 'Kører rutinen'],
+        undo_routine:         ['Undoing the routine', 'Fortryder rutinen']
     };
     function toolInfo(name) {
         name = String(name || '');
@@ -571,9 +732,12 @@
             if (TOOL_DOMAINS[i][0].test(name)) { dom = TOOL_DOMAINS[i]; break; }
         }
         var iconName = dom ? dom[1] : 'sparkles';
-        if (TOOL_SPECIAL[name]) return { icon: iconName, text: daText(TOOL_SPECIAL[name][0], TOOL_SPECIAL[name][1]) };
+        var fixed = TOOL_SPECIAL[name] || TOOL_TEXT[name];
+        if (fixed) return { icon: iconName, text: daText(fixed[0], fixed[1]) };
         var obj = dom ? daText(dom[2], dom[3]) : daText('something', 'noget');
-        var verb = /^(get|list|read|search|export)_/.test(name) ? ['Looking up', 'Slår op i']
+        var verb = /^(get|list|read|search|export|find)_/.test(name) ? ['Looking up', 'Slår op i']
+            : /^add_/.test(name) ? ['Adding to', 'Tilføjer til']
+            : /^log_/.test(name) ? ['Logging to', 'Logger i']
             : /^(delete|remove|forget|cancel|clear)_/.test(name) ? ['Removing from', 'Fjerner fra']
             : /^(update|merge|mark|rate|check_off|uncheck|resolve|set_diagnostics)/.test(name) ? ['Updating', 'Opdaterer']
             : /^(send|accept)_/.test(name) ? ['Sending via', 'Sender via']
@@ -598,26 +762,48 @@
         var stopped = false, timer = null, failures = 0, lastKey = '', shown = 0;
         function render(st) {
             var steps = (st && st.steps) || [];
-            if (!steps.length) return;
-            // Redraw only on change, and fade in only NEW steps (a full redraw per poll
+            // Only the TWO newest lines are shown at a time (dev idea #68): the steps so far, then a last line for what the model
+            // is doing between them — reading the message, going through a result, writing the answer.
+            // The same tool several times in a row (four log_workout calls) is ONE line with a count, not four identical ones.
+            var lines = [];
+            steps.forEach(function (x) {
+                var prev = lines.length ? lines[lines.length - 1] : null;
+                if (prev && prev.kind === 'step' && prev.x.tool === x.tool) {
+                    prev.n++;
+                    prev.x = { tool: x.tool, status: (x.status === 'running' || prev.x.status === 'running') ? 'running'
+                        : (x.status === 'error' || prev.x.status === 'error') ? 'error' : 'done' };
+                } else {
+                    lines.push({ kind: 'step', x: x, n: 1 });
+                }
+            });
+            if (st && st.phase === 'thinking' && !steps.length) {
+                lines.push({ kind: 'phase', ic: 'message-square', text: daText('Reading your message', 'Læser din besked') });
+            } else if (st && st.phase === 'answering') {
+                lines.push({ kind: 'phase', ic: 'sparkles', text: steps.length
+                    ? daText('Going through what I found', 'Gennemgår det jeg fandt')
+                    : daText('Putting the answer together', 'Samler svaret') });
+            }
+            if (!lines.length) return;
+            // Redraw only on change, and fade in only NEW lines (a full redraw per poll
             // would restart the animation and leave every line half-transparent).
             var key = JSON.stringify([st.phase, steps]);
             if (key === lastKey) return;
             lastKey = key;
             row.classList.add('has-tools');
-            var first = Math.max(0, steps.length - 5), prevShown = shown;
-            shown = steps.length;
-            box.innerHTML = steps.slice(first).map(function (x, i) {
-                var info = toolInfo(x.tool);
+            var first = Math.max(0, lines.length - 2), prevShown = shown;
+            shown = lines.length;
+            box.innerHTML = lines.slice(first).map(function (ln, i) {
+                var fresh = (first + i) >= prevShown ? ' tl-new' : '';
+                if (ln.kind === 'phase') {
+                    return '<div class="tl-step tl-running' + fresh + '">' + icon(ln.ic, 'tl-ic')
+                        + '<span class="tl-text">' + progEsc(ln.text) + '</span>' + icon('loader-circle', 'tl-spin') + '</div>';
+                }
+                var x = ln.x, info = toolInfo(x.tool);
                 var mark = x.status === 'running' ? icon('loader-circle', 'tl-spin')
                     : x.status === 'error' ? icon('circle-x', 'tl-err') : icon('check', 'tl-ok');
-                var fresh = (first + i) >= prevShown ? ' tl-new' : '';
                 return '<div class="tl-step tl-' + progEsc(x.status) + fresh + '">' + icon(info.icon, 'tl-ic')
-                    + '<span class="tl-text">' + progEsc(info.text) + '</span>' + mark + '</div>';
-            }).join('') + (st.phase === 'answering'
-                ? '<div class="tl-step tl-running">' + icon('sparkles', 'tl-ic') + '<span class="tl-text">'
-                    + progEsc(daText('Putting the answer together', 'Samler svaret')) + '</span>' + icon('loader-circle', 'tl-spin') + '</div>'
-                : '');
+                    + '<span class="tl-text">' + progEsc(info.text + (ln.n > 1 ? ' ×' + ln.n : '')) + '</span>' + mark + '</div>';
+            }).join('');
         }
         function tick() {
             if (stopped) return;
@@ -9648,6 +9834,7 @@
         var gen = navGen;
         if (p) startFromNotification(p);
         else if (convParam) loadConversation(Number(convParam), gen).catch(function () { if (gen === navGen) decideStartupChat(); });
+        else if (_params.get('ask')) { var askId = Number(_params.get('ask')) || 0; try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ } decideStartupChat(); if (askId) openRoutineAsk(askId); }
         else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
         else if (openParam && HOME_CARDS[openParam]) openShortcutCard(openParam);
         else decideStartupChat();
@@ -9881,8 +10068,13 @@
         try { u = new URL(p.url || '/', location.origin); } catch (e) { u = new URL('/', location.origin); }
         var convId = Number(u.searchParams.get('conv')) || 0;
         var key = u.searchParams.get('card'), rid = u.searchParams.get('rid');
+        var ask = Number(u.searchParams.get('ask')) || 0;
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
 
+        if (ask) {                         // a question that needs a yes / no: a small sheet over whatever you were doing
+            openRoutineAsk(ask);
+            return;
+        }
         if (convId && convId === conversationId) {
             showNoticeBubble(p, false);
             return;
@@ -9902,6 +10094,138 @@
             return;
         }
         openNotificationCard(key, rid, p);
+    }
+
+    // "Open" button under the notification bubble at the bottom of the chat: the notification's own card on demand.
+    function addOpenCardButton(key, rid) {
+        var bubbles = messages.querySelectorAll('.msg.notification');
+        var bubble = bubbles.length ? bubbles[bubbles.length - 1] : null;
+        if (!bubble || bubble.querySelector('.notif-open')) return;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'notif-open';
+        b.textContent = daText('Open the card', 'Åbn kortet');
+        b.addEventListener('click', function () {
+            var url = '/api/card.php?for=' + encodeURIComponent(key) + (rid ? '&rid=' + encodeURIComponent(rid) : '');
+            fetch(url, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+                .then(function (data) { if (data && data.card) presentCard(data.card, 'open'); })
+                .catch(function () { toast(daText('Could not open it.', 'Kunne ikke åbne den.')); });
+        });
+        bubble.appendChild(b);
+    }
+
+    // An "ask first" routine question (the routine_ask push): a small sheet with Run / Skip over whatever is on screen, and
+    // after a yes the result of the run ("the lights are off") — no card, no chat, and you are back where you were.
+    function closeAskSheet() {
+        var old = document.getElementById('askSheet');
+        if (old) old.remove();
+    }
+    function openRoutineAsk(requestId) {
+        closeAskSheet();
+        var wrap = document.createElement('div');
+        wrap.className = 'ask-sheet';
+        wrap.id = 'askSheet';
+        var box = document.createElement('div');
+        box.className = 'ask-box';
+        wrap.appendChild(box);
+        wrap.addEventListener('click', function (e) { if (e.target === wrap) closeAskSheet(); });
+        document.body.appendChild(wrap);
+        var closeTimer = null;
+        function say(title, sub, buttons, busyIcon) {
+            if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+            box.innerHTML = '';
+            var h = document.createElement('div');
+            h.className = 'ask-title';
+            if (busyIcon) h.innerHTML = icon('loader-circle', 'tl-spin') + ' ';
+            h.appendChild(document.createTextNode(title));
+            box.appendChild(h);
+            if (sub) {
+                var p = document.createElement('div');
+                p.className = 'ask-sub';
+                p.textContent = sub;
+                box.appendChild(p);
+            }
+            if (buttons && buttons.length) {
+                var row = document.createElement('div');
+                row.className = 'ask-actions';
+                buttons.forEach(function (bt) {
+                    var el = document.createElement('button');
+                    el.type = 'button';
+                    el.className = 'ask-btn' + (bt.primary ? ' primary' : '');
+                    el.textContent = bt.label;
+                    el.addEventListener('click', bt.fn);
+                    row.appendChild(el);
+                });
+                box.appendChild(row);
+            }
+        }
+        var closeBtn = { label: daText('Close', 'Luk'), fn: closeAskSheet };
+        function load() {
+            return fetch('/api/scheduled-tasks.php', { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+                .then(function (j) { return (j && j.card) || { items: [], requests: [] }; });
+        }
+        function taskOf(card, id) {
+            return (card.items || []).filter(function (t) { return t.id === id; })[0] || null;
+        }
+        function answer(q, approve, before) {
+            say(approve ? daText('Running…', 'Kører…') : daText('Skipping…', 'Springer over…'), q.label, [], true);
+            fetch('/api/scheduled-tasks.php', {
+                method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'answer', request_id: q.id, approve: approve })
+            }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('answer failed')); })
+              .then(function () {
+                  if (!approve) {
+                      say(daText('Skipped', 'Sprunget over'), q.label, [closeBtn]);
+                      closeTimer = setTimeout(closeAskSheet, 2500);
+                      return;
+                  }
+                  watchRun(q, before, 0);
+              })
+              .catch(function () { say(daText('That did not work', 'Det virkede ikke'), daText('It may already have been answered.', 'Den er måske allerede besvaret.'), [closeBtn]); });
+        }
+        // The run happens in the background: once the routine has started (its last-run time moves) wait for its summary to change,
+        // or for a few more seconds if the new summary happens to read the same as the old one, then show what it says.
+        function watchRun(q, before, n, startedAt) {
+            if (!document.getElementById('askSheet')) return;
+            load().then(function (card) {
+                var t = taskOf(card, q.task_id);
+                var started = startedAt !== undefined ? startedAt : null;
+                if (started === null && t && before && t.last_run !== before.last_run) started = n;
+                var changed = t && before && t.last_summary !== before.last_summary && started !== null;
+                if (changed || (started !== null && n - started >= 6)) {
+                    var failed = t.last_status === 'error';
+                    say(failed ? daText('It did not go through', 'Det lykkedes ikke') : daText('Done', 'Færdig'),
+                        t.last_summary || q.label, [closeBtn]);
+                    closeTimer = setTimeout(closeAskSheet, failed ? 12000 : 5000);
+                    return;
+                }
+                if (n >= 20) {
+                    say(daText('Started', 'Sat i gang'), daText('It is still running — you will see the result on the routines card.',
+                        'Den kører stadig — du kan se resultatet på rutinekortet.'), [closeBtn]);
+                    return;
+                }
+                setTimeout(function () { watchRun(q, before, n + 1, started === null ? undefined : started); }, 2000);
+            }).catch(function () { setTimeout(function () { watchRun(q, before, n + 1, startedAt); }, 2000); });
+        }
+        say(daText('One moment…', 'Et øjeblik…'), '', [], true);
+        load().then(function (card) {
+            var q = (card.requests || []).filter(function (r) { return r.id === requestId; })[0] || null;
+            if (!q) {
+                say(daText('Already answered', 'Allerede besvaret'), daText('That question is no longer open.', 'Det spørgsmål er ikke længere åbent.'), [closeBtn]);
+                closeTimer = setTimeout(closeAskSheet, 3000);
+                return;
+            }
+            var t = taskOf(card, q.task_id);
+            var before = t ? { last_run: t.last_run, last_summary: t.last_summary } : null;
+            say(daText('Run “', 'Kør “') + q.label + '”?', [q.trigger_text, q.at].filter(Boolean).join(' · '), [
+                { label: daText('Run it', 'Kør den'), primary: true, fn: function () { answer(q, true, before); } },
+                { label: daText('Skip', 'Spring over'), fn: function () { answer(q, false, before); } }
+            ]);
+        }).catch(function () {
+            say(daText('Could not load the question', 'Kunne ikke hente spørgsmålet'), '', [closeBtn]);
+        });
     }
 
     // A chat is warm while it has content and was last used within IDLE_RESUME_SECONDS.
@@ -9941,6 +10265,10 @@
         var replies = notifReplies(note && note.type);
         if (replies && added) renderSuggestions(replies);
         if (!key) return;
+        if (note && (note.title || note.body)) {          // the notification says it all; its card is one tap away, not forced open
+            if (added) addOpenCardButton(key, rid);
+            return;
+        }
         var url = '/api/card.php?for=' + encodeURIComponent(key);
         if (rid) url += '&rid=' + encodeURIComponent(rid);
         fetch(url, { credentials: 'same-origin' })
@@ -9980,6 +10308,11 @@
 
         if (!key) {                                   // a notification without a card
             if (!noticeText) showEmptyHint();
+            if (replies) renderSuggestions(replies);
+            return;
+        }
+        if (noticeText) {                              // the notification says it all; its card is one tap away, not forced open
+            addOpenCardButton(key, rid);
             if (replies) renderSuggestions(replies);
             return;
         }
