@@ -62,7 +62,7 @@
 
     // ---- Electricity: price now, the cheapest coming stretch of N hours, the bars ahead ----
     function buildPowerTile() {
-        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide', 2.2), chartCard = null, chartBox = null;
+        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide', 2.2), chartCard = null, chartBox = null, selIdx = null, selTimer = null, readout = el('div', 'kp-readout');
         var data = null, loadedAt = 0, loadedHour = -1;
         var windowLen = parseInt(store('kioskPowerWindow'), 10); if (!(windowLen >= 1 && windowLen <= 6)) windowLen = 2;
         function hourNow() { return Math.floor(Date.now() / 3600000); }   // hour boundaries are the same in UTC and Danish time
@@ -114,6 +114,14 @@
             left.appendChild(chips);
 
             chartBox = el('div', 'kp-chart'); chartCard = card;
+            // Tap a bar -> its hour, all-in price and the spot part, for a few seconds (kept across the 20 s redraws).
+            chartBox.addEventListener('click', function (e) {
+                var hit = e.target.closest ? e.target.closest('[data-idx]') : null;
+                if (!hit) return;
+                selIdx = parseInt(hit.getAttribute('data-idx'), 10);
+                clearTimeout(selTimer); selTimer = setTimeout(function () { selIdx = null; t.refit(); }, 12000);
+                t.refit();
+            });
             layout.appendChild(chartBox);
             if (card.incomplete) t.note(da('⚠ A tariff is missing — the price may be too low.', '⚠ En tarif mangler — prisen kan være for lav.'));
             t.refit();
@@ -123,6 +131,13 @@
             if (!chartBox || !chartCard || !chartBox.isConnected) return;
             var w = Math.max(200, chartBox.clientWidth), h = Math.max(90, chartBox.clientHeight);
             chartBox.innerHTML = PowerChart.svg(chartCard, [w, h], parseFloat(getComputedStyle(chartBox).fontSize) || 12).replace('<svg ', '<svg preserveAspectRatio="none" ');
+            var hs = chartCard.hours || [], sel = selIdx != null ? hs[selIdx] : null;
+            if (sel) {
+                Array.prototype.forEach.call(chartBox.querySelectorAll('.pw-bar[data-idx="' + selIdx + '"]'), function (b) { b.classList.add('sel'); });
+                readout.innerHTML = '<b>' + esc(PowerChart.day(sel.s).split(' ')[0] + ' ' + PowerChart.hm(sel.s)) + '</b> · ' + esc(PowerChart.fmt(sel.t)) + ' kr/kWh'
+                    + '<span class="kp-readout-s"> ' + esc(da('of which spot ', 'heraf spot ') + PowerChart.fmt(sel.sp)) + '</span>';
+                chartBox.appendChild(readout);
+            }
         };
 
         return {
