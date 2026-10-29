@@ -3196,3 +3196,13 @@ body.voice-on .vd-lang { font-size: 13px; }
 .ask-btn { flex: 1; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border, rgba(127,127,127,.35)); background: none; color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
 .ask-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 @media (min-width: 700px) { .ask-sheet { align-items: center; } .ask-box { border-radius: 16px; } }
+
+/* Electricity price card (get_power_prices): bars coloured by thirds of the range, now marker, cheapest-window band. */
+.pw-bar.cheap { fill: var(--ok); }
+.pw-bar.mid   { fill: var(--accent); }
+.pw-bar.dear  { fill: #f87171; }
+.pw-bar.now   { stroke: #fff; stroke-width: 1.2; }
+.pw-bar.sel   { stroke: #fff; stroke-width: 1.6; }
+.pw-window { fill: rgba(52, 211, 153, .16); stroke: var(--ok); stroke-width: 1; stroke-dasharray: 3 2; }
+.pw-now { stroke: #fff; stroke-width: 1; stroke-dasharray: 2 2; opacity: .8; pointer-events: none; }
+.pw-best { margin: 2px 0 4px; font-size: 13px; font-weight: 600; color: var(--ok); }

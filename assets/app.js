@@ -695,6 +695,7 @@
         where_am_i: ['Checking where you are', 'Tjekker hvor du er']
     };
     var TOOL_SPECIAL = {
+        get_power_prices:     ['Checking electricity prices', 'Tjekker elpriserne'],
         get_current_weather:  ['Checking the weather', 'Tjekker vejret'],
         get_weather_forecast: ['Checking the forecast', 'Tjekker vejrudsigten'],
         get_emails:           ['Checking your inbox', 'Tjekker din indbakke'],
@@ -989,6 +990,7 @@
         work_hours:    ['clock', 'Work hours'],
         work_chart:    ['chart-column', 'Work hours'],
         chart:         ['chart-column', 'Chart'],
+        power_prices:  ['zap', 'Electricity'],
         work_log:      ['notebook-pen', 'Work log'],
         progression:   ['trending-up', 'Progression'],
         cycle:         ['moon', 'Cycle'],
@@ -1176,6 +1178,10 @@
             return Math.round(card.current.temp_c) + '°';
         }
         if (card.kind === 'chart' && card.title) return card.title;
+        if (card.kind === 'power_prices' && card.hours && card.hours.length) {
+            var pi = card.now_index != null ? card.now_index : 0;
+            return powerFmt(card.hours[pi].t) + ' kr/kWh';
+        }
         if (card.kind === 'calendar_month' && card.month) {
             var mf = new Date(card.month + '-01T12:00:00');
             return isNaN(mf) ? (card.title || '') : mf.toLocaleDateString(daText('en-GB', 'da-DK'), { month: 'long', year: 'numeric' });
@@ -1768,6 +1774,7 @@
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
         if (card.kind === 'work_clock') { renderWorkClock(card); return; }
         if (card.kind === 'chart') { renderChart(card); return; }
+        if (card.kind === 'power_prices') { renderPowerPrices(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
         if (card.kind === 'dev_ideas') { renderDevIdeas(card); return; }
         if (card.kind === 'scheduled_tasks') { renderScheduledTasks(card); return; }
@@ -4939,6 +4946,121 @@
         var wrap = document.createElement('div');
         wrap.className = 'plan-card wch-card';
         buildChart(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // ---- Electricity price card (kind 'power_prices', from get_power_prices) -----------
+    // One bar per hour = the all-in price (spot + tariffs + tax + VAT) in kr/kWh, coloured cheap / middle / dear by
+    // thirds of the visible range; a marker on the current hour and a band over the cheapest window the user asked for.
+    function powerFmt(v) { return (Math.round(v * 100) / 100).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+    function powerHm(iso) { return String(iso || '').slice(11, 16); }
+
+    function powerDay(iso) {
+        var d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+        return isNaN(d) ? '' : d.toLocaleDateString(daText('en-GB', 'da-DK'), { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+
+    function powerSvg(card) {
+        var hs = card.hours || [], n = hs.length || 1;
+        var dims = chartDims(320, 150);
+        var W = dims[0], H = dims[1], padL = 6, padR = 6, padT = 14, padB = 20;
+        var innerW = W - padL - padR, innerH = H - padT - padB, step = innerW / n;
+        var vals = hs.map(function (h) { return +h.t || 0; });
+        var maxV = Math.max.apply(null, vals.concat([0.01])), lo = Math.min.apply(null, vals), hi = maxV;
+        function y(v) { return padT + (maxV - v) / maxV * innerH; }
+        function tone(v) { var f = hi === lo ? 0 : (v - lo) / (hi - lo); return f < 0.34 ? 'cheap' : (f < 0.67 ? 'mid' : 'dear'); }
+
+        var out = '<line class="wch-grid" x1="' + padL + '" y1="' + padT + '" x2="' + (W - padR) + '" y2="' + padT + '"/>'
+            + '<text class="wch-ylab" x="' + padL + '" y="' + (padT - 3) + '">' + progEsc(powerFmt(maxV)) + '</text>'
+            + '<line class="wch-grid base" x1="' + padL + '" y1="' + (padT + innerH) + '" x2="' + (W - padR) + '" y2="' + (padT + innerH) + '"/>';
+        var w = card.window;
+        if (w && w.len > 0) {
+            out += '<rect class="pw-window" x="' + (padL + step * w.from).toFixed(1) + '" y="' + (padT - 2) + '" width="' + (step * w.len).toFixed(1)
+                + '" height="' + (innerH + 2) + '" rx="3"/>';
+        }
+        var barW = Math.max(step - (n > 30 ? 1 : 2), 1);
+        hs.forEach(function (h, i) {
+            var v = +h.t || 0, top = y(v);
+            out += '<rect class="chart-bar pw-bar ' + tone(v) + (i === card.now_index ? ' now' : '') + '" data-idx="' + i + '" x="' + (padL + step * i + (step - barW) / 2).toFixed(1)
+                + '" y="' + top.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(padT + innerH - top, 1).toFixed(1) + '" rx="1.5"/>';
+        });
+        var every = n > 30 ? 6 : (n > 14 ? 3 : 2);
+        hs.forEach(function (h, i) {
+            var hr = String(h.s).slice(11, 13);
+            if (i % every === 0 || hr === '00') {
+                out += '<text class="wch-xlab" x="' + (padL + step * i + step / 2).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">'
+                    + (hr === '00' ? progEsc(powerDay(h.s).split(' ')[0]) : progEsc(hr)) + '</text>';
+            }
+            out += '<rect class="wch-hit" data-idx="' + i + '" x="' + (padL + step * i).toFixed(1) + '" y="' + padT + '" width="' + step.toFixed(1) + '" height="' + innerH + '"/>';
+        });
+        if (card.now_index != null) {
+            var nx = padL + step * card.now_index + step / 2;
+            out += '<line class="pw-now" x1="' + nx.toFixed(1) + '" y1="' + (padT - 2) + '" x2="' + nx.toFixed(1) + '" y2="' + (padT + innerH) + '"/>';
+        }
+        return '<svg class="wch-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + progEsc(card.title || 'Electricity price') + '">' + out + '</svg>';
+    }
+
+    function renderPowerPrices(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card wch-card pw-card';
+
+        var head = document.createElement('div');
+        head.className = 'plan-card-title';
+        head.textContent = card.title || 'Electricity price';
+        wrap.appendChild(head);
+
+        var hs = card.hours || [];
+        var cur = card.now_index != null ? hs[card.now_index] : null;
+        var sum = document.createElement('div');
+        sum.className = 'wch-summary';
+        var big = document.createElement('span'); big.className = 'wch-total';
+        big.textContent = cur ? powerFmt(cur.t) + ' kr/kWh' : daText('Prices', 'Priser');
+        sum.appendChild(big);
+        var avg = document.createElement('span'); avg.className = 'wch-avg';
+        avg.textContent = daText('avg ', 'gns. ') + powerFmt(card.avg) + ' · ' + (cur ? daText('now', 'nu') : '') + ' · ' + (card.area || '');
+        sum.appendChild(avg);
+        wrap.appendChild(sum);
+
+        if (card.window) {
+            var win = document.createElement('div');
+            win.className = 'pw-best';
+            var w = card.window;
+            win.textContent = daText('Cheapest ', 'Billigst ') + w.len + daText(' h: ', ' t: ')
+                + powerDay(w.start).split(' ')[0] + ' ' + powerHm(w.start) + '–' + powerHm(w.end) + ' · ' + powerFmt(w.avg) + ' kr/kWh';
+            wrap.appendChild(win);
+        }
+
+        var chart = document.createElement('div');
+        chart.className = 'wch-chart';
+        chart.innerHTML = powerSvg(card);
+        wrap.appendChild(chart);
+
+        var readout = document.createElement('div');
+        readout.className = 'prog-readout';
+        wrap.appendChild(readout);
+        function select(i) {
+            var h = hs[i]; if (!h) return;
+            Array.prototype.forEach.call(chart.querySelectorAll('.pw-bar.sel'), function (el) { el.classList.remove('sel'); });
+            Array.prototype.forEach.call(chart.querySelectorAll('.pw-bar[data-idx="' + i + '"]'), function (el) { el.classList.add('sel'); });
+            readout.innerHTML = '<span class="prog-ro-date">' + progEsc(powerDay(h.s) + ' ' + powerHm(h.s)) + '</span>'
+                + '<span class="prog-ro-val">' + progEsc(powerFmt(h.t)) + ' kr/kWh</span> '
+                + '<span class="chart-source" style="display:inline;margin-left:6px">' + daText('of which spot ', 'heraf spot ') + progEsc(powerFmt(h.sp)) + '</span>';
+        }
+        Array.prototype.forEach.call(chart.querySelectorAll('.wch-hit'), function (hit) {
+            hit.addEventListener('click', function () { select(parseInt(hit.getAttribute('data-idx'), 10)); });
+        });
+        select(card.now_index != null ? card.now_index : 0);
+
+        var note = document.createElement('div');
+        note.className = 'chart-source';
+        note.textContent = daText('All-in per kWh: spot + grid & Energinet tariffs + tax, incl. VAT. Source: Energi Data Service.',
+            'Samlet pris pr. kWh: spot + net- og Energinet-tariffer + afgift, inkl. moms. Kilde: Energi Data Service.')
+            + (card.incomplete ? daText(' ⚠ A tariff was missing, price may be too low.', ' ⚠ En tarif manglede, prisen kan være for lav.') : '');
+        wrap.appendChild(note);
+
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
