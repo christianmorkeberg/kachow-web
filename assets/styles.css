@@ -3286,3 +3286,33 @@ body.kiosk-on { margin: 0; overflow: hidden; }
 }
 /* Kiosk on the light looks: the default green / amber are too pale on white, so use stronger ones there. */
 :root[data-theme="paper"] .kiosk, :root[data-theme="lavender"] .kiosk, :root[data-theme="blush"] .kiosk { --ok: #059669; --warn: #b45309; --error: #dc2626; }
+
+/* Kiosk: "updated hh:mm" per tile, long-press colour panel, bigger single-light buttons with smaller brightness steps. */
+.kiosk-tile-head { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 1vmin; margin-bottom: .6vmin; }
+.kiosk-tile-head .kiosk-tile-title { margin-bottom: 0; }
+.kiosk-tile-upd { font-size: clamp(10px, 1.4vmin, 16px); color: var(--muted); opacity: .8; font-variant-numeric: tabular-nums; }
+.kiosk-tile-upd.stale { color: var(--warn); opacity: 1; }
+.kl-main, .kl-chip { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.kl-bri .kl-step { min-height: 1.5em; font-size: .95em; }
+.kl-lights { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.2em, 1fr)); gap: .35em; }
+.kl-chip { display: inline-flex; align-items: center; justify-content: center; gap: .35em; min-height: 2.6em; padding: .3em .6em; font-size: .95em; border-radius: .5em; }
+.kl-dot { width: .8em; height: .8em; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+.kc-back { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .55); display: flex; align-items: center; justify-content: center; padding: 2vmin; }
+.kc-box { width: min(92vw, 640px); max-height: 92vh; overflow: auto; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 2.2vmin 2.6vmin; font-size: clamp(15px, 2.6vmin, 26px); display: flex; flex-direction: column; gap: 1.4vmin; }
+.kc-head { display: flex; align-items: center; justify-content: space-between; }
+.kc-title { font-size: 1.3em; font-weight: 700; }
+.kc-x { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 999px; width: 2em; height: 2em; font-size: 1.1em; cursor: pointer; }
+.kc-row { display: flex; flex-direction: column; gap: .3em; }
+.kc-label { font-size: .75em; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.kc-swatches { display: flex; gap: .5em; flex-wrap: wrap; }
+.kc-sw { width: 2.2em; height: 2.2em; border-radius: 50%; border: 2px solid var(--border-strong); cursor: pointer; }
+.kc-slider { width: 100%; height: 2.2em; accent-color: var(--accent); }
+.kc-hue { -webkit-appearance: none; appearance: none; height: .9em; border-radius: 999px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.kc-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 1.6em; height: 1.6em; border-radius: 50%; background: #fff; border: 2px solid #333; }
+.kc-hue::-moz-range-thumb { width: 1.6em; height: 1.6em; border-radius: 50%; background: #fff; border: 2px solid #333; }
+.kc-white { -webkit-appearance: none; appearance: none; height: .9em; border-radius: 999px; background: linear-gradient(90deg, #ffb35c, #fff4e5, #cfe3ff); }
+.kc-white::-webkit-slider-thumb { -webkit-appearance: none; width: 1.6em; height: 1.6em; border-radius: 50%; background: #fff; border: 2px solid #333; }
+.kc-white::-moz-range-thumb { width: 1.6em; height: 1.6em; border-radius: 50%; background: #fff; border: 2px solid #333; }
+.kc-foot { display: flex; gap: .6em; justify-content: flex-end; }
+.kc-btn { min-height: 2.6em; padding: 0 1.4em; font: inherit; font-size: .95em; background: var(--panel-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: .5em; cursor: pointer; }
+.kc-done { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
