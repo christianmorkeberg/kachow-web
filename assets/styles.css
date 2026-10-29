@@ -3206,3 +3206,38 @@ body.voice-on .vd-lang { font-size: 13px; }
 .pw-window { fill: rgba(52, 211, 153, .16); stroke: var(--ok); stroke-width: 1; stroke-dasharray: 3 2; }
 .pw-now { stroke: #fff; stroke-width: 1; stroke-dasharray: 2 2; opacity: .8; pointer-events: none; }
 .pw-best { margin: 2px 0 4px; font-size: 13px; font-weight: 600; color: var(--ok); }
+
+/* Kiosk view: full-screen wall display built from tiles (see initKiosk in app.js). Sizes follow the screen, not the card scale. */
+body.kiosk-on { overflow: hidden; }
+.kiosk { position: fixed; inset: 0; z-index: 100; background: var(--bg); color: var(--text); display: flex; flex-direction: column; padding: 2vmin 3vmin; gap: 2vmin; overflow: auto; }
+.kiosk[hidden] { display: none; }
+.kiosk-head { display: flex; align-items: baseline; gap: 2vmin; }
+.kiosk-clock { font-size: clamp(36px, 9vmin, 120px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.kiosk-date { font-size: clamp(16px, 3vmin, 36px); color: var(--muted); text-transform: capitalize; }
+.kiosk-close { margin-left: auto; align-self: flex-start; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 999px; width: 44px; height: 44px; opacity: .45; cursor: pointer; }
+.kiosk-close:hover, .kiosk-close:focus { opacity: 1; }
+.kiosk-tiles { flex: 1; display: grid; gap: 2vmin; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); align-content: start; }
+.kiosk-tile { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.2vmin 2.6vmin; min-width: 0; }
+.kiosk-tile-title { font-size: clamp(13px, 2vmin, 22px); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 1vmin; }
+.kp-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 2vmin; }
+.kp-big { font-size: clamp(56px, 16vmin, 200px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.kp-big.cheap { color: var(--ok); } .kp-big.mid { color: var(--accent); } .kp-big.dear { color: #f87171; }
+.kp-unit { font-size: clamp(16px, 3.4vmin, 40px); color: var(--muted); }
+.kp-best { margin: 1.6vmin 0 .8vmin; padding: 1.2vmin 1.8vmin; border-left: 4px solid var(--ok); background: rgba(52, 211, 153, .08); border-radius: 6px; }
+.kp-best-l { font-size: clamp(12px, 2vmin, 22px); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.kp-best-v { font-size: clamp(24px, 6vmin, 72px); font-weight: 700; color: var(--ok); line-height: 1.1; }
+.kp-best-s { font-size: clamp(14px, 2.6vmin, 30px); color: var(--text); }
+.kp-chips { display: flex; gap: 1vmin; margin: 1vmin 0; flex-wrap: wrap; }
+.kp-chip { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); border-radius: 999px; padding: .5vmin 2vmin; font-size: clamp(13px, 2.2vmin, 24px); cursor: pointer; }
+.kp-chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.kp-chart .wch-xlab, .kp-chart .wch-ylab { font-size: 13px; }
+.kp-warn { margin-top: 1vmin; font-size: clamp(12px, 2vmin, 20px); color: var(--warn); }
+.kp-layout { display: block; }
+.kp-chart { min-width: 0; }
+.kp-chart .wch-svg { max-height: 40vh; }
+/* Wide screens (a wall tablet / monitor): price + cheapest window on the left, the bars on the right, all inside the viewport. */
+@media (min-width: 900px) and (orientation: landscape) {
+    .kp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 3vmin; align-items: center; }
+    .kp-chart .wch-svg { max-height: 62vh; }
+    .kp-chart .wch-xlab, .kp-chart .wch-ylab { font-size: 11px; }
+}

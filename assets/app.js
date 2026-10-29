@@ -4962,9 +4962,9 @@
         return isNaN(d) ? '' : d.toLocaleDateString(daText('en-GB', 'da-DK'), { weekday: 'short', day: 'numeric', month: 'short' });
     }
 
-    function powerSvg(card) {
+    function powerSvg(card, dimsOverride) {
         var hs = card.hours || [], n = hs.length || 1;
-        var dims = chartDims(320, 150);
+        var dims = dimsOverride || chartDims(320, 150);
         var W = dims[0], H = dims[1], padL = 6, padR = 6, padT = 14, padB = 20;
         var innerW = W - padL - padR, innerH = H - padT - padB, step = innerW / n;
         var vals = hs.map(function (h) { return +h.t || 0; });
@@ -10819,6 +10819,171 @@
         document.addEventListener('click', function (ev) {
             if (menu.open && !menu.contains(ev.target)) menu.removeAttribute('open');
         });
+    })();
+
+    // ---------- Kiosk view ----------
+    // A full-screen, always-on wall display: menu → Kiosk (or open the app with #kiosk). The page is a grid of TILES; each tile owns
+    // its data (api/kiosk.php, api/home.php), renders itself, and refreshes on its own schedule. Planned next: lights, thermostats —
+    // add a builder to KIOSK_TILES, nothing else changes. Keeps the screen awake (Wake Lock) and asks for browser fullscreen.
+    (function initKiosk() {
+        var root = document.getElementById('kiosk');
+        if (!root) return;
+        var grid = document.getElementById('kioskTiles'), clockEl = document.getElementById('kioskClock'), dateEl = document.getElementById('kioskDate');
+        var tiles = [], tickTimer = null, wake = null, isOpen = false;
+
+        function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } return null; }
+        function pad(n) { return (n < 10 ? '0' : '') + n; }
+        function tile(title) {
+            var el = document.createElement('section'); el.className = 'kiosk-tile';
+            var h = document.createElement('div'); h.className = 'kiosk-tile-title'; h.textContent = title;
+            var body = document.createElement('div'); body.className = 'kiosk-tile-body';
+            el.appendChild(h); el.appendChild(body);
+            return { el: el, body: body };
+        }
+
+        // ---- Electricity tile: price now, the cheapest coming stretch of N hours, and the bars ahead ----
+        function buildPowerTile() {
+            var t = tile(daText('Electricity', 'Elpris'));
+            var data = null, loadedAt = 0, loadedHour = -1, failed = false;
+            function hourNow() { return Math.floor(Date.now() / 3600000); }
+            var windowLen = parseInt(store('kioskPowerWindow'), 10); if (!(windowLen >= 1 && windowLen <= 6)) windowLen = 2;
+
+            function load() {
+                fetch('api/kiosk.php?part=power&window=' + windowLen, { credentials: 'same-origin' })
+                    .then(function (r) { return r.json().then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || r.status); return j; }); })
+                    .then(function (j) { data = j; failed = false; loadedAt = Date.now(); loadedHour = hourNow(); render(); })
+                    .catch(function (e) { console.warn('kiosk power:', e); failed = true; render(); });
+            }
+
+            function render() {
+                t.body.innerHTML = '';
+                if (!data) {
+                    t.body.textContent = failed ? daText('Cannot fetch prices — retrying…', 'Kan ikke hente priser — prøver igen…') : '…';
+                    return;
+                }
+                // Matched by timestamp, not by local clock strings: the prices are in Danish time, the device may be anywhere.
+                var card = data.card, hs = card.hours || [], nowSec = Date.now() / 1000, idx = -1;
+                hs.forEach(function (h, i) { if (h.ts <= nowSec && nowSec < h.ts + 3600) idx = i; });
+                if (idx < 0) { t.body.textContent = daText('Updating…', 'Opdaterer…'); return; }
+                card = Object.assign({}, card, { now_index: idx });
+                var cur = hs[idx];
+
+                var vals = hs.slice(idx).map(function (h) { return +h.t; });
+                var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), f = hi === lo ? 0 : (cur.t - lo) / (hi - lo);
+                var tone = f < 0.34 ? 'cheap' : (f < 0.67 ? 'mid' : 'dear');
+
+                var layout = document.createElement('div'); layout.className = 'kp-layout';
+                var left = document.createElement('div'); left.className = 'kp-left';
+                layout.appendChild(left); t.body.appendChild(layout);
+                var now = document.createElement('div'); now.className = 'kp-now';
+                var big = document.createElement('span'); big.className = 'kp-big ' + tone; big.textContent = powerFmt(cur.t);
+                var unit = document.createElement('span'); unit.className = 'kp-unit'; unit.textContent = 'kr/kWh ' + daText('now', 'nu');
+                now.appendChild(big); now.appendChild(unit);
+                left.appendChild(now);
+
+                var w = card.window;
+                var best = document.createElement('div'); best.className = 'kp-best';
+                if (w) {
+                    var mins = Math.max(0, Math.round((w.start_ts * 1000 - Date.now()) / 60000));
+                    var when = mins < 1 ? daText('now', 'nu') : (mins < 60 ? daText('in ', 'om ') + mins + ' min' : daText('in ', 'om ') + Math.floor(mins / 60) + ' t ' + pad(mins % 60) + ' min');
+                    best.innerHTML = '<div class="kp-best-l">' + progEsc(daText('Cheapest ', 'Billigst ') + w.len + daText(' h', ' t')) + '</div>'
+                        + '<div class="kp-best-v">' + progEsc(powerDay(w.start).split(' ')[0] + ' ' + powerHm(w.start) + '–' + powerHm(w.end)) + '</div>'
+                        + '<div class="kp-best-s">' + progEsc(powerFmt(w.avg) + ' kr/kWh · ' + when) + '</div>';
+                }
+                left.appendChild(best);
+
+                var chips = document.createElement('div'); chips.className = 'kp-chips';
+                [1, 2, 3, 4, 6].forEach(function (n) {
+                    var b = document.createElement('button'); b.type = 'button'; b.className = 'kp-chip' + (n === windowLen ? ' on' : '');
+                    b.textContent = n + (daText(' h', ' t'));
+                    b.addEventListener('click', function () { windowLen = n; store('kioskPowerWindow', String(n)); load(); });
+                    chips.appendChild(b);
+                });
+                left.appendChild(chips);
+
+                var chart = document.createElement('div'); chart.className = 'kp-chart';
+                chart.innerHTML = powerSvg(card, [640, 240]);
+                layout.appendChild(chart);
+
+                if (card.incomplete) {
+                    var warn = document.createElement('div'); warn.className = 'kp-warn';
+                    warn.textContent = daText('⚠ A tariff is missing — price may be too low.', '⚠ En tarif mangler — prisen kan være for lav.');
+                    t.body.appendChild(warn);
+                }
+                if (failed) {
+                    var stale = document.createElement('div'); stale.className = 'kp-warn';
+                    stale.textContent = daText('Could not refresh — showing the last prices.', 'Kunne ikke opdatere — viser sidste priser.');
+                    t.body.appendChild(stale);
+                }
+            }
+
+            return {
+                el: t.el,
+                load: load,
+                // Every tick: new hour -> refetch (the bars and the "now" price move); otherwise every 5 min; the countdown re-renders locally.
+                tick: function () {
+                    if (!data) { if (Date.now() - loadedAt > 15000) { loadedAt = Date.now(); load(); } return; }
+                    if (hourNow() !== loadedHour || Date.now() - loadedAt > 5 * 60000) load(); else render();
+                }
+            };
+        }
+
+        var KIOSK_TILES = [buildPowerTile /* , buildLightsTile, buildThermostatsTile — next */];
+
+        function tickClock() {
+            var d = new Date();
+            clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+            dateEl.textContent = d.toLocaleDateString(daText('en-GB', 'da-DK'), { weekday: 'long', day: 'numeric', month: 'long' });
+        }
+        function tick() { tickClock(); tiles.forEach(function (t) { try { t.tick(); } catch (e) { console.warn('kiosk tile:', e); } }); }
+
+        function requestWake() {
+            try {
+                if (navigator.wakeLock && isOpen && document.visibilityState === 'visible') {
+                    navigator.wakeLock.request('screen').then(function (l) { wake = l; }).catch(function () {});
+                }
+            } catch (e) { /* no wake lock: the OS may dim the screen */ }
+        }
+        function goFullscreen() {
+            try { if (!document.fullscreenElement && root.requestFullscreen) root.requestFullscreen().catch(function () {}); } catch (e) { /* not allowed */ }
+        }
+
+        function open() {
+            if (isOpen) return;
+            isOpen = true;
+            root.hidden = false;
+            document.body.classList.add('kiosk-on');
+            grid.innerHTML = '';
+            tiles = KIOSK_TILES.map(function (build) { var t = build(); grid.appendChild(t.el); t.load(); return t; });
+            tick();
+            tickTimer = setInterval(tick, 20000);
+            try { history.replaceState(null, '', '#kiosk'); } catch (e) { /* ignore */ }
+            requestWake();
+            goFullscreen();   // only honoured from a tap; the first tap on the kiosk retries (below)
+        }
+        function close() {
+            if (!isOpen) return;
+            isOpen = false;
+            clearInterval(tickTimer);
+            root.hidden = true;
+            document.body.classList.remove('kiosk-on');
+            grid.innerHTML = ''; tiles = [];
+            try { if (wake) wake.release(); } catch (e) { /* ignore */ } wake = null;
+            try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* ignore */ }
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ }
+        }
+
+        var btn = document.getElementById('kioskBtn');
+        if (btn) btn.addEventListener('click', function () {
+            var menu = document.getElementById('topbarMenu'); if (menu) menu.removeAttribute('open');
+            open();
+        });
+        document.getElementById('kioskClose').addEventListener('click', close);
+        document.addEventListener('keydown', function (e) { if (isOpen && e.key === 'Escape' && !document.fullscreenElement) close(); });
+        root.addEventListener('click', function (e) { if (!e.target.closest('button')) goFullscreen(); });
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { requestWake(); if (isOpen) tick(); } });
+        // A wall tablet launched at index.php#kiosk comes straight back to the kiosk after a reload.
+        if (location.hash === '#kiosk') open();
     })();
 
     // ---------- Top-bar overflow menu (☰) ----------
