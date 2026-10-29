@@ -237,7 +237,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <button type="button" id="notifBtn" class="tm-item" data-icon="bell" hidden>Notifications</button>
                         <button type="button" id="appearanceBtn" class="tm-item" data-icon="palette">Appearance</button>
                         <button type="button" id="homeCardsBtn" class="tm-item" data-icon="star">Start cards</button>
-                        <button type="button" id="kioskBtn" class="tm-item" data-icon="maximize-2">Kiosk</button>
+                        <a class="tm-item" data-icon="maximize-2" href="kiosk.php">Kiosk</a>
                         <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false" data-icon="wrench">Developer mode</button>
 <?php if ($users->isAdmin((int) $session->userId())): ?>
 <?php endif; ?>
@@ -417,16 +417,8 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
         </form>
         </div><!-- /.workspace -->
     </div>
-    <!-- Kiosk view: a full-screen, always-on wall display (menu → Kiosk, or open index.php#kiosk). Tiles are built in app.js. -->
-    <div id="kiosk" class="kiosk" hidden aria-label="Kiosk">
-        <header class="kiosk-head">
-            <div class="kiosk-clock" id="kioskClock"></div>
-            <div class="kiosk-date" id="kioskDate"></div>
-            <button type="button" id="kioskClose" class="kiosk-close" aria-label="Close kiosk" title="Close kiosk"><span data-icon="x" data-icon-only></span></button>
-        </header>
-        <main class="kiosk-tiles" id="kioskTiles"></main>
-    </div>
     <script src="<?= asset('icons.js') ?>" defer></script>
+    <script src="<?= asset('power-chart.js') ?>" defer></script>
     <script src="<?= asset('app.js') ?>" defer></script>
 <?php endif; ?>
 </body>

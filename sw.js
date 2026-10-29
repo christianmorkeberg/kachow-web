@@ -13,6 +13,7 @@ const PENDING_KEY = '/__pending-open';
 const ASSETS = [
     '/assets/styles.css',
     '/assets/app.js',
+    '/assets/power-chart.js',
     '/assets/icons.js',
     '/assets/icon.svg',
     '/assets/icon-192.png',

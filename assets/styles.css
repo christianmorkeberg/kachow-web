@@ -3241,3 +3241,48 @@ body.kiosk-on { overflow: hidden; }
     .kp-chart .wch-svg { max-height: 62vh; }
     .kp-chart .wch-xlab, .kp-chart .wch-ylab { font-size: 11px; }
 }
+.kiosk-wide { grid-column: 1 / -1; }
+.kiosk-note { margin-top: 1vmin; font-size: clamp(12px, 2vmin, 20px); color: var(--warn); }
+.kiosk-note[hidden] { display: none; }
+.kiosk-warn { margin-top: 1vmin; font-size: clamp(12px, 2vmin, 20px); color: var(--warn); }
+.kiosk-close { display: inline-flex; align-items: center; justify-content: center; font-size: 28px; text-decoration: none; line-height: 1; }
+.kiosk-denied { max-width: 520px; margin: 18vh auto; padding: 0 20px; text-align: center; color: var(--text); }
+.kiosk-denied a { color: var(--accent); }
+
+/* Kiosk: lights (a big button per room) and thermostats (temperature now + target with − / +). Touch targets are large on purpose. */
+.kl-grid, .kt-grid { display: grid; gap: 1.4vmin; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
+.kl-room { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-2); padding: 1.2vmin; display: flex; flex-direction: column; gap: 1vmin; }
+.kl-room.is-on { border-color: var(--warn); background: rgba(251, 191, 36, .10); }
+.kl-main { display: flex; flex-direction: column; align-items: flex-start; gap: .4vmin; background: transparent; border: 0; color: var(--text); text-align: left; padding: 1vmin; min-height: 64px; cursor: pointer; border-radius: var(--radius-sm); }
+.kl-name { font-size: clamp(16px, 3vmin, 34px); font-weight: 700; }
+.kl-count { font-size: clamp(12px, 2vmin, 22px); color: var(--muted); }
+.kl-room.is-on .kl-count { color: var(--warn); }
+.kl-bri, .kt-ctl { display: flex; gap: 1vmin; align-items: center; }
+.kl-step { flex: 1; min-width: 56px; min-height: 56px; font-size: clamp(22px, 4vmin, 40px); background: var(--panel); border: 1px solid var(--border-strong); color: var(--text); border-radius: var(--radius-sm); cursor: pointer; }
+.kl-step:active { background: var(--accent-soft); }
+.kl-lights { display: flex; flex-wrap: wrap; gap: .8vmin; }
+.kl-chip { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); border-radius: 999px; padding: 1vmin 1.8vmin; min-height: 44px; font-size: clamp(12px, 2vmin, 20px); cursor: pointer; }
+.kl-chip.on { color: var(--warn); border-color: var(--warn); }
+.kt-box { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-2); padding: 1.4vmin; display: flex; flex-direction: column; gap: 1vmin; }
+.kt-box.has-error { opacity: .6; }
+.kt-name { font-size: clamp(14px, 2.4vmin, 26px); font-weight: 600; }
+.kt-main { display: flex; align-items: baseline; gap: 1.4vmin; flex-wrap: wrap; }
+.kt-cur { font-size: clamp(34px, 7vmin, 80px); font-weight: 800; font-variant-numeric: tabular-nums; }
+.kt-sub { font-size: clamp(12px, 1.9vmin, 20px); color: var(--muted); }
+.kt-target { flex: 2; text-align: center; font-size: clamp(14px, 2.6vmin, 28px); font-variant-numeric: tabular-nums; }
+.kt-target.pending { color: var(--accent); }
+.kt-err { color: var(--warn); font-size: clamp(13px, 2vmin, 22px); }
+/* Kiosk density: power on top, lights + heating below, all inside a 1280x800 screen. */
+.kiosk-clock { font-size: clamp(32px, 7vmin, 96px); }
+.kiosk-head { gap: 1.6vmin; }
+.kp-big { font-size: clamp(48px, 12vmin, 160px); }
+.kp-best-v { font-size: clamp(22px, 4.6vmin, 56px); }
+.kp-best { margin: 1vmin 0 .6vmin; }
+.kp-chart .wch-svg { max-height: 34vh; }
+.kl-bri .kl-step { min-height: 44px; font-size: clamp(20px, 3vmin, 30px); }
+.kl-main { min-height: 0; }
+.kt-cur { font-size: clamp(30px, 6vmin, 64px); }
+.kt-ctl .kl-step { min-height: 48px; }
+.kiosk { gap: 1.4vmin; padding: 1.6vmin 2.4vmin; }
+.kiosk-tiles { gap: 1.4vmin; }
+@media (min-width: 900px) and (orientation: landscape) { .kp-chart .wch-svg { max-height: 34vh; } }
