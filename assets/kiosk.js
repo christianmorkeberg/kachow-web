@@ -26,19 +26,43 @@
         });
     }
 
-    function tile(title, extraClass) {
+    var COMPACT = window.matchMedia('(max-width: 700px)');   // phones: a normal scrolling page, no fitting
+
+    /**
+     * A tile: title, body, note line. Everything inside the body is sized in em from the body's font-size, which is --k x a viewport unit; refit() starts
+     * at maxK and shrinks k until the content no longer overflows the body — so whatever a tile shows always fits the space the grid gave it.
+     * Call refit() after every render. A tile may set afterFit (e.g. the price chart draws itself at the size the fit left).
+     */
+    function tile(title, extraClass, maxK) {
         var t = el('section', 'kiosk-tile ' + (extraClass || ''));
         t.appendChild(el('div', 'kiosk-tile-title', title));
         var body = el('div', 'kiosk-tile-body');
         t.appendChild(body);
         var note = el('div', 'kiosk-note');
         t.appendChild(note);
-        return { el: t, body: body, note: function (msg) { note.textContent = msg || ''; note.hidden = !msg; } };
+        var api_ = {
+            el: t, body: body, afterFit: null,
+            note: function (msg) { note.textContent = msg || ''; note.hidden = !msg; api_.refit(); },
+            refit: function () {
+                if (COMPACT.matches) { body.style.removeProperty('--k'); if (api_.afterFit) api_.afterFit(); return; }
+                var k = maxK || 2;
+                for (var i = 0; i < 30; i++) {
+                    body.style.setProperty('--k', k.toFixed(3));
+                    if (body.scrollHeight <= body.clientHeight + 1 && body.scrollWidth <= body.clientWidth + 1) break;
+                    k *= 0.94;
+                    if (k < 0.3) break;
+                }
+                if (api_.afterFit) api_.afterFit();
+            }
+        };
+        allTiles.push(api_);
+        return api_;
     }
+    var allTiles = [];
 
     // ---- Electricity: price now, the cheapest coming stretch of N hours, the bars ahead ----
     function buildPowerTile() {
-        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide');
+        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide', 2.2), chartCard = null, chartBox = null;
         var data = null, loadedAt = 0, loadedHour = -1;
         var windowLen = parseInt(store('kioskPowerWindow'), 10); if (!(windowLen >= 1 && windowLen <= 6)) windowLen = 2;
         function hourNow() { return Math.floor(Date.now() / 3600000); }   // hour boundaries are the same in UTC and Danish time
@@ -52,6 +76,7 @@
 
         function render() {
             t.body.innerHTML = '';
+            chartBox = null; chartCard = null;
             if (!data) { t.body.textContent = da('Fetching prices…', 'Henter priser…'); return; }
             var card = data.card, hs = card.hours || [], nowSec = Date.now() / 1000, idx = -1;
             hs.forEach(function (h, i) { if (h.ts <= nowSec && nowSec < h.ts + 3600) idx = i; });   // by timestamp: the device's timezone does not matter
@@ -88,10 +113,17 @@
             });
             left.appendChild(chips);
 
-            var chart = el('div', 'kp-chart'); chart.innerHTML = PowerChart.svg(card, [640, 240]);
-            layout.appendChild(chart);
-            if (card.incomplete) t.body.appendChild(el('div', 'kiosk-warn', da('⚠ A tariff is missing — the price may be too low.', '⚠ En tarif mangler — prisen kan være for lav.')));
+            chartBox = el('div', 'kp-chart'); chartCard = card;
+            layout.appendChild(chartBox);
+            if (card.incomplete) t.note(da('⚠ A tariff is missing — the price may be too low.', '⚠ En tarif mangler — prisen kan være for lav.'));
+            t.refit();
         }
+        // The bars are drawn 1:1 at the size the layout left for them (so labels stay crisp), after every fit and resize.
+        t.afterFit = function () {
+            if (!chartBox || !chartCard || !chartBox.isConnected) return;
+            var w = Math.max(200, chartBox.clientWidth), h = Math.max(90, chartBox.clientHeight);
+            chartBox.innerHTML = PowerChart.svg(chartCard, [w, h], parseFloat(getComputedStyle(chartBox).fontSize) || 12).replace('<svg ', '<svg preserveAspectRatio="none" ');
+        };
 
         return {
             el: t.el, load: load,
@@ -105,7 +137,7 @@
 
     // ---- Lights: one big button per room (tap = all on / all off), brightness − / +, and the room's single lights as chips ----
     function buildLightsTile() {
-        var t = tile(da('Lights', 'Lys'));
+        var t = tile(da('Lights', 'Lys'), '', 1.5);
         var data = null, loadedAt = 0, busyUntil = 0;
         var STEP = 20;
 
@@ -170,6 +202,7 @@
             var g = el('div', 'kl-grid');
             rooms.forEach(function (r) { g.appendChild(roomEl(r)); });
             t.body.appendChild(g);
+            t.refit();
         }
 
         return {
@@ -180,7 +213,7 @@
 
     // ---- Thermostats: each valve's temperature now and its target with − / + (sent a moment after the last tap) ----
     function buildThermostatsTile() {
-        var t = tile(da('Heating', 'Varme'));
+        var t = tile(da('Heating', 'Varme'), '', 1.5);
         var rows = null, loadedAt = 0, busyUntil = 0, timers = {};
         function load() {
             loadedAt = Date.now();
@@ -230,6 +263,7 @@
                 g.appendChild(box);
             });
             t.body.appendChild(g);
+            t.refit();
         }
 
         return {
@@ -261,6 +295,8 @@
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { requestWake(); tick(); } });
     root.addEventListener('click', function (e) { if (!e.target.closest('button, a')) goFullscreen(); });
 
+    var resizeTimer = null;
+    window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { allTiles.forEach(function (t) { t.refit(); }); }, 150); });
     tiles = TILES.map(function (build) { var t = build(); grid.appendChild(t.el); t.load(); return t; });
     tick();
     setInterval(tick, 20000);

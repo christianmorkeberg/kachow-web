@@ -3207,82 +3207,77 @@ body.voice-on .vd-lang { font-size: 13px; }
 .pw-now { stroke: #fff; stroke-width: 1; stroke-dasharray: 2 2; opacity: .8; pointer-events: none; }
 .pw-best { margin: 2px 0 4px; font-size: 13px; font-weight: 600; color: var(--ok); }
 
-/* Kiosk view: full-screen wall display built from tiles (see initKiosk in app.js). Sizes follow the screen, not the card scale. */
-body.kiosk-on { overflow: hidden; }
-.kiosk { position: fixed; inset: 0; z-index: 100; background: var(--bg); color: var(--text); display: flex; flex-direction: column; padding: 2vmin 3vmin; gap: 2vmin; overflow: auto; }
-.kiosk[hidden] { display: none; }
-.kiosk-head { display: flex; align-items: baseline; gap: 2vmin; }
-.kiosk-clock { font-size: clamp(36px, 9vmin, 120px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-.kiosk-date { font-size: clamp(16px, 3vmin, 36px); color: var(--muted); text-transform: capitalize; }
-.kiosk-close { margin-left: auto; align-self: flex-start; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 999px; width: 44px; height: 44px; opacity: .45; cursor: pointer; }
+/* Kiosk (kiosk.php / assets/kiosk.js): a full-screen wall display. The page NEVER scrolls on a normal screen: the header is fixed-size, the tiles share the
+   rest of the height, and each tile's content is sized in em from one variable (--k) that kiosk.js shrinks until the tile's content fits (fit()).
+   So adding a tile or twelve more lights just makes everything a little smaller. Narrow screens (phones, <= 700px) fall back to a normal scrolling page. */
+body.kiosk-on { margin: 0; overflow: hidden; }
+.kiosk { position: fixed; inset: 0; height: 100vh; height: 100dvh; box-sizing: border-box; background: var(--bg); color: var(--text); display: flex; flex-direction: column; gap: 1.2vmin; padding: 1.6vmin 2vmin; overflow: hidden; }
+.kiosk-head { flex: none; display: flex; align-items: baseline; gap: 1.6vmin; }
+.kiosk-clock { font-size: clamp(26px, 6vmin, 90px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.kiosk-date { font-size: clamp(14px, 2.4vmin, 32px); color: var(--muted); text-transform: capitalize; }
+.kiosk-close { margin-left: auto; align-self: flex-start; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; font-size: 28px; line-height: 1; text-decoration: none; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 999px; opacity: .45; cursor: pointer; }
 .kiosk-close:hover, .kiosk-close:focus { opacity: 1; }
-.kiosk-tiles { flex: 1; display: grid; gap: 2vmin; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); align-content: start; }
-.kiosk-tile { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.2vmin 2.6vmin; min-width: 0; }
-.kiosk-tile-title { font-size: clamp(13px, 2vmin, 22px); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 1vmin; }
-.kp-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 2vmin; }
-.kp-big { font-size: clamp(56px, 16vmin, 200px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.kp-big.cheap { color: var(--ok); } .kp-big.mid { color: var(--accent); } .kp-big.dear { color: #f87171; }
-.kp-unit { font-size: clamp(16px, 3.4vmin, 40px); color: var(--muted); }
-.kp-best { margin: 1.6vmin 0 .8vmin; padding: 1.2vmin 1.8vmin; border-left: 4px solid var(--ok); background: rgba(52, 211, 153, .08); border-radius: 6px; }
-.kp-best-l { font-size: clamp(12px, 2vmin, 22px); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.kp-best-v { font-size: clamp(24px, 6vmin, 72px); font-weight: 700; color: var(--ok); line-height: 1.1; }
-.kp-best-s { font-size: clamp(14px, 2.6vmin, 30px); color: var(--text); }
-.kp-chips { display: flex; gap: 1vmin; margin: 1vmin 0; flex-wrap: wrap; }
-.kp-chip { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); border-radius: 999px; padding: .5vmin 2vmin; font-size: clamp(13px, 2.2vmin, 24px); cursor: pointer; }
-.kp-chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
-.kp-chart .wch-xlab, .kp-chart .wch-ylab { font-size: 13px; }
-.kp-warn { margin-top: 1vmin; font-size: clamp(12px, 2vmin, 20px); color: var(--warn); }
-.kp-layout { display: block; }
-.kp-chart { min-width: 0; }
-.kp-chart .wch-svg { max-height: 40vh; }
-/* Wide screens (a wall tablet / monitor): price + cheapest window on the left, the bars on the right, all inside the viewport. */
-@media (min-width: 900px) and (orientation: landscape) {
-    .kp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 3vmin; align-items: center; }
-    .kp-chart .wch-svg { max-height: 62vh; }
-    .kp-chart .wch-xlab, .kp-chart .wch-ylab { font-size: 11px; }
-}
+.kiosk-tiles { flex: 1; min-height: 0; display: grid; gap: 1.2vmin; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); }
+/* Wide screens: two equal columns, so two tiles side by side share the whole width (a tile with .kiosk-wide spans both). */
+@media (min-width: 1000px) { .kiosk-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .kiosk-wide { grid-column: 1 / -1; }
-.kiosk-note { margin-top: 1vmin; font-size: clamp(12px, 2vmin, 20px); color: var(--warn); }
+.kiosk-tile { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2vmin 1.6vmin; }
+.kiosk-tile-title { flex: none; font-size: clamp(11px, 1.6vmin, 20px); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: .6vmin; }
+.kiosk-tile-body { flex: 1; min-height: 0; overflow: hidden; position: relative; font-size: calc(var(--k, 1) * 2.2vmin); line-height: 1.2; }
+.kiosk-note, .kiosk-warn { flex: none; margin-top: .6vmin; font-size: clamp(11px, 1.7vmin, 18px); color: var(--warn); }
 .kiosk-note[hidden] { display: none; }
-.kiosk-warn { margin-top: 1vmin; font-size: clamp(12px, 2vmin, 20px); color: var(--warn); }
-.kiosk-close { display: inline-flex; align-items: center; justify-content: center; font-size: 28px; text-decoration: none; line-height: 1; }
 .kiosk-denied { max-width: 520px; margin: 18vh auto; padding: 0 20px; text-align: center; color: var(--text); }
 .kiosk-denied a { color: var(--accent); }
 
-/* Kiosk: lights (a big button per room) and thermostats (temperature now + target with − / +). Touch targets are large on purpose. */
-.kl-grid, .kt-grid { display: grid; gap: 1.4vmin; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
-.kl-room { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-2); padding: 1.2vmin; display: flex; flex-direction: column; gap: 1vmin; }
+/* power */
+.kp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 1.2em; height: 100%; }
+.kp-left { min-width: 0; }
+.kp-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .4em; }
+.kp-big { font-size: 4.6em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.kp-big.cheap { color: var(--ok); } .kp-big.mid { color: var(--accent); } .kp-big.dear { color: #f87171; }
+.kp-unit { font-size: 1.15em; color: var(--muted); }
+.kp-best { margin: .5em 0 .4em; padding: .4em .7em; border-left: .18em solid var(--ok); background: rgba(52, 211, 153, .08); border-radius: .3em; }
+.kp-best-l { font-size: .7em; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.kp-best-v { font-size: 1.9em; font-weight: 700; color: var(--ok); line-height: 1.1; }
+.kp-best-s { font-size: .95em; }
+.kp-chips { display: flex; gap: .4em; flex-wrap: wrap; }
+.kp-chip { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); border-radius: 999px; padding: .25em .9em; min-height: 2em; font-size: .8em; cursor: pointer; }
+.kp-chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.kp-chart { position: relative; min-width: 0; min-height: 5em; font-size: calc(var(--k, 1) * 1.5vmin); }
+.kp-chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kp-chart .wch-xlab, .kp-chart .wch-ylab { font-size: 1em; }
+@container (max-width: 640px) { .kp-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(5em, 1fr); } }
+
+/* lights + thermostats: big touch targets, sized in em */
+.kl-grid, .kt-grid { display: grid; gap: .5em; grid-template-columns: repeat(auto-fill, minmax(9.5em, 1fr)); }
+.kl-room { border: 1px solid var(--border); border-radius: .5em; background: var(--panel-2); padding: .4em; display: flex; flex-direction: column; gap: .35em; min-width: 0; }
 .kl-room.is-on { border-color: var(--warn); background: rgba(251, 191, 36, .10); }
-.kl-main { display: flex; flex-direction: column; align-items: flex-start; gap: .4vmin; background: transparent; border: 0; color: var(--text); text-align: left; padding: 1vmin; min-height: 64px; cursor: pointer; border-radius: var(--radius-sm); }
-.kl-name { font-size: clamp(16px, 3vmin, 34px); font-weight: 700; }
-.kl-count { font-size: clamp(12px, 2vmin, 22px); color: var(--muted); }
+.kl-main { display: flex; flex-direction: column; align-items: flex-start; gap: .1em; background: transparent; border: 0; color: var(--text); text-align: left; padding: .2em .3em; cursor: pointer; font: inherit; }
+.kl-name { font-size: 1.2em; font-weight: 700; }
+.kl-count { font-size: .8em; color: var(--muted); }
 .kl-room.is-on .kl-count { color: var(--warn); }
-.kl-bri, .kt-ctl { display: flex; gap: 1vmin; align-items: center; }
-.kl-step { flex: 1; min-width: 56px; min-height: 56px; font-size: clamp(22px, 4vmin, 40px); background: var(--panel); border: 1px solid var(--border-strong); color: var(--text); border-radius: var(--radius-sm); cursor: pointer; }
+.kl-bri, .kt-ctl { display: flex; gap: .35em; align-items: center; }
+.kl-step { flex: 1; min-width: 2em; min-height: 2em; font: inherit; font-size: 1.15em; background: var(--panel); border: 1px solid var(--border-strong); color: var(--text); border-radius: .4em; cursor: pointer; }
 .kl-step:active { background: var(--accent-soft); }
-.kl-lights { display: flex; flex-wrap: wrap; gap: .8vmin; }
-.kl-chip { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); border-radius: 999px; padding: 1vmin 1.8vmin; min-height: 44px; font-size: clamp(12px, 2vmin, 20px); cursor: pointer; }
+.kl-lights { display: flex; flex-wrap: wrap; gap: .3em; }
+.kl-chip { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); border-radius: 999px; padding: .15em .7em; min-height: 1.8em; font: inherit; font-size: .75em; cursor: pointer; }
 .kl-chip.on { color: var(--warn); border-color: var(--warn); }
-.kt-box { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-2); padding: 1.4vmin; display: flex; flex-direction: column; gap: 1vmin; }
+.kt-box { border: 1px solid var(--border); border-radius: .5em; background: var(--panel-2); padding: .5em; display: flex; flex-direction: column; gap: .35em; min-width: 0; }
 .kt-box.has-error { opacity: .6; }
-.kt-name { font-size: clamp(14px, 2.4vmin, 26px); font-weight: 600; }
-.kt-main { display: flex; align-items: baseline; gap: 1.4vmin; flex-wrap: wrap; }
-.kt-cur { font-size: clamp(34px, 7vmin, 80px); font-weight: 800; font-variant-numeric: tabular-nums; }
-.kt-sub { font-size: clamp(12px, 1.9vmin, 20px); color: var(--muted); }
-.kt-target { flex: 2; text-align: center; font-size: clamp(14px, 2.6vmin, 28px); font-variant-numeric: tabular-nums; }
+.kt-name { font-size: 1em; font-weight: 600; }
+.kt-main { display: flex; align-items: baseline; gap: .6em; flex-wrap: wrap; }
+.kt-cur { font-size: 2.4em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.kt-sub { font-size: .75em; color: var(--muted); }
+.kt-target { flex: 2; text-align: center; font-size: .95em; font-variant-numeric: tabular-nums; }
 .kt-target.pending { color: var(--accent); }
-.kt-err { color: var(--warn); font-size: clamp(13px, 2vmin, 22px); }
-/* Kiosk density: power on top, lights + heating below, all inside a 1280x800 screen. */
-.kiosk-clock { font-size: clamp(32px, 7vmin, 96px); }
-.kiosk-head { gap: 1.6vmin; }
-.kp-big { font-size: clamp(48px, 12vmin, 160px); }
-.kp-best-v { font-size: clamp(22px, 4.6vmin, 56px); }
-.kp-best { margin: 1vmin 0 .6vmin; }
-.kp-chart .wch-svg { max-height: 34vh; }
-.kl-bri .kl-step { min-height: 44px; font-size: clamp(20px, 3vmin, 30px); }
-.kl-main { min-height: 0; }
-.kt-cur { font-size: clamp(30px, 6vmin, 64px); }
-.kt-ctl .kl-step { min-height: 48px; }
-.kiosk { gap: 1.4vmin; padding: 1.6vmin 2.4vmin; }
-.kiosk-tiles { gap: 1.4vmin; }
-@media (min-width: 900px) and (orientation: landscape) { .kp-chart .wch-svg { max-height: 34vh; } }
+.kt-err { color: var(--warn); font-size: .9em; }
+
+/* Phones / narrow windows: a normal scrolling page, tiles stacked at their natural size. */
+@media (max-width: 700px) {
+    body.kiosk-on { overflow: auto; }
+    .kiosk { position: static; height: auto; overflow: visible; }
+    .kiosk-tiles { grid-auto-rows: auto; }
+    .kiosk-tile-body { overflow: visible; font-size: 2.6vmin; }
+    .kp-layout { grid-template-columns: 1fr; height: auto; }
+    .kp-chart { height: 38vw; }
+}

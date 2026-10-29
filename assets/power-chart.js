@@ -17,18 +17,37 @@ window.PowerChart = (function () {
         return isNaN(d) ? '' : d.toLocaleDateString(lang(), { weekday: 'short', day: 'numeric', month: 'short' });
     }
 
-    function svg(card, dims) {
+    /** A "nice" tick step (0.1 … 10 kr) giving about five gridlines up to maxV. */
+    function niceStep(maxV) {
+        var raw = maxV / 5, steps = [0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20];
+        for (var i = 0; i < steps.length; i++) if (steps[i] >= raw) return steps[i];
+        return 50;
+    }
+    function tickLabel(v, step) {
+        return step >= 1 ? String(Math.round(v)) : v.toLocaleString('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    }
+
+    /**
+     * dims = [width, height] in px (the viewBox, drawn 1:1); fontPx = the size of the axis labels (default 9) — the margins grow with it so
+     * the y-axis values always fit. The y axis runs from 0 to the next "nice" value above the highest price, with a labelled gridline at each step.
+     */
+    function svg(card, dims, fontPx) {
         var hs = card.hours || [], n = hs.length || 1;
-        var W = dims[0], H = dims[1], padL = 6, padR = 6, padT = 14, padB = 20;
+        var fp = fontPx || 9;
+        var W = dims[0], H = dims[1], padL = Math.round(fp * 2.7) + 4, padR = 6, padT = Math.round(fp * 1.3), padB = Math.round(fp * 2.1);
         var innerW = W - padL - padR, innerH = H - padT - padB, step = innerW / n;
         var vals = hs.map(function (h) { return +h.t || 0; });
-        var maxV = Math.max.apply(null, vals.concat([0.01])), lo = Math.min.apply(null, vals), hi = maxV;
+        var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals.concat([0.01]));
+        var tickStep = niceStep(hi), maxV = Math.ceil(hi / tickStep - 1e-9) * tickStep;
         function y(v) { return padT + (maxV - v) / maxV * innerH; }
         function tone(v) { var f = hi === lo ? 0 : (v - lo) / (hi - lo); return f < 0.34 ? 'cheap' : (f < 0.67 ? 'mid' : 'dear'); }
 
-        var out = '<line class="wch-grid" x1="' + padL + '" y1="' + padT + '" x2="' + (W - padR) + '" y2="' + padT + '"/>'
-            + '<text class="wch-ylab" x="' + padL + '" y="' + (padT - 3) + '">' + esc(fmt(maxV)) + '</text>'
-            + '<line class="wch-grid base" x1="' + padL + '" y1="' + (padT + innerH) + '" x2="' + (W - padR) + '" y2="' + (padT + innerH) + '"/>';
+        var out = '';
+        for (var tv = 0; tv <= maxV + 1e-9; tv += tickStep) {
+            var ty = y(tv).toFixed(1);
+            out += '<line class="wch-grid' + (tv === 0 ? ' base' : '') + '" x1="' + padL + '" y1="' + ty + '" x2="' + (W - padR) + '" y2="' + ty + '"/>'
+                + '<text class="wch-ylab" x="' + (padL - 4) + '" y="' + (+ty + fp * 0.35).toFixed(1) + '" text-anchor="end">' + esc(tickLabel(tv, tickStep)) + '</text>';
+        }
         var w = card.window;
         if (w && w.len > 0) {
             out += '<rect class="pw-window" x="' + (padL + step * w.from).toFixed(1) + '" y="' + (padT - 2) + '" width="' + (step * w.len).toFixed(1)
