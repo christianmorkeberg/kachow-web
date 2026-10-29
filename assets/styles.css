@@ -2122,7 +2122,7 @@ button.iconbtn.on {
 .wch-chart { margin: 6px 0 2px; }
 .wch-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .wch-grid { stroke: var(--border); stroke-width: 1; }
-.wch-grid.base { stroke: #33456b; }
+.wch-grid.base { stroke: var(--border-strong); }
 .wch-ylab, .wch-xlab { fill: var(--muted); font-size: 9px; }
 .wch-bar { fill: var(--accent); transition: fill .1s ease; }
 .wch-bar.ongoing { fill: #34d399; }
@@ -3200,11 +3200,11 @@ body.voice-on .vd-lang { font-size: 13px; }
 /* Electricity price card (get_power_prices): bars coloured by thirds of the range, now marker, cheapest-window band. */
 .pw-bar.cheap { fill: var(--ok); }
 .pw-bar.mid   { fill: var(--accent); }
-.pw-bar.dear  { fill: #f87171; }
-.pw-bar.now   { stroke: #fff; stroke-width: 1.2; }
-.pw-bar.sel   { stroke: #fff; stroke-width: 1.6; }
+.pw-bar.dear  { fill: var(--error); }
+.pw-bar.now   { stroke: var(--text-strong); stroke-width: 1.2; }
+.pw-bar.sel   { stroke: var(--text-strong); stroke-width: 1.6; }
 .pw-window { fill: rgba(52, 211, 153, .16); stroke: var(--ok); stroke-width: 1; stroke-dasharray: 3 2; }
-.pw-now { stroke: #fff; stroke-width: 1; stroke-dasharray: 2 2; opacity: .8; pointer-events: none; }
+.pw-now { stroke: var(--text-strong); stroke-width: 1; stroke-dasharray: 2 2; opacity: .8; pointer-events: none; }
 .pw-best { margin: 2px 0 4px; font-size: 13px; font-weight: 600; color: var(--ok); }
 
 /* Kiosk (kiosk.php / assets/kiosk.js): a full-screen wall display. The page NEVER scrolls on a normal screen: the header is fixed-size, the tiles share the
@@ -3234,7 +3234,7 @@ body.kiosk-on { margin: 0; overflow: hidden; }
 .kp-left { min-width: 0; }
 .kp-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .4em; }
 .kp-big { font-size: 4.6em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.kp-big.cheap { color: var(--ok); } .kp-big.mid { color: var(--accent); } .kp-big.dear { color: #f87171; }
+.kp-big.cheap { color: var(--ok); } .kp-big.mid { color: var(--accent); } .kp-big.dear { color: var(--error); }
 .kp-unit { font-size: 1.15em; color: var(--muted); }
 .kp-best { margin: .5em 0 .4em; padding: .4em .7em; border-left: .18em solid var(--ok); background: rgba(52, 211, 153, .08); border-radius: .3em; }
 .kp-best-l { font-size: .7em; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
@@ -3284,3 +3284,5 @@ body.kiosk-on { margin: 0; overflow: hidden; }
     .kp-layout { grid-template-columns: 1fr; height: auto; }
     .kp-chart { height: 38vw; }
 }
+/* Kiosk on the light looks: the default green / amber are too pale on white, so use stronger ones there. */
+:root[data-theme="paper"] .kiosk, :root[data-theme="lavender"] .kiosk, :root[data-theme="blush"] .kiosk { --ok: #059669; --warn: #b45309; --error: #dc2626; }

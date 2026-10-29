@@ -31,6 +31,23 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 
+// The user's saved look (Appearance setting, kept on the server) — so a kiosk device that never ran the app still shows it. 'auto' follows the device's light/dark.
+$theme = 'aurora';
+$dark  = 'aurora';
+$light = 'paper';
+if ($who !== null) {
+    try {
+        $settings = new \App\Data\UserSettings();
+        $valid    = static fn (mixed $v, string $fallback): string => in_array($v, \App\Data\UserSettings::THEMES, true) ? (string) $v : $fallback;
+        $saved    = (string) ($settings->get($who['user_id'], 'theme') ?? 'aurora');
+        $theme    = $saved === 'auto' ? 'auto' : $valid($saved, 'aurora');
+        $dark     = $valid($settings->get($who['user_id'], 'theme_dark'), 'aurora');
+        $light    = $valid($settings->get($who['user_id'], 'theme_light'), 'paper');
+    } catch (\Throwable $e) {
+        // keep the defaults: the look is cosmetic, never worth failing the page
+    }
+}
+
 function asset(string $path): string
 {
     $path = '/assets/' . ltrim($path, '/');
@@ -46,7 +63,7 @@ function asset(string $path): string
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <script>try{var t=localStorage.getItem('kachow-theme');if(t==='auto'){var dk=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches;t=localStorage.getItem(dk?'kachow-theme-dark':'kachow-theme-light')||(dk?'aurora':'paper');}if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}</script>
+    <script>(function(){var T=<?= json_encode($theme) ?>,D=<?= json_encode($dark) ?>,L=<?= json_encode($light) ?>,mq=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)');function apply(){document.documentElement.setAttribute('data-theme',T==='auto'?(mq&&mq.matches?D:L):T);}apply();if(T==='auto'&&mq&&mq.addEventListener)mq.addEventListener('change',apply);})();</script>
     <title>Kachow Kiosk</title>
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/assets/icon-192.png">

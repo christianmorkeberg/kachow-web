@@ -295,7 +295,10 @@
         clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
         dateEl.textContent = d.toLocaleDateString(DA ? 'da-DK' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
     }
-    function tick() { tickClock(); tiles.forEach(function (t) { try { t.tick(); } catch (e) { console.warn('kiosk tile:', e); } }); }
+    // An always-on display reloads itself once a night (04:00-04:59, at most once an hour), so it picks up new deploys and a changed look.
+    var startedAt = Date.now();
+    function nightlyReload() { if (Date.now() - startedAt > 3600000 && new Date().getHours() === 4) location.reload(); }
+    function tick() { nightlyReload(); tickClock(); tiles.forEach(function (t) { try { t.tick(); } catch (e) { console.warn('kiosk tile:', e); } }); }
 
     // Keep the screen awake, and ask for browser fullscreen (honoured only from a tap: the first tap anywhere retries).
     var wake = null;
