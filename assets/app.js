@@ -2425,13 +2425,64 @@
     }
 
     // Triggers a same-origin file download (session cookie is sent) without leaving the page.
+    // On iPhone/iPad a plain download link opens the file FULL SCREEN over the app with no way back (the installed app has no browser buttons), so
+    // there the file is fetched in the background and handed to the share sheet (Save to Files, AirDrop, …), which closes back to the app.
+    function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
     function downloadUrl(url) {
+        if (!isIOS()) { downloadLink(url, null); return; }
+        fetch(url, { credentials: 'same-origin' }).then(function (r) {
+            if (r.status === 401) { window.location.href = '/index.php'; return null; }
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.blob().then(function (blob) { return { blob: blob, name: fileNameFromResponse(r, url) }; });
+        }).then(function (o) { if (o) shareFileIOS(o.blob, o.name); })
+          .catch(function (e) { toast(daText('Could not download that file.', 'Kunne ikke hente filen.') + (e && e.message ? ' (' + e.message + ')' : '')); });
+    }
+    function downloadLink(href, name) {
         var a = document.createElement('a');
-        a.href = url;
+        a.href = href;
+        if (name) a.download = name;
         a.rel = 'noopener';
         document.body.appendChild(a);
         a.click();
         a.remove();
+    }
+    function fileNameFromResponse(r, url) {
+        var cd = r.headers.get('Content-Disposition') || '';
+        var m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);
+        if (m) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
+        return url.split('?')[0].split('/').pop() || 'download';
+    }
+    function shareFileIOS(blob, name) {
+        var file = null, types = [blob.type, 'text/plain'];   // some types (markdown) are refused by the share sheet: fall back to plain text
+        for (var i = 0; i < types.length && !file; i++) {
+            var f = new File([blob], name, { type: types[i] || 'application/octet-stream' });
+            if (navigator.canShare && navigator.canShare({ files: [f] })) file = f;
+        }
+        if (!file || !navigator.share) {   // no file sharing here: the in-app browser view (it has a Done button) rather than a screen with no exit
+            var u = URL.createObjectURL(blob), a = document.createElement('a');
+            a.href = u; a.target = '_blank'; a.rel = 'noopener';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+            return;
+        }
+        navigator.share({ files: [file] }).catch(function (e) {
+            if (e && e.name === 'AbortError') return;   // the user closed the sheet
+            savePrompt(file);                             // the tap was too long ago for iOS to allow sharing: ask for one more tap
+        });
+    }
+    function savePrompt(file) {
+        var bar = document.createElement('div');
+        bar.className = 'dl-prompt';
+        var label = document.createElement('span');
+        label.textContent = file.name;
+        var save = document.createElement('button');
+        save.type = 'button'; save.className = 'dl-save'; save.textContent = daText('Save', 'Gem');
+        save.addEventListener('click', function () { bar.remove(); navigator.share({ files: [file] }).catch(function () { /* closed */ }); });
+        var close = document.createElement('button');
+        close.type = 'button'; close.className = 'dl-close'; close.setAttribute('aria-label', daText('Close', 'Luk')); close.textContent = '×';
+        close.addEventListener('click', function () { bar.remove(); });
+        bar.appendChild(label); bar.appendChild(save); bar.appendChild(close);
+        document.body.appendChild(bar);
     }
 
     // Small standalone notice card (e.g. "Expense deleted") so a delete turn shows

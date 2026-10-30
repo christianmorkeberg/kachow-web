@@ -3245,3 +3245,9 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .pw-card .pw-nowtag-bg, .pw-card .pw-nowtag-tip { fill: var(--accent); }
 .pw-card .pw-nowtag-dot { fill: var(--accent-ink); fill-opacity: .55; }
 .pw-card .pw-nowtag-txt { fill: var(--accent-ink); font-size: 9px; font-weight: 600; letter-spacing: .04em; }
+
+/* iPhone download: shown when the share sheet needs one more tap (see downloadUrl in app.js). */
+.dl-prompt { position: fixed; left: 12px; right: 12px; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 90; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border-strong); font-size: 14px; }
+.dl-prompt span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-save { background: var(--accent); color: var(--accent-ink); border: 0; padding: 10px 18px; font-weight: 600; }
+.dl-close { background: transparent; border: 0; color: var(--muted); font-size: 22px; line-height: 1; padding: 6px 10px; }
