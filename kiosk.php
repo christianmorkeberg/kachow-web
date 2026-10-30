@@ -68,6 +68,7 @@ function asset(string $path): string
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/assets/icon-192.png">
     <link rel="stylesheet" href="<?= asset('styles.css') ?>">
+    <link rel="stylesheet" href="<?= asset('kiosk.css') ?>">
 </head>
 <body class="kiosk-on">
 <?php if ($who === null): ?>
@@ -81,7 +82,7 @@ function asset(string $path): string
             <div class="kiosk-clock" id="kioskClock"></div>
             <div class="kiosk-date" id="kioskDate"></div>
             <?php if ($who['via'] === 'session'): ?>
-                <a href="index.php" class="kiosk-close" id="kioskClose" aria-label="Back to Kachow" title="Back to Kachow">&times;</a>
+                <a href="index.php" class="kiosk-close" id="kioskClose" aria-label="Back to Kachow" title="Back to Kachow"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span></a>
             <?php endif; ?>
         </header>
         <main class="kiosk-tiles" id="kioskTiles"></main>

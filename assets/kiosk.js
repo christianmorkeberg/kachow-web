@@ -11,6 +11,24 @@
     function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
     function pad(n) { return (n < 10 ? '0' : '') + n; }
     function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { /* storage blocked */ } return null; }
+    // Line icons (24 x 24, drawn with the text colour): the kiosk uses these instead of words wherever it can.
+    var ICONS = {
+        bulb: 'M9 18h6M10 21.5h4M12 2.5a6.5 6.5 0 0 0-3.8 11.8c.5.4.8 1 .8 1.7v1h6v-1c0-.7.3-1.3.8-1.7A6.5 6.5 0 0 0 12 2.5z',
+        bolt: 'M13.5 2 4.5 14h6.5l-1 8 9-12.5h-6.5z',
+        flame: 'M12 2.5c.6 3.6 5.5 6 5.5 11.2a5.5 5.5 0 0 1-11 0c0-2.4 1.2-3.7 2.3-5 .3 1.6 1 2.5 1.9 3C10.5 8.6 11 5.5 12 2.5z',
+        minus: 'M5 12h14',
+        plus: 'M5 12h14M12 5v14',
+        close: 'M5 5l14 14M19 5L5 19',
+        off: 'M12 3v8.5M7 6.2a8 8 0 1 0 10 0',
+        check: 'M4.5 12.5l5 5 10-11'
+    };
+    function ico(name, cls) { var s = el('span', 'ic' + (cls ? ' ' + cls : '')); s.setAttribute('aria-hidden', 'true'); s.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + ICONS[name] + '"/></svg>'; return s; }
+    /** A flat icon-only button (label = tooltip + screen-reader name). */
+    function iconBtn(name, label, onClick, cls) {
+        var b = el('button', 'k-btn' + (cls ? ' ' + cls : '')); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); b.appendChild(ico(name));
+        if (onClick) b.addEventListener('click', onClick);
+        return b;
+    }
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
     /** JSON call to api/kiosk.php; throws Error(message) on a non-ok answer. A 401 (token revoked) reloads into the "not signed in" page. */
@@ -33,10 +51,13 @@
      * at maxK and shrinks k until the content no longer overflows the body — so whatever a tile shows always fits the space the grid gave it.
      * Call refit() after every render. A tile may set afterFit (e.g. the price chart draws itself at the size the fit left).
      */
-    function tile(title, extraClass, maxK) {
+    function tile(title, extraClass, maxK, icon) {
         var t = el('section', 'kiosk-tile ' + (extraClass || ''));
         var head = el('div', 'kiosk-tile-head');
-        head.appendChild(el('div', 'kiosk-tile-title', title));
+        var ttl = el('div', 'kiosk-tile-title');
+        if (icon) ttl.appendChild(ico(icon));
+        ttl.appendChild(el('span', '', title));
+        head.appendChild(ttl);
         var upd = el('div', 'kiosk-tile-upd');
         head.appendChild(upd);
         t.appendChild(head);
@@ -75,7 +96,7 @@
 
     // ---- Electricity: price now, the cheapest coming stretch of N hours, the bars ahead ----
     function buildPowerTile() {
-        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide', 2.2), chartCard = null, chartBox = null, lastWin = null, pendingAnim = { appear: true }, selIdx = null, selTimer = null, readout = el('div', 'kp-readout');
+        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide', 2.2, 'bolt'), chartCard = null, chartBox = null, lastWin = null, pendingAnim = { appear: true }, selIdx = null, selTimer = null, readout = el('div', 'kp-readout');
         var data = null, loadedAt = 0, loadedHour = -1;
         var windowLen = parseInt(store('kioskPowerWindow'), 10); if (!(windowLen >= 1 && windowLen <= 6)) windowLen = 2;
         function hourNow() { return Math.floor(Date.now() / 3600000); }   // hour boundaries are the same in UTC and Danish time
@@ -205,7 +226,7 @@
 
     // ---- Lights: one big button per room (tap = all on / all off), brightness − / +, and the room's single lights as chips ----
     function buildLightsTile() {
-        var t = tile(da('Lights', 'Lys'), '', 1.5);
+        var t = tile(da('Lights', 'Lys'), '', 1.5, 'bulb');
         var data = null, loadedAt = 0, busyUntil = 0;
         var STEP = 20;
 
@@ -268,7 +289,7 @@
             panel = el('div', 'kc-back');
             var box = el('div', 'kc-box'); panel.appendChild(box);
             var head = el('div', 'kc-head'); head.appendChild(el('div', 'kc-title', title));
-            var close = el('button', 'kc-x', '×'); close.type = 'button'; close.addEventListener('click', closePanel); head.appendChild(close); box.appendChild(head);
+            head.appendChild(iconBtn('close', da('Close', 'Luk'), closePanel, 'kc-x')); box.appendChild(head);
             panel.addEventListener('click', function (e) { if (e.target === panel) closePanel(); });
             function sendAll(body) {
                 busyUntil = Date.now() + 8000;
@@ -298,8 +319,8 @@
             }
             if (ct) row(da('White', 'Hvid'), slider(153, 500, 330, 'kc-white', function (v) { sendAll({ on: true, mirek: 653 - v }); }));   // left = warm (high mirek), right = cool
             var foot = el('div', 'kc-foot');
-            var off = el('button', 'kc-btn', da('Off', 'Sluk')); off.type = 'button'; off.addEventListener('click', function () { if (group) api('', { action: 'group', id: group, on: false }); else sendAll({ on: false }); closePanel(); });
-            var done = el('button', 'kc-btn kc-done', da('Done', 'Færdig')); done.type = 'button'; done.addEventListener('click', closePanel);
+            var off = el('button', 'kc-btn'); off.type = 'button'; off.appendChild(ico('off')); off.appendChild(el('span', '', da('Off', 'Sluk'))); off.addEventListener('click', function () { if (group) api('', { action: 'group', id: group, on: false }); else sendAll({ on: false }); closePanel(); });
+            var done = el('button', 'kc-btn kc-done'); done.type = 'button'; done.appendChild(ico('check')); done.appendChild(el('span', '', da('Done', 'Færdig'))); done.addEventListener('click', closePanel);
             foot.appendChild(off); foot.appendChild(done); box.appendChild(foot);
             root.appendChild(panel);
         }
@@ -307,27 +328,31 @@
         function roomEl(r) {
             var on = r.lights.filter(function (l) { return l.on; }).length;
             var box = el('div', 'kl-room' + (r.on ? ' is-on' : ''));
-            var main = el('button', 'kl-main'); main.type = 'button';
-            main.appendChild(el('span', 'kl-name', r.name));
-            main.appendChild(el('span', 'kl-count', r.on ? on + '/' + r.lights.length + (r.brightness != null ? ' · ' + r.brightness + '%' : '') : da('off', 'slukket')));
+            // The whole top row is the switch: tap = room on / off, hold = colours.
+            var main = el('button', 'kl-main'); main.type = 'button'; main.setAttribute('aria-pressed', r.on ? 'true' : 'false');
+            main.appendChild(ico('bulb'));
+            var txt = el('span', 'kl-txt');
+            txt.appendChild(el('span', 'kl-name', r.name));
+            txt.appendChild(el('span', 'kl-count', r.on ? on + '/' + r.lights.length + (r.brightness != null ? ' · ' + r.brightness + '%' : '') : da('off', 'slukket')));
+            main.appendChild(txt);
             pressable(main, function () { roomOn(r, !r.on); }, function () { openPanel(r.name, r.lights, r.group_id); });
             box.appendChild(main);
-            if (r.lights.some(function (l) { return l.dim; })) {
-                var bri = el('div', 'kl-bri');
-                var dn = el('button', 'kl-step', '−'), up = el('button', 'kl-step', '+'); dn.type = up.type = 'button';
-                dn.addEventListener('click', function () { roomBri(r, -STEP); }); up.addEventListener('click', function () { roomBri(r, STEP); });
-                bri.appendChild(dn); bri.appendChild(up); box.appendChild(bri);
-            }
+            var tools = el('div', 'kl-tools');
             if (r.lights.length > 1) {
-                var row = el('div', 'kl-lights');
                 r.lights.forEach(function (l) {
-                    var c = el('button', 'kl-chip' + (l.on ? ' on' : ''), l.name); c.type = 'button';
-                    if (l.on && l.hex) { var dot = el('span', 'kl-dot'); dot.style.background = l.hex; c.insertBefore(dot, c.firstChild); }
+                    var c = el('button', 'kl-lamp' + (l.on ? ' on' : '')); c.type = 'button'; c.title = l.name; c.setAttribute('aria-pressed', l.on ? 'true' : 'false');
+                    var ic = ico('bulb'); if (l.on && l.hex) ic.style.color = l.hex;
+                    c.appendChild(ic); c.appendChild(el('span', 'nm', l.name));
                     pressable(c, function () { lightToggle(l); }, function () { openPanel(l.name, [l], null); });
-                    row.appendChild(c);
+                    tools.appendChild(c);
                 });
-                box.appendChild(row);
             }
+            if (r.lights.some(function (l) { return l.dim; })) {
+                tools.appendChild(el('span', 'kl-sp'));
+                tools.appendChild(iconBtn('minus', da('Dimmer', 'Dæmp'), function () { roomBri(r, -STEP); }));
+                tools.appendChild(iconBtn('plus', da('Brighter', 'Lysere'), function () { roomBri(r, STEP); }));
+            }
+            if (tools.childNodes.length) box.appendChild(tools);
             return box;
         }
 
@@ -350,7 +375,7 @@
 
     // ---- Thermostats: each valve's temperature now and its target with − / + (sent a moment after the last tap) ----
     function buildThermostatsTile() {
-        var t = tile(da('Heating', 'Varme'), '', 1.5);
+        var t = tile(da('Heating', 'Varme'), '', 1.5, 'flame');
         var rows = null, loadedAt = 0, busyUntil = 0, timers = {};
         function load() {
             loadedAt = Date.now();
@@ -380,8 +405,9 @@
             if (!rows.length) { t.body.textContent = da('No thermostats set up.', 'Ingen termostater sat op.'); return; }
             var g = el('div', 'kt-grid');
             rows.forEach(function (r) {
-                var box = el('div', 'kt-box' + (r.error ? ' has-error' : ''));
-                box.appendChild(el('div', 'kt-name', r.name));
+                var heating = !r.error && r.valve_open_pct > 0;
+                var box = el('div', 'kt-box' + (r.error ? ' has-error' : '') + (heating ? ' heating' : ''));
+                var nm = el('div', 'kt-name'); nm.appendChild(ico('flame')); nm.appendChild(el('span', '', r.name)); box.appendChild(nm);
                 if (r.error) { box.appendChild(el('div', 'kt-err', da('Not answering', 'Svarer ikke'))); g.appendChild(box); return; }
                 var main = el('div', 'kt-main');
                 main.appendChild(el('span', 'kt-cur', fmtC(r.current_c) + '°'));
@@ -391,11 +417,9 @@
                 main.appendChild(el('span', 'kt-sub', sub.join(' · ')));
                 box.appendChild(main);
                 var ctl = el('div', 'kt-ctl');
-                var dn = el('button', 'kl-step', '−'), up = el('button', 'kl-step', '+'); dn.type = up.type = 'button';
-                dn.addEventListener('click', function () { setTarget(r, -0.5); }); up.addEventListener('click', function () { setTarget(r, 0.5); });
-                ctl.appendChild(dn);
-                ctl.appendChild(el('span', 'kt-target' + (r.pending != null ? ' pending' : ''), da('target ', 'mål ') + fmtC(r.pending != null ? r.pending : r.target_c) + '°'));
-                ctl.appendChild(up);
+                ctl.appendChild(iconBtn('minus', da('Colder', 'Koldere'), function () { setTarget(r, -0.5); }));
+                ctl.appendChild(el('span', 'kt-target' + (r.pending != null ? ' pending' : ''), fmtC(r.pending != null ? r.pending : r.target_c) + '°'));
+                ctl.appendChild(iconBtn('plus', da('Warmer', 'Varmere'), function () { setTarget(r, 0.5); }));
                 box.appendChild(ctl);
                 g.appendChild(box);
             });

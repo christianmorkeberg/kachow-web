@@ -1,0 +1,163 @@
+/* The kiosk (kiosk.php / kiosk.js): a full-screen wall display. Loaded after styles.css, which still supplies the theme and the shared chart classes.
+   LOOK: sharp corners everywhere, flat pastel colour instead of outlined boxes, thin hairlines instead of cards, icons instead of words.
+   FIT:  the page NEVER scrolls on a normal screen. The header is fixed-size, the tiles share the rest of the height, and a tile's content is sized in em
+   from one variable (--k) that kiosk.js shrinks until the content fits. Phones (<= 700px) fall back to a normal scrolling page. */
+
+/* ---- palette: dark themes get a calm charcoal, the light themes (paper, lavender, blush) a warm off-white; both use the same six pastels ---- */
+.kiosk {
+    --k-bg: #15181d; --k-ink: #e8ebf0; --k-mute: #8b94a3; --k-line: rgba(255, 255, 255, .13); --k-wash: rgba(255, 255, 255, .06); --k-press: rgba(255, 255, 255, .14);
+    --k-mint: #8fdcb9; --k-sky: #93c8f4; --k-butter: #f6dc8c; --k-peach: #f6b99b; --k-rose: #f3a6bb; --k-lilac: #c4b4f2;
+    --k-on-pastel: #1d2128;
+    /* the same hues, deep enough to read as text on a light page */
+    --k-t-mint: var(--k-mint); --k-t-sky: var(--k-sky); --k-t-butter: var(--k-butter); --k-t-peach: var(--k-peach); --k-t-rose: var(--k-rose); --k-t-lilac: var(--k-lilac);
+}
+:root[data-theme="paper"] .kiosk, :root[data-theme="lavender"] .kiosk, :root[data-theme="blush"] .kiosk {
+    --k-bg: #f7f5f0; --k-ink: #2a2e35; --k-mute: #767d89; --k-line: rgba(30, 35, 45, .16); --k-wash: rgba(30, 35, 45, .055); --k-press: rgba(30, 35, 45, .14);
+    --k-mint: #a6e3c6; --k-sky: #a9d3f6; --k-butter: #f8e3a0; --k-peach: #f8c7ae; --k-rose: #f5b7c8; --k-lilac: #d3c7f5;
+    --k-t-mint: #2d936a; --k-t-sky: #2f7bbf; --k-t-butter: #a97a0c; --k-t-peach: #cc5e28; --k-t-rose: #cc3f6a; --k-t-lilac: #7458cc;
+}
+
+body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
+:root[data-theme="paper"] body.kiosk-on, :root[data-theme="lavender"] body.kiosk-on, :root[data-theme="blush"] body.kiosk-on { background: #f7f5f0; }
+.kiosk, .kiosk * { border-radius: 0; box-shadow: none; }
+.kiosk { position: fixed; inset: 0; height: 100vh; height: 100dvh; box-sizing: border-box; background: var(--k-bg); color: var(--k-ink); display: flex; flex-direction: column; gap: 1.6vmin; padding: 2vmin 2.6vmin; overflow: hidden; font-weight: 400; }
+.kiosk button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+/* icons: one stroke weight, square ends, they take the colour of the text around them */
+.ic { display: inline-flex; flex: none; width: 1.2em; height: 1.2em; }
+.ic svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: square; stroke-linejoin: miter; overflow: visible; }
+
+/* ---- header ---- */
+.kiosk-head { flex: none; display: flex; align-items: baseline; gap: 1.6vmin; }
+.kiosk-clock { font-size: clamp(30px, 7vmin, 104px); font-weight: 200; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.kiosk-date { font-size: clamp(14px, 2.4vmin, 32px); color: var(--k-mute); text-transform: capitalize; font-weight: 300; }
+.kiosk-close { margin-left: auto; align-self: flex-start; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: var(--k-mute); background: transparent; border: 0; opacity: .5; text-decoration: none; }
+.kiosk-close:hover, .kiosk-close:focus { opacity: 1; background: var(--k-wash); }
+.kiosk-close .ic { width: 22px; height: 22px; }
+
+/* ---- tiles: no cards; a hairline above each one and plenty of air ---- */
+.kiosk-tiles { flex: 1; min-height: 0; display: grid; gap: 2vmin 3.2vmin; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); }
+@media (min-width: 1000px) { .kiosk-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kiosk-wide { grid-column: 1 / -1; }
+.kiosk-tile { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; background: transparent; border: 0; border-top: 1px solid var(--k-line); padding: 1.4vmin 0 0; }
+.kiosk-tile-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 1vmin; margin-bottom: 1vmin; }
+.kiosk-tile-title { display: flex; align-items: center; gap: .6em; font-size: clamp(11px, 1.6vmin, 20px); text-transform: uppercase; letter-spacing: .14em; color: var(--k-mute); font-weight: 500; }
+.kiosk-tile-title .ic { width: 1.5em; height: 1.5em; }
+.kiosk-tile-upd { font-size: clamp(10px, 1.4vmin, 16px); color: var(--k-mute); opacity: .8; font-variant-numeric: tabular-nums; }
+.kiosk-tile-upd.stale { color: var(--k-t-peach); opacity: 1; }
+.kiosk-tile-body { flex: 1; min-height: 0; overflow: hidden; position: relative; font-size: calc(var(--k, 1) * 2.2vmin); line-height: 1.2; }
+.kiosk-note { flex: none; margin-top: .6vmin; font-size: clamp(11px, 1.7vmin, 18px); color: var(--k-t-peach); }
+.kiosk-note[hidden] { display: none; }
+.kiosk-denied { max-width: 520px; margin: 18vh auto; padding: 0 20px; text-align: center; color: var(--text); }
+.kiosk-denied a { color: var(--accent); }
+
+/* ---- shared small controls: a flat square icon button, tinted only while pressed ---- */
+.k-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2.2em; min-height: 2.2em; padding: 0; background: transparent; border: 0; color: var(--k-ink); touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.k-btn:hover { background: var(--k-wash); }
+.k-btn:active { background: var(--k-press); }
+.k-btn .ic { width: 1.1em; height: 1.1em; }
+
+/* ---- electricity ---- */
+.kp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 2.4em; height: 100%; }
+.kp-left { min-width: 0; display: flex; flex-direction: column; gap: .7em; }
+.kp-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .4em; }
+.kp-big { font-size: 4.8em; font-weight: 200; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.kp-big.cheap { color: var(--k-t-mint); } .kp-big.mid { color: var(--k-t-butter); } .kp-big.dear { color: var(--k-t-rose); }
+.kp-unit { font-size: 1.05em; color: var(--k-mute); font-weight: 300; }
+.kp-best { padding: 0 0 0 .8em; border-left: 3px solid var(--k-mint); }
+.kp-best-l { font-size: .68em; color: var(--k-mute); text-transform: uppercase; letter-spacing: .14em; }
+.kp-best-v { font-size: 1.9em; font-weight: 300; color: var(--k-t-mint); line-height: 1.1; }
+.kp-best-s { font-size: .9em; color: var(--k-mute); }
+/* the window length is a row of plain labels; the chosen one is a pastel block */
+.kp-chips { display: flex; flex-wrap: wrap; gap: 0; }
+.kp-chip { background: transparent; border: 0; color: var(--k-mute); padding: .35em .85em; min-height: 2.2em; font-size: .8em; letter-spacing: .04em; touch-action: manipulation; }
+.kp-chip:hover { background: var(--k-wash); }
+.kp-chip.on { background: var(--k-mint); color: var(--k-on-pastel); font-weight: 600; }
+.kp-chart { position: relative; min-width: 0; min-height: 5em; font-size: calc(var(--k, 1) * 1.5vmin); }
+.kp-chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kp-chart .wch-xlab, .kp-chart .wch-ylab { font-size: 1em; fill: var(--k-mute); }
+.kp-chart .wch-grid { stroke: var(--k-line); }
+.kp-chart .wch-grid.base { stroke: var(--k-mute); opacity: .6; }
+.kp-chart .wch-hit { cursor: pointer; }
+.kp-chart rect { rx: 0; ry: 0; }
+.kp-chart .pw-bar.cheap { fill: var(--k-mint); } .kp-chart .pw-bar.mid { fill: var(--k-butter); } .kp-chart .pw-bar.dear { fill: var(--k-rose); }
+.kp-chart .pw-bar.now, .kp-chart .pw-bar.sel { stroke: var(--k-ink); stroke-width: 1.6; }
+.kp-chart .pw-window { fill: var(--k-mint); fill-opacity: .16; stroke: var(--k-mint); stroke-width: 1.4; stroke-dasharray: none; }
+.kp-chart .pw-now { stroke: var(--k-ink); stroke-dasharray: 2 3; opacity: .7; }
+.kp-readout { position: absolute; top: 0; right: 0; z-index: 2; pointer-events: none; background: var(--k-ink); color: var(--k-bg); padding: .25em .7em; font-size: 1.05em; white-space: nowrap; }
+.kp-readout-s { opacity: .65; font-size: .8em; }
+@container (max-width: 640px) { .kp-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(5em, 1fr); gap: 1em; } }
+
+/* ---- lights: a room is ONE flat block (pastel while on, a faint wash while off); inside it only icons and text, no further boxes ---- */
+.kl-grid, .kt-grid { display: grid; gap: .7em; grid-template-columns: repeat(auto-fill, minmax(11em, 1fr)); }
+.kl-room { background: var(--k-wash); padding: .5em .6em .4em; display: flex; flex-direction: column; gap: .25em; min-width: 0; transition: background .25s ease; }
+.kl-room.is-on { background: var(--k-butter); color: var(--k-on-pastel); }
+.kl-main { display: flex; align-items: center; gap: .6em; width: 100%; background: transparent; border: 0; color: inherit; text-align: left; padding: .15em 0; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.kl-main .ic { width: 1.9em; height: 1.9em; opacity: .55; }
+.kl-room.is-on .kl-main .ic { opacity: 1; }
+.kl-room.is-on .kl-main .ic svg { fill: currentColor; fill-opacity: .22; }
+.kl-txt { display: flex; flex-direction: column; min-width: 0; }
+.kl-name { font-size: 1.15em; font-weight: 500; line-height: 1.15; }
+.kl-count { font-size: .78em; color: var(--k-mute); }
+.kl-room.is-on .kl-count { color: inherit; opacity: .7; }
+.kl-tools { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 .1em; }
+.kl-tools .k-btn { color: inherit; min-width: 2em; min-height: 2em; }
+.kl-room:not(.is-on) .kl-tools .k-btn { color: var(--k-mute); }
+.kl-tools .kl-sp { flex: 1; }
+.kl-room.is-on .k-btn:hover { background: rgba(0, 0, 0, .07); } .kl-room.is-on .k-btn:active { background: rgba(0, 0, 0, .15); }
+/* a single lamp: icon over name; its own colour shows in the icon while it is on */
+.kl-lamp { display: inline-flex; flex-direction: column; align-items: center; gap: .05em; min-width: 2.6em; padding: .3em .3em .25em; background: transparent; border: 0; color: inherit; font-size: .75em; line-height: 1.1; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.kl-lamp .ic { width: 1.7em; height: 1.7em; opacity: .5; }
+.kl-lamp.on .ic { opacity: 1; }
+.kl-lamp.on .ic svg { fill: currentColor; fill-opacity: .35; }
+.kl-lamp span.nm { max-width: 4.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kl-room.is-on .kl-lamp:hover { background: rgba(0, 0, 0, .07); }
+.kl-room:not(.is-on) .kl-lamp:hover { background: var(--k-wash); }
+
+/* ---- heating: no boxes at all, a hairline to the left of each reading ---- */
+.kt-grid { grid-template-columns: repeat(auto-fill, minmax(10.5em, 1fr)); gap: .7em 0; }
+.kt-box { padding: .1em .9em .1em .9em; border-left: 1px solid var(--k-line); display: flex; flex-direction: column; gap: .2em; min-width: 0; }
+.kt-box.has-error { opacity: .55; }
+.kt-name { display: flex; align-items: center; gap: .4em; font-size: .95em; color: var(--k-mute); }
+.kt-name .ic { width: 1.1em; height: 1.1em; }
+.kt-box.heating .kt-name { color: var(--k-t-peach); }
+.kt-main { display: flex; align-items: baseline; gap: .6em; flex-wrap: wrap; }
+.kt-cur { font-size: 2.7em; font-weight: 200; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.kt-box.heating .kt-cur { color: var(--k-t-peach); }
+.kt-sub { font-size: .72em; color: var(--k-mute); }
+.kt-ctl { display: flex; align-items: center; gap: .1em; }
+.kt-target { flex: 1; text-align: center; font-size: .9em; color: var(--k-mute); font-variant-numeric: tabular-nums; }
+.kt-target.pending { color: var(--k-t-sky); font-weight: 600; }
+.kt-err { color: var(--k-t-peach); font-size: .9em; }
+
+/* ---- the colour panel (hold a lamp or room) ---- */
+.kc-back { position: fixed; inset: 0; z-index: 50; background: rgba(10, 12, 16, .55); display: flex; align-items: center; justify-content: center; padding: 2vmin; }
+.kc-box { width: min(92vw, 640px); max-height: 92vh; overflow: auto; background: var(--k-bg); color: var(--k-ink); padding: 2.6vmin 3vmin; font-size: clamp(15px, 2.6vmin, 26px); display: flex; flex-direction: column; gap: 2vmin; }
+.kc-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--k-line); padding-bottom: 1vmin; }
+.kc-title { font-size: 1.3em; font-weight: 300; }
+.kc-x { color: var(--k-mute); }
+.kc-row { display: flex; flex-direction: column; gap: .4em; }
+.kc-label { font-size: .7em; text-transform: uppercase; letter-spacing: .14em; color: var(--k-mute); }
+.kc-swatches { display: flex; gap: .4em; flex-wrap: wrap; }
+.kc-sw { width: 2.3em; height: 2.3em; border: 0; }
+.kc-sw:active { outline: 2px solid var(--k-ink); outline-offset: 2px; }
+.kc-slider { width: 100%; height: 2.2em; accent-color: var(--k-sky); }
+.kc-hue, .kc-white { -webkit-appearance: none; appearance: none; height: .9em; }
+.kc-hue { background: linear-gradient(90deg, #f7a3a3, #f6d58b, #aee6b0, #9fe0e0, #9fbdf4, #d3a9f0, #f7a3a3); }
+.kc-white { background: linear-gradient(90deg, #ffc98a, #fff4e5, #cfe3ff); }
+.kc-hue::-webkit-slider-thumb, .kc-white::-webkit-slider-thumb { -webkit-appearance: none; width: 1em; height: 1.8em; background: var(--k-ink); border: 2px solid var(--k-bg); }
+.kc-hue::-moz-range-thumb, .kc-white::-moz-range-thumb { width: 1em; height: 1.8em; border-radius: 0; background: var(--k-ink); border: 2px solid var(--k-bg); }
+.kc-foot { display: flex; gap: .4em; justify-content: flex-end; }
+.kc-btn { display: inline-flex; align-items: center; gap: .5em; min-height: 2.6em; padding: 0 1.3em; background: var(--k-wash); border: 0; }
+.kc-btn:active { background: var(--k-press); }
+.kc-done { background: var(--k-mint); color: var(--k-on-pastel); font-weight: 600; }
+
+/* ---- phones / narrow windows: a normal scrolling page, tiles stacked at their natural size ---- */
+@media (max-width: 700px) {
+    body.kiosk-on { overflow: auto; }
+    .kiosk { position: static; height: auto; overflow: visible; }
+    .kiosk-tiles { grid-auto-rows: auto; }
+    .kiosk-tile-body { overflow: visible; font-size: 2.6vmin; }
+    .kp-layout { grid-template-columns: 1fr; height: auto; }
+    .kp-chart { height: 38vw; }
+}
