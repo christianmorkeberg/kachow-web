@@ -96,14 +96,14 @@
 
     // ---- Electricity: price now, the cheapest coming stretch of N hours, the bars ahead ----
     function buildPowerTile() {
-        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide', 2.2, 'bolt'), chartCard = null, chartBox = null, lastWin = null, pendingAnim = { appear: true }, selIdx = null, selTimer = null, readout = el('div', 'kp-readout');
+        var t = tile(da('Electricity', 'Elpris'), 'kiosk-wide', 1.6, 'bolt'), chartCard = null, chartBox = null, lastWin = null, pendingAnim = { appear: true }, selIdx = null, selTimer = null, readout = el('div', 'kp-readout');
         var data = null, loadedAt = 0, loadedHour = -1;
-        var windowLen = parseInt(store('kioskPowerWindow'), 10); if (!(windowLen >= 1 && windowLen <= 6)) windowLen = 2;
+        var windowLen = 3;   // the cheapest stretch is always 3 h (dishwasher / washer length); no selector
         function hourNow() { return Math.floor(Date.now() / 3600000); }   // hour boundaries are the same in UTC and Danish time
 
         function load() {
             loadedAt = Date.now();
-            api('?part=power')
+            api('?part=power&window=3&last_hours=36')
                 .then(function (j) { data = j; loadedHour = hourNow(); t.updated(Date.now(), 15 * 60000); t.note(''); render(); })
                 .catch(function (e) { console.warn('kiosk power:', e); t.note(da('Could not refresh the prices — showing the last ones.', 'Kunne ikke opdatere priserne — viser de sidste.')); render(); });
         }
@@ -159,19 +159,6 @@
             }
             left.appendChild(best);
 
-            var chips = el('div', 'kp-chips');
-            [1, 2, 3, 4, 6].forEach(function (n) {
-                var b = el('button', 'kp-chip' + (n === windowLen ? ' on' : ''), n + da(' h', ' t')); b.type = 'button';
-                b.addEventListener('click', function () {
-                    if (n === windowLen) return;
-                    pendingAnim = lastWin ? { prev: lastWin } : { appear: true };
-                    windowLen = n; store('kioskPowerWindow', String(n));
-                    render();
-                });
-                chips.appendChild(b);
-            });
-            left.appendChild(chips);
-
             chartBox = el('div', 'kp-chart'); chartCard = card;
             // Tap a bar -> its hour, all-in price and the spot part, for a few seconds (kept across the 20 s redraws).
             chartBox.addEventListener('click', function (e) {
@@ -203,7 +190,7 @@
         t.afterFit = function () {
             if (!chartBox || !chartCard || !chartBox.isConnected) return;
             var w = Math.max(200, chartBox.clientWidth), h = Math.max(90, chartBox.clientHeight);
-            chartBox.innerHTML = PowerChart.svg(chartCard, [w, h], parseFloat(getComputedStyle(chartBox).fontSize) || 12).replace('<svg ', '<svg preserveAspectRatio="none" ');
+            chartBox.innerHTML = PowerChart.svg(chartCard, [w, h], parseFloat(getComputedStyle(chartBox).fontSize) || 12, { nowLabel: da('now', 'nu') }).replace('<svg ', '<svg preserveAspectRatio="none" ');
             animateWindow();
             var hs = chartCard.hours || [], sel = selIdx != null ? hs[selIdx] : null;
             if (sel) {
@@ -407,7 +394,7 @@
             rows.forEach(function (r) {
                 var heating = !r.error && r.valve_open_pct > 0;
                 var box = el('div', 'kt-box' + (r.error ? ' has-error' : '') + (heating ? ' heating' : ''));
-                var nm = el('div', 'kt-name'); nm.appendChild(ico('flame')); nm.appendChild(el('span', '', r.name)); box.appendChild(nm);
+                box.appendChild(el('div', 'kt-name', r.name));
                 if (r.error) { box.appendChild(el('div', 'kt-err', da('Not answering', 'Svarer ikke'))); g.appendChild(box); return; }
                 var main = el('div', 'kt-main');
                 main.appendChild(el('span', 'kt-cur', fmtC(r.current_c) + '°'));

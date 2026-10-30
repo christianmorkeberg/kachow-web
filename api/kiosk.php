@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Data + controls for the kiosk (kiosk.php, the full-screen wall display). Signed in as a user (session) OR as a kiosk device (the cookie that
  * kiosk.php?t=… sets; api_tokens scope 'kiosk') — see App\Auth\KioskAccess. A kiosk device can ONLY use this endpoint, nothing else in the app.
  *
- *   GET  ?part=power[&window=2]   → { ok, card, price_now, window }  electricity price card (all-in kr/kWh per hour, now marker, cheapest N-hour stretch; N 1–6)
+ *   GET  ?part=power[&window=3&last_hours=36]   → { ok, card, price_now, window }  electricity price card (all-in kr/kWh per hour, now marker, cheapest N-hour stretch; N 1–6)
  *   GET  ?part=lights             → as api/home.php (rooms, other lights, thermostats_known)
  *   GET  ?part=thermostats        → as api/home.php (each valve's numbers)
  *   POST { action:'light'|'group'|'thermostat', … }  → as api/home.php (Home\HomeEndpoint does the work for both)
@@ -45,8 +45,9 @@ try {
     $part   = (string) ($_GET['part'] ?? '');
 
     if (!$isPost && $part === 'power') {
-        $window = max(1, min(6, (int) ($_GET['window'] ?? 2)));
-        $res    = (new GetPowerPrices(new PowerPrices(new EnergiDataService())))->execute(['window_hours' => $window], $userId);
+        $window = max(1, min(6, (int) ($_GET['window'] ?? 3)));
+        $last   = max(0, min(72, (int) ($_GET['last_hours'] ?? 0)));   // the newest N hours of data, past ones included (the kiosk shows 36)
+        $res    = (new GetPowerPrices(new PowerPrices(new EnergiDataService())))->execute(['window_hours' => $window, 'last_hours' => $last], $userId);
         if (isset($res['error'])) {
             out(502, ['error' => (string) $res['error']]);
         }
