@@ -10071,6 +10071,7 @@
         var gen = navGen;
         if (p) startFromNotification(p);
         else if (convParam) loadConversation(Number(convParam), gen).catch(function () { if (gen === navGen) decideStartupChat(); });
+        else if (_params.get('offer')) { var offerId = Number(_params.get('offer')) || 0; try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ } decideStartupChat(); if (offerId) openTaskOffer(offerId); }
         else if (_params.get('ask')) { var askId = Number(_params.get('ask')) || 0; try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ } decideStartupChat(); if (askId) openRoutineAsk(askId); }
         else if (cardParam) openNotificationCard(cardParam, _params.get('rid'), null);
         else if (openParam && HOME_CARDS[openParam]) openShortcutCard(openParam);
@@ -10306,7 +10307,13 @@
         var convId = Number(u.searchParams.get('conv')) || 0;
         var key = u.searchParams.get('card'), rid = u.searchParams.get('rid');
         var ask = Number(u.searchParams.get('ask')) || 0;
+        var offer = Number(u.searchParams.get('offer')) || 0;
         try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
+
+        if (offer) {                       // a scheduled task asked "do you want me to …?": Run / Skip, and Run makes the stored calls
+            openTaskOffer(offer);
+            return;
+        }
 
         if (ask) {                         // a question that needs a yes / no: a small sheet over whatever you were doing
             openRoutineAsk(ask);
@@ -10358,6 +10365,87 @@
         var old = document.getElementById('askSheet');
         if (old) old.remove();
     }
+    // A scheduled task's own question ("11 lights are on — turn them off?", notify_me's `offer`): the same small sheet. Run makes the calls the task stored
+    // (the server does it in the background; the sheet polls until it has finished), so "run it" always means exactly what the notification offered.
+    function openTaskOffer(offerId) {
+        closeAskSheet();
+        var wrap = document.createElement('div');
+        wrap.className = 'ask-sheet';
+        wrap.id = 'askSheet';
+        var box = document.createElement('div');
+        box.className = 'ask-box';
+        wrap.appendChild(box);
+        wrap.addEventListener('click', function (e) { if (e.target === wrap) closeAskSheet(); });
+        document.body.appendChild(wrap);
+        var closeTimer = null;
+        function say(title, sub, buttons, busy) {
+            if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+            box.innerHTML = '';
+            var h = document.createElement('div');
+            h.className = 'ask-title';
+            if (busy) h.innerHTML = icon('loader-circle', 'tl-spin') + ' ';
+            h.appendChild(document.createTextNode(title));
+            box.appendChild(h);
+            if (sub) { var p = document.createElement('div'); p.className = 'ask-sub'; p.textContent = sub; box.appendChild(p); }
+            if (buttons && buttons.length) {
+                var row = document.createElement('div');
+                row.className = 'ask-actions';
+                buttons.forEach(function (bt) {
+                    var el = document.createElement('button');
+                    el.type = 'button';
+                    el.className = 'ask-btn' + (bt.primary ? ' primary' : '');
+                    el.textContent = bt.label;
+                    el.addEventListener('click', bt.fn);
+                    row.appendChild(el);
+                });
+                box.appendChild(row);
+            }
+        }
+        var closeBtn = { label: daText('Close', 'Luk'), fn: closeAskSheet };
+        function api(method, body) {
+            return fetch('/api/task-offer.php' + (method === 'GET' ? '?id=' + offerId : ''), {
+                method: method, credentials: 'same-origin', cache: 'no-store',
+                headers: method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
+                body: method === 'POST' ? JSON.stringify(Object.assign({ id: offerId }, body)) : undefined
+            }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || 'failed'); return j.offer; }); });
+        }
+        function show(o) {
+            if (!document.getElementById('askSheet')) return;
+            if (o.status === 'pending') {
+                say(o.question, o.steps + (o.steps === 1 ? daText(' step ready', ' trin klar') : daText(' steps ready', ' trin klar')), [
+                    { label: daText('Run', 'Kør'), primary: true, fn: run },
+                    { label: daText('Skip', 'Spring over'), fn: function () { api('POST', { decision: 'skip' }).then(function () { say(daText('Skipped', 'Sprunget over'), o.question, [closeBtn]); closeTimer = setTimeout(closeAskSheet, 2500); }).catch(fail); } }
+                ]);
+            } else if (o.status === 'running') {
+                say(daText('Running…', 'Kører…'), o.question, [], true);
+                poll(0);
+            } else if (o.status === 'done') {
+                say(daText('Done', 'Færdig'), o.result || o.question, [closeBtn]);
+                closeTimer = setTimeout(closeAskSheet, 5000);
+            } else if (o.status === 'failed') {
+                say(daText('Not everything went through', 'Ikke alt lykkedes'), o.result || o.question, [closeBtn]);
+            } else if (o.status === 'skipped') {
+                say(daText('Skipped', 'Sprunget over'), o.question, [closeBtn]);
+            } else {
+                say(daText('A newer question replaced this one', 'Et nyere spørgsmål har erstattet dette'), o.question, [closeBtn]);
+            }
+        }
+        function fail() { say(daText('That did not work', 'Det virkede ikke'), daText('It may be gone, or already answered.', 'Den er måske væk eller allerede besvaret.'), [closeBtn]); }
+        function poll(n) {
+            if (n > 60) { say(daText('Still working…', 'Arbejder stadig…'), daText('Check the lights in a moment.', 'Tjek lysene om lidt.'), [closeBtn]); return; }
+            setTimeout(function () {
+                if (!document.getElementById('askSheet')) return;
+                api('GET').then(function (o) { if (o.status === 'running') poll(n + 1); else show(o); }).catch(function () { poll(n + 1); });
+            }, 1500);
+        }
+        function run() {
+            say(daText('Running…', 'Kører…'), '', [], true);
+            api('POST', { decision: 'run' }).then(show).catch(fail);
+        }
+        say(daText('Loading…', 'Henter…'), '', [], true);
+        api('GET').then(show).catch(fail);
+    }
+
     function openRoutineAsk(requestId) {
         closeAskSheet();
         var wrap = document.createElement('div');
