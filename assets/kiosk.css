@@ -100,17 +100,18 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 .kl-name { font-size: 1.15em; font-weight: 500; line-height: 1.15; }
 .kl-count { font-size: .78em; color: var(--k-mute); }
 .kl-room.is-on .kl-count { color: inherit; opacity: .7; }
-.kl-tools { margin-top: auto; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 .1em; }
-.kl-tools .k-btn { color: inherit; min-width: 2em; min-height: 2em; }
-.kl-room:not(.is-on) .kl-tools .k-btn { color: var(--k-mute); }
-.kl-tools .kl-sp { flex: 1; }
+/* lamps: an even grid of equal cells, left-aligned under the name; − / + sit alone at the bottom right */
+.kl-lamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.2em, 1fr)); gap: .15em .2em; }
+.kl-dim { margin-top: auto; display: flex; justify-content: flex-end; }
+.kl-dim .k-btn { color: inherit; min-width: 2em; min-height: 2em; }
+.kl-room:not(.is-on) .kl-dim .k-btn { color: var(--k-mute); }
 .kl-room.is-on .k-btn:hover { background: rgba(0, 0, 0, .07); } .kl-room.is-on .k-btn:active { background: rgba(0, 0, 0, .15); }
 /* a single lamp: icon over name; its own colour shows in the icon while it is on */
-.kl-lamp { display: inline-flex; flex-direction: column; align-items: center; gap: .15em; min-width: 3em; padding: .3em .35em .25em; background: transparent; border: 0; color: inherit; font-size: .75em; line-height: 1.1; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.kl-lamp { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: .15em; min-width: 0; padding: .3em .1em .25em; background: transparent; border: 0; color: inherit; font-size: .75em; line-height: 1.1; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .kl-lamp .ic { width: 1.7em; height: 1.7em; opacity: .3; }                       /* off: a faint outline */
 .kl-lamp.on .ic { opacity: 1; }
 .kl-lamp.on .ic svg { fill: #f0b90b; fill-opacity: 1; stroke-opacity: .55; }       /* on: warm yellow, softly outlined */
-.kl-lamp span.nm { max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kl-lamp span.nm { font-size: .88em; max-width: 100%; text-align: center; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .kl-room.is-on .kl-lamp:hover { background: rgba(0, 0, 0, .07); }
 .kl-room:not(.is-on) .kl-lamp:hover { background: var(--k-wash); }
 

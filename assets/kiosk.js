@@ -323,22 +323,24 @@
             main.appendChild(txt);
             pressable(main, function () { roomOn(r, !r.on); }, function () { openPanel(r.name, r.lights, r.group_id); });
             box.appendChild(main);
-            var tools = el('div', 'kl-tools');
+            // The lamps sit in an even grid under the name; − / + have their own row at the bottom right.
             if (r.lights.length > 1) {
+                var lamps = el('div', 'kl-lamps');
                 r.lights.forEach(function (l) {
                     var c = el('button', 'kl-lamp' + (l.on ? ' on' : '')); c.type = 'button'; c.title = l.name; c.setAttribute('aria-pressed', l.on ? 'true' : 'false');
-                    c.appendChild(ico('bulb'));   // one look for every lamp: on (filled, full strength) or off (outline, faded)
+                    c.appendChild(ico('bulb'));   // one look for every lamp: on (yellow) or off (faint outline)
                     c.appendChild(el('span', 'nm', l.name));
                     pressable(c, function () { lightToggle(l); }, function () { openPanel(l.name, [l], null); });
-                    tools.appendChild(c);
+                    lamps.appendChild(c);
                 });
+                box.appendChild(lamps);
             }
             if (r.lights.some(function (l) { return l.dim; })) {
-                tools.appendChild(el('span', 'kl-sp'));
-                tools.appendChild(iconBtn('minus', da('Dimmer', 'Dæmp'), function () { roomBri(r, -STEP); }));
-                tools.appendChild(iconBtn('plus', da('Brighter', 'Lysere'), function () { roomBri(r, STEP); }));
+                var dim = el('div', 'kl-dim');
+                dim.appendChild(iconBtn('minus', da('Dimmer', 'Dæmp'), function () { roomBri(r, -STEP); }));
+                dim.appendChild(iconBtn('plus', da('Brighter', 'Lysere'), function () { roomBri(r, STEP); }));
+                box.appendChild(dim);
             }
-            if (tools.childNodes.length) box.appendChild(tools);
             return box;
         }
 
