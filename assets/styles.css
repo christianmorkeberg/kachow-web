@@ -3316,3 +3316,7 @@ body.kiosk-on { margin: 0; overflow: hidden; }
 .kc-foot { display: flex; gap: .6em; justify-content: flex-end; }
 .kc-btn { min-height: 2.6em; padding: 0 1.4em; font: inherit; font-size: .95em; background: var(--panel-2); border: 1px solid var(--border-strong); color: var(--text); border-radius: .5em; cursor: pointer; }
 .kc-done { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+
+/* Typing bubble: the "taking longer than usual" note (slowTurnNote in app.js). */
+.tool-slow { margin-top: 6px; font-size: .85em; color: var(--muted); line-height: 1.35; animation: tl-in .35s ease; }
+.tool-slow[hidden] { display: none; }

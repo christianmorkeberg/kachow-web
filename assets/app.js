@@ -752,6 +752,20 @@
         return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
     }
 
+    /**
+     * The "this is taking a while" line for the typing bubble: nothing for the first 12 s, then a calm note (and, when a tool is running, which one) so a slow
+     * device (a sleepy thermostat valve, report #66) never looks like a hang. The turn always ends with a reply — success or the reason it failed — so it
+     * can promise that. A second wording from 40 s. Returns '' while it is not needed. `running` = the in-progress step's sentence, if any.
+     */
+    function slowTurnNote(elapsedMs, running) {
+        if (elapsedMs < 12000) return '';
+        var base = elapsedMs < 40000
+            ? daText('This is taking a bit longer than usual — I\u2019m still on it.', 'Det tager lidt længere end normalt — jeg er stadig i gang.')
+            : daText('Still working — some devices are slow to answer.', 'Stadig i gang — nogle enheder er langsomme til at svare.');
+        var tail = daText(' I\u2019ll tell you as soon as it is done, or if it does not work.', ' Jeg giver besked, så snart det er klar, eller hvis det ikke lykkes.');
+        return base + (running ? ' ' + daText('Waiting for: ', 'Venter på: ') + running + '.' : '') + tail;
+    }
+
     // Polls api/progress.php while a turn runs and draws the steps inside the typing
     // bubble. Returns stop(). Never overlaps requests; silently gives up on errors.
     function startToolProgress(row, turnId) {
@@ -760,8 +774,20 @@
         var box = document.createElement('div');
         box.className = 'tool-live';
         bubble.appendChild(box);
-        var stopped = false, timer = null, failures = 0, lastKey = '', shown = 0;
+        var stopped = false, timer = null, failures = 0, lastKey = '', shown = 0, t0 = Date.now();
+        var slow = document.createElement('div');
+        slow.className = 'tool-slow';
+        slow.hidden = true;
+        bubble.appendChild(slow);
+        function updateSlow(st) {
+            var running = '';
+            ((st && st.steps) || []).forEach(function (x) { if (x.status === 'running') running = toolInfo(x.tool).text; });
+            var msg = slowTurnNote(Date.now() - t0, running);
+            if (msg !== slow.textContent) slow.textContent = msg;
+            slow.hidden = !msg;
+        }
         function render(st) {
+            updateSlow(st);
             var steps = (st && st.steps) || [];
             // Only the TWO newest lines are shown at a time (dev idea #68): the steps so far, then a last line for what the model
             // is doing between them — reading the message, going through a result, writing the answer.
