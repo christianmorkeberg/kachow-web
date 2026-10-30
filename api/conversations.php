@@ -110,8 +110,17 @@ try {
         } catch (\Throwable $e) {
             error_log('conversations.php byConversation: ' . $e->getMessage());
         }
+        // ?after=M: only the messages newer than M — the chat page polls with it for the late answer of a turn that went on in the background,
+        // and each poll marks the chat as watched (so no push is sent for something already on the screen).
+        $after = isset($_GET['after']) ? (int) $_GET['after'] : 0;
+        if ($after > 0) {
+            \App\Support\Detach::touchWatch($userId, $id);
+        }
         $out = [];
         foreach ($conversations->messages($id) as $m) {
+            if ($after > 0 && (int) $m['id'] <= $after) {
+                continue;
+            }
             $role = (string) $m['role'];
             if ($role === 'tool' && $task !== null && (string) ($m['tool_name'] ?? '') === 'notify_me') {
                 $sent = json_decode((string) $m['content'], true);

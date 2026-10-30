@@ -11,6 +11,9 @@ declare(strict_types=1);
  *   view: { kind: string, title: string, summary?: string } — the card/view currently open in
  *   the app (if any), so the model can resolve an ambiguous reference to what's on screen.
  * Returns JSON: { "reply": string, "conversation_id": int }
+ *   or, when the turn is slow (25 s without an answer) and this server can close a connection early (App\Support\Detach):
+ *   { "interim": true, "reply": "still working…", "conversation_id", "assistant_message_id" } — the turn then finishes in the background; its answer is
+ *   stored as the next assistant message of the conversation (the page polls api/conversations.php?id=…&after=…, a push covers a closed page).
  *
  * Requires an authenticated app session (or a valid remember-me cookie). Google
  * OAuth for calendar is a separate concern handled elsewhere.
@@ -55,9 +58,13 @@ use App\Data\WorkoutPlans;
 use App\Data\Workouts;
 use App\Email\EmailService;
 use App\Mail\NativeMailer;
+use App\Notify\NotificationTypes;
+use App\Notify\Notifier;
 use App\Music\Discogs;
 use App\Receipts\ReceiptStorage;
+use App\Support\Detach;
 use App\Support\Markdown;
+use App\Support\SlowReply;
 use App\Support\TurnProgress;
 use App\Tools\ToolRegistry;
 use App\Weather\Dmi;
@@ -72,6 +79,19 @@ function respond(int $status, array $body): never
     http_response_code($status);
     echo json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+/** The push for a reply that arrived after the browser had been told "still working" — skipped while the page is open and polling for it. */
+function pushLateReply(int $userId, int $conversationId, string $reply): void
+{
+    try {
+        if (Detach::watched($userId, $conversationId)) {
+            return;
+        }
+        Notifier::fromEnv()->notify($userId, NotificationTypes::CHAT_REPLY, 'Kachow', SlowReply::pushBody($reply), '/?conv=' . $conversationId);
+    } catch (\Throwable $e) {
+        error_log('chat.php pushLateReply: ' . $e->getMessage());
+    }
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
@@ -202,7 +222,33 @@ try {
         });
     }
 
+    // A slow turn (slow valves, a stalled model) must not leave the browser hanging: after 25 s tell it "still working" and let the turn finish
+    // in the background (report #66 idea). The late answer is just the next assistant message; a push covers a page that was closed meanwhile.
+    $detached = false;
+    if (Detach::available()) {
+        $loop->onSlow(static function () use (&$detached, $loop, $conversations, $conversationId, $message): void {
+            $text = SlowReply::interim($message);
+            $mid  = $conversations->addMessage($conversationId, 'assistant', $text);
+            $detached = true;
+            Detach::release(200, [
+                'interim'              => true,
+                'reply'                => $text,
+                'reply_html'           => Markdown::toHtml($text),
+                'conversation_id'      => $conversationId,
+                'assistant_message_id' => $mid,
+                'user_message_id'      => $loop->lastUserMessageId(),
+            ]);
+        });
+    }
+
     $reply = $loop->handle($userId, $conversationId, $message, $location, null, $openView);
+
+    if ($detached) {
+        // The browser was answered long ago. The reply is stored (handle() did that); nobody is waiting on this request any more.
+        error_log('chat.php detached turn done: total=' . (int) round((microtime(true) - (float) ($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true))) * 1000) . 'ms');
+        pushLateReply($userId, $conversationId, $reply);
+        exit;
+    }
 
     if (isset($_SERVER['REQUEST_TIME_FLOAT'])) {
         error_log('timing request: total='
@@ -225,6 +271,17 @@ try {
     // console (app.js console.errors it) — so errors are diagnosable without an
     // ugly bubble or digging through server logs.
     error_log('chat.php: ' . $e->getMessage());
+    if (!empty($detached)) {
+        // Too late to answer the request: say it in the conversation, and nudge when nobody is looking.
+        try {
+            $failed = SlowReply::failed($message);
+            (new Conversations())->addMessage($conversationId, 'assistant', $failed);
+            pushLateReply($userId, $conversationId, $failed);
+        } catch (\Throwable $e2) {
+            error_log('chat.php late failure: ' . $e2->getMessage());
+        }
+        exit;
+    }
     respond(500, [
         'error' => 'Something went wrong handling your message.',
         'debug' => get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine(),

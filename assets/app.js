@@ -9705,6 +9705,53 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
+    /**
+     * The server answered "still working" (a slow turn that carries on in the background, see api/chat.php). Shows a waiting bubble and polls the
+     * conversation for the next assistant message (every 2.5 s, up to 4 min); a push covers a page that is closed or a reply that takes longer.
+     * Each poll also tells the server the chat is being watched, so it sends no push for an answer that lands on the screen. Stops quietly when
+     * the user opens another chat or presses Stop.
+     */
+    async function waitForLateReply(convId, afterId, signal) {
+        const wait = addMessage('…', 'assistant');
+        wait.classList.add('typing');
+        const av = wait.querySelector('.avatar');
+        if (av) av.src = AVATAR_FLYING;
+        const started = Date.now();
+        try {
+            while (Date.now() - started < 4 * 60 * 1000) {
+                await new Promise(function (r) { setTimeout(r, 2500); });
+                if (signal && signal.aborted) return;
+                if (conversationId !== convId) return;           // the user moved to another chat
+                let data = null;
+                try {
+                    const r = await fetch('/api/conversations.php?id=' + encodeURIComponent(convId) + '&after=' + encodeURIComponent(afterId),
+                        { credentials: 'same-origin', cache: 'no-store', signal: signal });
+                    if (r.status === 401) { window.location.href = '/index.php'; return; }
+                    data = r.ok ? await r.json() : null;
+                } catch (e) {
+                    if (e && e.name === 'AbortError') return;
+                    data = null;                                  // a hiccup: try again
+                }
+                const fresh = ((data && data.messages) || []).filter(function (m) { return m.role === 'assistant'; });
+                if (!fresh.length) continue;
+                wait.remove();
+                let lastCard = null;
+                fresh.forEach(function (m) {
+                    const row = addMessage(m.content, 'assistant', m.html, m.at);
+                    attachMessageMeta(row, { id: m.id, diagnostics: m.diagnostics });
+                    if (m.card) lastCard = m.card;
+                });
+                if (lastCard) { applyAppearanceFromCard(lastCard); presentCard(lastCard); }
+                lastActivityAt = Date.now();
+                return;
+            }
+            wait.remove();
+            addMessage(daText('Still no answer — I\u2019ll send a notification when it is ready.', 'Stadig intet svar — du får en notifikation, når det er klar.'), 'assistant');
+        } finally {
+            if (wait.isConnected) wait.remove();
+        }
+    }
+
     async function send(text) {
         if (busy || !text.trim()) return;
         busy = true;
@@ -9768,6 +9815,22 @@
             if (data.conversation_id) {
                 conversationId = data.conversation_id;
                 localStorage.setItem(CONV_KEY, String(conversationId));
+            }
+            if (data.interim) {
+                // "Still working": show that, then wait for the real answer, which the server stores as the next assistant message.
+                const interimRow = addMessage(data.reply, 'assistant', data.reply_html);
+                attachMessageMeta(interimRow, { id: data.assistant_message_id });
+                attachMessageMeta(userRow, { id: data.user_message_id });
+                if (wasNewConversation && conversationId) {
+                    fetch('/api/conversations.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ action: 'generate_title', id: conversationId }),
+                    }).catch(function () { /* non-fatal */ });
+                }
+                await waitForLateReply(conversationId, data.assistant_message_id, sendController ? sendController.signal : undefined);
+                return;
             }
             const replyRow = addMessage(data.reply || '(no reply)', 'assistant', data.reply_html);
             attachMessageMeta(replyRow, { id: data.assistant_message_id, diagnostics: data.diagnostics });
