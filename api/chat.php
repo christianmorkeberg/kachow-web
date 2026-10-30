@@ -62,6 +62,7 @@ use App\Notify\NotificationTypes;
 use App\Notify\Notifier;
 use App\Music\Discogs;
 use App\Receipts\ReceiptStorage;
+use App\Support\AfterReply;
 use App\Support\Detach;
 use App\Support\Markdown;
 use App\Support\SlowReply;
@@ -225,6 +226,11 @@ try {
     // A slow turn (slow valves, a stalled model) must not leave the browser hanging: after 25 s tell it "still working" and let the turn finish
     // in the background (report #66 idea). The late answer is just the next assistant message; a push covers a page that was closed meanwhile.
     $detached = false;
+    // Follow-ups that go on after the answer (a tool queues one with AfterReply::collect — e.g. "tell me when the radiators have confirmed"): only where
+    // the connection can be released early, so a tool never promises a follow-up that cannot run.
+    if (Detach::available()) {
+        AfterReply::enable(['conversation_id' => $conversationId, 'danish' => SlowReply::isDanish($message)]);
+    }
     if (Detach::available()) {
         $loop->onSlow(static function () use (&$detached, $loop, $conversations, $conversationId, $message): void {
             $text = SlowReply::interim($message);
@@ -247,6 +253,7 @@ try {
         // The browser was answered long ago. The reply is stored (handle() did that); nobody is waiting on this request any more.
         error_log('chat.php detached turn done: total=' . (int) round((microtime(true) - (float) ($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true))) * 1000) . 'ms');
         pushLateReply($userId, $conversationId, $reply);
+        AfterReply::run();   // the connection is long closed; the follow-ups (if any) still run
         exit;
     }
 
@@ -255,7 +262,7 @@ try {
             . (int) round((microtime(true) - (float) $_SERVER['REQUEST_TIME_FLOAT']) * 1000) . 'ms');
     }
 
-    respond(200, [
+    $answer = [
         'reply'                => $reply,
         'reply_html'           => Markdown::toHtml($reply),
         'conversation_id'      => $conversationId,
@@ -265,7 +272,14 @@ try {
         'diagnostics'          => $loop->lastDiagnostics(),
         'assistant_message_id' => $loop->lastAssistantMessageId(),
         'user_message_id'      => $loop->lastUserMessageId(),
-    ]);
+    ];
+    if (AfterReply::hasWork()) {
+        // Answer now, then keep going: the user has their reply, the follow-up (e.g. waiting for the valves to confirm) runs in the background.
+        Detach::release(200, $answer, AfterReply::maxSeconds());
+        AfterReply::run();
+        exit;
+    }
+    respond(200, $answer);
 } catch (\Throwable $e) {
     // Friendly message in the chat bubble; full detail in `debug` for the browser
     // console (app.js console.errors it) — so errors are diagnosable without an
