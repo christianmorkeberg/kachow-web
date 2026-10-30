@@ -125,7 +125,9 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 .kt-box.heating .kt-cur { color: var(--k-t-peach); }
 .kt-sub { font-size: .72em; color: var(--k-mute); }
 .kt-ctl { display: flex; align-items: center; gap: .1em; }
-.kt-target { flex: 1; text-align: center; font-size: .9em; color: var(--k-mute); font-variant-numeric: tabular-nums; }
+.kt-target { flex: 1; min-height: 2.2em; text-align: center; font-size: .9em; color: var(--k-mute); font-variant-numeric: tabular-nums; background: transparent; border: 0; border-bottom: 1px dotted var(--k-line); touch-action: manipulation; }
+.kt-target:hover { background: var(--k-wash); }
+.kt-input { flex: 1; min-width: 0; width: 100%; text-align: center; font: inherit; font-size: .95em; font-variant-numeric: tabular-nums; color: var(--k-ink); background: var(--k-wash); border: 0; border-bottom: 2px solid var(--k-sky); padding: .35em .2em; outline: none; }
 .kt-target.pending { color: var(--k-t-sky); font-weight: 600; }
 .kt-err { color: var(--k-t-peach); font-size: .9em; }
 

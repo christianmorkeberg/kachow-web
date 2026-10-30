@@ -369,10 +369,15 @@
                 .then(function (j) { rows = j.thermostats || []; t.updated(j.cached_at ? j.cached_at * 1000 : Date.now(), 12 * 60000); t.note(''); render(); })
                 .catch(function (e) { console.warn('kiosk thermostats:', e); t.note(rows ? da('Could not refresh — showing the last readings.', 'Kunne ikke opdatere — viser sidste målinger.') : (e.message || '')); render(); });
         }
+        var editing = null;   // id of the radiator whose target is being typed
         function setTarget(r, delta) {
             var cur = r.pending != null ? r.pending : r.target_c;
             if (cur == null) return;
-            r.pending = Math.max(5, Math.min(30, Math.round((cur + delta) * 2) / 2));
+            applyTarget(r, cur + delta, 1200);
+        }
+        /** Show the new target at once and send it after `delay` ms (the − / + taps wait a moment so several taps become one command). */
+        function applyTarget(r, value, delay) {
+            r.pending = Math.max(5, Math.min(30, Math.round(value * 2) / 2));
             busyUntil = Date.now() + 15000;
             render();
             clearTimeout(timers[r.id]);
@@ -381,7 +386,14 @@
                 api('', { action: 'thermostat', id: r.id, target: want })
                     .then(function () { r.target_c = want; r.pending = null; t.note(''); render(); })
                     .catch(function (e) { r.pending = null; t.note(da('The thermostat did not take that: ', 'Termostaten tog ikke imod det: ') + e.message); render(); });
-            }, 1200);
+            }, delay);
+        }
+        /** Typed entry: "21", "21,5" or "21.5"; anything else is ignored. Half degrees, 5-30. */
+        function commitTyped(r, raw) {
+            editing = null; busyUntil = 0;
+            var v = parseFloat(String(raw).replace(',', '.'));
+            if (isNaN(v)) { render(); return; }
+            applyTarget(r, v, 150);
         }
         function fmtC(v) { return v == null ? '–' : (Math.round(v * 10) / 10).toLocaleString(DA ? 'da-DK' : 'en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
 
@@ -404,7 +416,21 @@
                 box.appendChild(main);
                 var ctl = el('div', 'kt-ctl');
                 ctl.appendChild(iconBtn('minus', da('Colder', 'Koldere'), function () { setTarget(r, -0.5); }));
-                ctl.appendChild(el('span', 'kt-target' + (r.pending != null ? ' pending' : ''), fmtC(r.pending != null ? r.pending : r.target_c) + '°'));
+                var shown = r.pending != null ? r.pending : r.target_c;
+                if (editing === r.id) {
+                    var inp = el('input', 'kt-input'); inp.type = 'text'; inp.setAttribute('inputmode', 'decimal'); inp.setAttribute('aria-label', da('Target temperature', 'Måltemperatur')); inp.value = shown == null ? '' : String(shown).replace('.', DA ? ',' : '.');
+                    var done = false;
+                    inp.addEventListener('keydown', function (e) {
+                        if (e.key === 'Enter') { done = true; commitTyped(r, inp.value); } else if (e.key === 'Escape') { done = true; editing = null; busyUntil = 0; render(); }
+                    });
+                    inp.addEventListener('blur', function () { if (!done) { done = true; commitTyped(r, inp.value); } });
+                    ctl.appendChild(inp);
+                    setTimeout(function () { inp.focus(); inp.select(); }, 0);
+                } else {
+                    var tb = el('button', 'kt-target' + (r.pending != null ? ' pending' : ''), fmtC(shown) + '°'); tb.type = 'button'; tb.title = da('Tap to type a temperature', 'Tryk for at skrive en temperatur');
+                    tb.addEventListener('click', function () { editing = r.id; busyUntil = Date.now() + 60000; render(); });
+                    ctl.appendChild(tb);
+                }
                 ctl.appendChild(iconBtn('plus', da('Warmer', 'Varmere'), function () { setTarget(r, 0.5); }));
                 box.appendChild(ctl);
                 g.appendChild(box);
