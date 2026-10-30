@@ -107,9 +107,9 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 .kl-room.is-on .k-btn:hover { background: rgba(0, 0, 0, .07); } .kl-room.is-on .k-btn:active { background: rgba(0, 0, 0, .15); }
 /* a single lamp: icon over name; its own colour shows in the icon while it is on */
 .kl-lamp { display: inline-flex; flex-direction: column; align-items: center; gap: .15em; min-width: 3em; padding: .3em .35em .25em; background: transparent; border: 0; color: inherit; font-size: .75em; line-height: 1.1; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
-.kl-lamp .ic { width: 1.7em; height: 1.7em; opacity: .5; }
+.kl-lamp .ic { width: 1.7em; height: 1.7em; opacity: .3; }                       /* off: a faint outline */
 .kl-lamp.on .ic { opacity: 1; }
-.kl-lamp.on .ic svg { fill: currentColor; fill-opacity: .35; }
+.kl-lamp.on .ic svg { fill: #f0b90b; fill-opacity: 1; stroke-opacity: .55; }       /* on: warm yellow, softly outlined */
 .kl-lamp span.nm { max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kl-room.is-on .kl-lamp:hover { background: rgba(0, 0, 0, .07); }
 .kl-room:not(.is-on) .kl-lamp:hover { background: var(--k-wash); }
