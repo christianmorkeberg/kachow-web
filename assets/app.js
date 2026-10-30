@@ -4980,7 +4980,7 @@
     // One bar per hour = the all-in price (spot + tariffs + tax + VAT) in kr/kWh, coloured cheap / middle / dear by
     // thirds of the visible range; a marker on the current hour and a band over the cheapest window the user asked for.
     var powerFmt = PowerChart.fmt, powerHm = PowerChart.hm, powerDay = PowerChart.day;
-    function powerSvg(card, dimsOverride) { return PowerChart.svg(card, dimsOverride || chartDims(320, 150)); }
+    function powerSvg(card, dimsOverride) { return PowerChart.svg(card, dimsOverride || chartDims(320, 150), 9, { nowLabel: daText('now', 'nu') }); }
 
     function renderPowerPrices(card) {
         clearEmptyHint();

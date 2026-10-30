@@ -60,7 +60,7 @@ function asset(string $path): string
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#15181d">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <script>(function(){var T=<?= json_encode($theme) ?>,D=<?= json_encode($dark) ?>,L=<?= json_encode($light) ?>,mq=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)');function apply(){document.documentElement.setAttribute('data-theme',T==='auto'?(mq&&mq.matches?D:L):T);}apply();if(T==='auto'&&mq&&mq.addEventListener)mq.addEventListener('change',apply);})();</script>
