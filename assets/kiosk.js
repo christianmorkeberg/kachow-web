@@ -212,7 +212,7 @@
         function load() {
             loadedAt = Date.now();
             api('?part=lights')
-                .then(function (j) { data = j; t.updated(Date.now(), 3 * 60000); t.note(j.note || ''); render(); })
+                .then(function (j) { data = j; t.updated(j.cached_at ? j.cached_at * 1000 : Date.now(), 12 * 60000); t.note(j.note || ''); render(); })
                 .catch(function (e) { console.warn('kiosk lights:', e); t.note(data ? da('Could not refresh — showing the last state.', 'Kunne ikke opdatere — viser sidste tilstand.') : (e.message || '')); render(); });
         }
         /** Optimistic: change the local state, redraw at once, send; on failure say why and re-read the bridge. */
@@ -355,7 +355,7 @@
         function load() {
             loadedAt = Date.now();
             api('?part=thermostats')
-                .then(function (j) { rows = j.thermostats || []; t.updated(Date.now(), 15 * 60000); t.note(''); render(); })
+                .then(function (j) { rows = j.thermostats || []; t.updated(j.cached_at ? j.cached_at * 1000 : Date.now(), 12 * 60000); t.note(''); render(); })
                 .catch(function (e) { console.warn('kiosk thermostats:', e); t.note(rows ? da('Could not refresh — showing the last readings.', 'Kunne ikke opdatere — viser sidste målinger.') : (e.message || '')); render(); });
         }
         function setTarget(r, delta) {
