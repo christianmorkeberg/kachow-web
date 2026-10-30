@@ -3722,13 +3722,33 @@
         meta.textContent = senderName(card.from) + '  ·  ' + emailDate(card.date);
         wrap.appendChild(meta);
 
+        var files = Array.isArray(card.attachments) ? card.attachments : [];
         if (card.body_html) {
             wrap.appendChild(buildHtmlEmailBody(card.body_html));
-        } else {
+        } else if (card.body || !files.length) {   // an email that is only an attached file has no text: the files below are the content
             var body = document.createElement('pre');
             body.className = 'email-body';
             body.textContent = card.body || '(no text content)';
             wrap.appendChild(body);
+        }
+
+        // The attached files: one button each, downloads the file (on iPhone through the share sheet, see downloadUrl).
+        if (files.length) {
+            var fileList = document.createElement('div');
+            fileList.className = 'email-files';
+            files.forEach(function (f) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'email-attach';
+                var kb = f.size ? ' · ' + (f.size >= 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB') : '';
+                setIconText(btn, 'file-down', (f.filename || 'Attachment') + kb);
+                btn.addEventListener('click', function () {
+                    downloadUrl('/api/email-attachment.php?id=' + encodeURIComponent(card.id) + '&att=' + encodeURIComponent(f.id)
+                        + (card.account_id != null ? '&account_id=' + encodeURIComponent(card.account_id) : ''));
+                });
+                fileList.appendChild(btn);
+            });
+            wrap.appendChild(fileList);
         }
 
         var actions = document.createElement('div');
