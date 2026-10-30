@@ -53,7 +53,11 @@ window.PowerChart = (function () {
             out += '<rect class="pw-nowband" x="' + (padL + step * card.now_index).toFixed(1) + '" y="' + (padT - 2) + '" width="' + step.toFixed(1) + '" height="' + (innerH + 2) + '"/>';
         }
         var w = card.window;
-        if (w && w.len > 0) {
+        if (w && w.len > 0 && opts.nowLabel) {
+            // Kiosk: the cheapest stretch is a thin strip right under its bars (on the axis), so the bars and the gaps between them stay untouched.
+            var bh = Math.max(3, fp * 0.28);
+            out += '<rect class="pw-window" x="' + (padL + step * w.from + 1).toFixed(1) + '" y="' + (padT + innerH + 3).toFixed(1) + '" width="' + (step * w.len - 2).toFixed(1) + '" height="' + bh.toFixed(1) + '"/>';
+        } else if (w && w.len > 0) {
             out += '<rect class="pw-window" x="' + (padL + step * w.from).toFixed(1) + '" y="' + (padT - 2) + '" width="' + (step * w.len).toFixed(1)
                 + '" height="' + (innerH + 2) + '" rx="3"/>';
         }

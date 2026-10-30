@@ -85,7 +85,7 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 .kp-chart .pw-nowtag-bg, .kp-chart .pw-nowtag-tip { fill: var(--k-sky); }          /* a soft pastel tag, not a dark label */
 .kp-chart .pw-nowtag-dot { fill: var(--k-on-pastel); fill-opacity: .55; }
 .kp-chart .pw-nowtag-txt { fill: var(--k-on-pastel); font-size: 1em; font-weight: 500; letter-spacing: .04em; }
-.kp-chart .pw-window { fill: var(--k-mint); fill-opacity: .16; stroke: var(--k-mint); stroke-width: 1.4; stroke-dasharray: none; }
+.kp-chart .pw-window { fill: var(--k-t-mint); fill-opacity: 1; stroke: none; }
 .kp-readout { position: absolute; top: 0; right: 0; z-index: 2; pointer-events: none; background: var(--k-ink); color: var(--k-bg); padding: .25em .7em; font-size: 1.05em; white-space: nowrap; }
 .kp-readout-s { opacity: .65; font-size: .8em; }
 @container (max-width: 640px) { .kp-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(5em, 1fr); gap: 1em; } }
