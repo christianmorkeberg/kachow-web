@@ -4,14 +4,15 @@
    from one variable (--k) that kiosk.js shrinks until the content fits. Phones (<= 700px) fall back to a normal scrolling page. */
 
 /* ---- palette: dark themes get a calm charcoal, the light themes (paper, lavender, blush) a warm off-white; both use the same six pastels ---- */
-.kiosk {
+.kiosk, .voice-dock.vd-kiosk {
     --k-bg: #15181d; --k-ink: #e8ebf0; --k-mute: #8b94a3; --k-line: rgba(255, 255, 255, .13); --k-wash: rgba(255, 255, 255, .06); --k-press: rgba(255, 255, 255, .14);
     --k-mint: #8fdcb9; --k-sky: #93c8f4; --k-butter: #f6dc8c; --k-peach: #f6b99b; --k-rose: #f3a6bb; --k-lilac: #c4b4f2;
     --k-on-pastel: #1d2128;
     /* the same hues, deep enough to read as text on a light page */
     --k-t-mint: var(--k-mint); --k-t-sky: var(--k-sky); --k-t-butter: var(--k-butter); --k-t-peach: var(--k-peach); --k-t-rose: var(--k-rose); --k-t-lilac: var(--k-lilac);
 }
-:root[data-theme="paper"] .kiosk, :root[data-theme="lavender"] .kiosk, :root[data-theme="blush"] .kiosk {
+:root[data-theme="paper"] .kiosk, :root[data-theme="lavender"] .kiosk, :root[data-theme="blush"] .kiosk,
+:root[data-theme="paper"] .voice-dock.vd-kiosk, :root[data-theme="lavender"] .voice-dock.vd-kiosk, :root[data-theme="blush"] .voice-dock.vd-kiosk {
     --k-bg: #f7f5f0; --k-ink: #2a2e35; --k-mute: #767d89; --k-line: rgba(30, 35, 45, .16); --k-wash: rgba(30, 35, 45, .055); --k-press: rgba(30, 35, 45, .14);
     --k-mint: #a6e3c6; --k-sky: #a9d3f6; --k-butter: #f8e3a0; --k-peach: #f8c7ae; --k-rose: #f5b7c8; --k-lilac: #d3c7f5;
     --k-t-mint: #2d936a; --k-t-sky: #2f7bbf; --k-t-butter: #a97a0c; --k-t-peach: #cc5e28; --k-t-rose: #cc3f6a; --k-t-lilac: #7458cc;
@@ -19,7 +20,7 @@
 
 body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 :root[data-theme="paper"] body.kiosk-on, :root[data-theme="lavender"] body.kiosk-on, :root[data-theme="blush"] body.kiosk-on { background: #f7f5f0; }
-.kiosk, .kiosk * { border-radius: 0; box-shadow: none; }
+.kiosk, .kiosk *, .voice-dock.vd-kiosk, .voice-dock.vd-kiosk * { border-radius: 0; box-shadow: none; }
 .kiosk, body.kiosk-on { transition: background-color 1.2s ease, color 1.2s ease; }
 .kiosk { position: fixed; inset: 0; height: 100vh; height: 100dvh; box-sizing: border-box; background: var(--k-bg); color: var(--k-ink); display: flex; flex-direction: column; gap: 2.4vmin; padding: 3vmin 4vmin; overflow: hidden; font-weight: 400; }
 .kiosk button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -35,6 +36,11 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 .kiosk-close { margin-left: auto; align-self: flex-start; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: var(--k-mute); background: transparent; border: 0; opacity: .5; text-decoration: none; }
 .kiosk-close:hover, .kiosk-close:focus { opacity: 1; background: var(--k-wash); }
 .kiosk-close .ic { width: 22px; height: 22px; }
+.kiosk-mic { margin-left: auto; align-self: flex-start; width: 52px; height: 52px; min-width: 0; color: var(--k-ink); opacity: .7; }
+.kiosk-head .kiosk-mic .ic { width: 28px; height: 28px; }
+.kiosk-mic:hover, .kiosk-mic:focus { opacity: 1; }
+.kiosk-mic.on { background: var(--k-mint); color: var(--k-on-pastel); opacity: 1; }
+.kiosk-mic + .kiosk-close { margin-left: 0; }
 
 /* ---- tiles: no cards; a hairline above each one and plenty of air ---- */
 .kiosk-tiles { flex: 1; min-height: 0; display: grid; gap: 3vmin 5vmin; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); }
@@ -163,3 +169,29 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
     .kp-layout { grid-template-columns: 1fr; height: auto; }
     .kp-chart { height: 38vw; }
 }
+
+/* ---- voice overlay (assets/voice.js builds the dock; on the kiosk it covers the screen, flat and pastel like the rest) ---- */
+.voice-dock.vd-kiosk, body.voice-on .voice-dock.vd-kiosk { position: fixed; inset: 0; z-index: 70; margin: 0; padding: 4vmin; border: 0; background: var(--k-bg); color: var(--k-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vmin; font-size: clamp(16px, 2.6vmin, 30px); }
+.voice-dock.vd-kiosk[hidden] { display: none; }
+.vd-kiosk .vd-stage { gap: 1.4vmin; margin: 0; }
+.vd-kiosk .vd-orb { width: 14vmin; height: 14vmin; background: var(--k-mute); opacity: .5; }
+.vd-kiosk .vd-orb[data-state="listening"] { background: var(--k-sky); opacity: 1; animation: vd-kpulse 1.8s ease-out infinite; }
+.vd-kiosk .vd-orb[data-state="speaking"] { background: var(--k-mint); opacity: 1; animation: vd-kpulse .9s ease-out infinite; }
+.vd-kiosk .vd-orb[data-state="thinking"] { background: var(--k-butter); opacity: 1; animation: vd-kpulse 1.1s ease-out infinite; }
+@keyframes vd-kpulse { 0% { box-shadow: 0 0 0 0 var(--k-line); } 100% { box-shadow: 0 0 0 5vmin transparent; } }
+.vd-kiosk .vd-status { margin-top: 2.4vmin; font-size: 1.1em; font-weight: 300; letter-spacing: .12em; text-transform: uppercase; color: var(--k-mute); }
+.vd-kiosk .vd-ai { font-size: 1.6em; font-weight: 300; color: var(--k-ink); max-width: 28em; }
+.vd-kiosk .vd-you { font-size: 1em; color: var(--k-mute); opacity: 1; max-width: 34em; }
+.vd-kiosk .vd-acts { color: var(--k-t-mint); font-size: 1em; }
+.vd-kiosk .vd-time { color: var(--k-mute); }
+.vd-kiosk .vd-time-urgent { color: var(--k-t-peach); }
+.vd-kiosk .vd-row { gap: .4em; }
+.vd-kiosk .vd-btn { background: var(--k-wash); border: 0; color: var(--k-ink); padding: .7em 1.6em; font: inherit; font-size: .9em; cursor: pointer; }
+.vd-kiosk .vd-btn:active { background: var(--k-press); }
+.vd-kiosk .vd-lang { display: inline-flex; background: var(--k-wash); border: 0; padding: 0; font: inherit; font-size: .9em; color: var(--k-mute); cursor: pointer; }
+.vd-kiosk .vd-lang span { padding: .7em 1em; }
+.vd-kiosk .vd-lang[data-lang="en"] span[data-l="en"], .vd-kiosk .vd-lang[data-lang="da"] span[data-l="da"] { background: var(--k-sky); color: var(--k-on-pastel); }
+.vd-kiosk .vd-end { background: var(--k-rose); color: var(--k-on-pastel); border: 0; font-weight: 600; }
+.vd-kiosk .vd-out, .vd-kiosk .vd-type { display: none !important; }
+.vd-kiosk .vd-error { background: var(--k-wash); border: 0; color: var(--k-t-peach); max-width: 34em; }
+@media (prefers-reduced-motion: reduce) { .vd-kiosk .vd-orb { animation: none !important; } }

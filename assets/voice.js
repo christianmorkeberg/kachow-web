@@ -169,9 +169,9 @@
         var payload = { session_id: S.sessionId, events: S.events.splice(0), transcript: S.transcript.splice(0) };
         if (!payload.events.length && !payload.transcript.length) return;
         if (beacon && navigator.sendBeacon) {
-            navigator.sendBeacon('/api/live-log.php', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+            navigator.sendBeacon(S.api.log, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
         } else {
-            post('/api/live-log.php', payload).catch(function () { /* the log is best-effort */ });
+            post(S.api.log, payload).catch(function () { /* the log is best-effort */ });
         }
     }
 
@@ -376,7 +376,7 @@
             S.lastActivity = Date.now();
             refreshState();
             setTimeout(updateEarcon, EARCON_AFTER_MS + 20);
-            post('/api/live-tool.php', { session_id: S.sessionId, name: name, args: c.args || {}, turn: S.turns || 0 }, ac.signal).then(function (r) {
+            post(S.api.tool, { session_id: S.sessionId, name: name, args: c.args || {}, turn: S.turns || 0 }, ac.signal).then(function (r) {
                 if (!S || !S.pending[id]) return;               // cancelled (barge-in) or the session is over
                 delete S.pending[id];
                 var b = r.body || {};
@@ -455,15 +455,22 @@
     }
 
     // ---------- start / stop ----------
-    function start(hooks) {
+    /**
+     * opts.api = other server paths for { token, tool, log, language } (the kiosk has its own, house-only endpoint; language: null = no saved switch);
+     * opts.kiosk = true marks the dock for the kiosk's look (the app's chat styling does not apply there).
+     */
+    function start(hooks, opts) {
         if (S) return Promise.resolve(false);
         hooks = hooks || {};
+        opts = opts || {};
+        var api = Object.assign({ token: '/api/live-token.php', tool: '/api/live-tool.php', log: '/api/live-log.php', language: '/api/live-language.php' }, opts.api || {});
         var dock = document.getElementById('voiceDock') || buildDock();
         document.body.classList.add('voice-on');       // the stage replaces the chat while talking
         dock.hidden = false;
+        dock.classList.toggle('vd-kiosk', !!opts.kiosk);
         ['.vd-ai', '.vd-you', '.vd-acts'].forEach(function (q) { dock.querySelector(q).textContent = ''; });
         S = {
-            hooks: hooks, dock: dock, state: 'connecting', ws: null, ctx: null, stream: null, node: null, src: null,
+            hooks: hooks, api: api, dock: dock, state: 'connecting', ws: null, ctx: null, stream: null, node: null, src: null,
             play: null, queuedMs: 0, micHoldUntil: 0, lastAudioAt: 0, outMode: 'speaker', speaking: false, muted: false, ready: false, pending: {}, earcon: null,
             userBuf: '', actions: [], stageActs: [], modelBuf: '', events: [], transcript: [], flushTimer: null, startedAt: Date.now(), lastActivity: Date.now(),
             lastUserAt: 0, firstAudioPending: false, firstAudios: 0, slowTools: [], resumeHandle: null, usage: null, sessionId: '', remaining: 0, idle: 45, timer: null
@@ -478,7 +485,7 @@
         try { S.outMode = localStorage.getItem('kachow.voice.output') === 'headphones' ? 'headphones' : 'speaker'; } catch (e) { /* default */ }
         setOutLabel();
 
-        return post('/api/live-token.php', { tool_mode: toolMode, lang_hint: navigator.language || '' }).then(function (r) {
+        return post(api.token, { tool_mode: toolMode, lang_hint: navigator.language || '' }).then(function (r) {
             if (!S) return false;
             var b = r.body || {};
             if (r.status >= 400 || !b.token) throw new Error(b.error || ('Could not start voice (HTTP ' + r.status + ').'));
@@ -629,7 +636,7 @@
         var next = S.lang === 'da' ? 'en' : 'da';
         S.lang = next;
         setLangLabel();
-        post('/api/live-language.php', { language: next }).catch(function () { /* the running session still switches */ });
+        if (S.api.language) post(S.api.language, { language: next }).catch(function () { /* the running session still switches */ });
         if (S.ready) {
             send({ realtimeInput: { text: next === 'da'
                 ? '[From now on speak ONLY Danish (dansk). Answer with a very short confirmation in Danish, like "Okay, dansk.", and do not mention this note.]'

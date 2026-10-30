@@ -77,7 +77,7 @@ function asset(string $path): string
         <p>This display is not signed in. Ask Kachow for the kiosk link (&ldquo;kiosk link&rdquo;) and open it on this device, or <a href="index.php">log in</a> to the app.</p>
     </main>
 <?php else: ?>
-    <div id="kiosk" class="kiosk" data-via="<?= htmlspecialchars($who['via'], ENT_QUOTES) ?>" data-light="<?= htmlspecialchars($light, ENT_QUOTES) ?>" data-dark="<?= htmlspecialchars($dark, ENT_QUOTES) ?>">
+    <div id="kiosk" class="kiosk" data-voice-src="<?= htmlspecialchars(asset('voice.js'), ENT_QUOTES) ?>" data-via="<?= htmlspecialchars($who['via'], ENT_QUOTES) ?>" data-light="<?= htmlspecialchars($light, ENT_QUOTES) ?>" data-dark="<?= htmlspecialchars($dark, ENT_QUOTES) ?>">
         <header class="kiosk-head">
             <div class="kiosk-clock" id="kioskClock"></div>
             <div class="kiosk-date" id="kioskDate"></div>

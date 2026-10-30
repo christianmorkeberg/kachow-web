@@ -19,6 +19,7 @@
         minus: 'M5 12h14',
         plus: 'M5 12h14M12 5v14',
         close: 'M5 5l14 14M19 5L5 19',
+        mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11v1a6 6 0 0 0 12 0v-1M12 18v3M9 21h6',
         off: 'M12 3v8.5M7 6.2a8 8 0 1 0 10 0',
         check: 'M4.5 12.5l5 5 10-11'
     };
@@ -446,6 +447,39 @@
             tick: function () { if (Date.now() > busyUntil && Date.now() - loadedAt > 5 * 60000) load(); }
         };
     }
+
+    // ---- Voice: the mic button in the header starts a live voice conversation (Gemini Live, see assets/voice.js). On the kiosk it is the HOUSE only —
+    // lights, heating, prices, weather, reminders — through its own endpoint (api/kiosk-voice.php); the app's voice endpoints are not reachable from here.
+    (function initVoice() {
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.WebSocket && (window.AudioContext || window.webkitAudioContext))) return;   // needs a mic, HTTPS
+        var head = root.querySelector('.kiosk-head');
+        if (!head) return;
+        var btn = iconBtn('mic', da('Talk to Kachow', 'Tal med Kachow'), null, 'kiosk-mic');
+        head.insertBefore(btn, head.querySelector('.kiosk-close'));   // before the close button when there is one, else last
+        var loading = null;
+        function load() {
+            if (window.KachowVoice) return Promise.resolve(window.KachowVoice);
+            if (!loading) loading = new Promise(function (resolve, reject) {
+                var sc = document.createElement('script');
+                sc.src = root.getAttribute('data-voice-src') || '/assets/voice.js';
+                sc.onload = function () { resolve(window.KachowVoice); };
+                sc.onerror = function () { loading = null; reject(new Error('Could not load voice.')); };
+                document.head.appendChild(sc);
+            });
+            return loading;
+        }
+        var opts = {
+            kiosk: true,
+            api: { token: '/api/kiosk-voice.php?a=token', tool: '/api/kiosk-voice.php?a=tool', log: '/api/kiosk-voice.php?a=log', language: '/api/kiosk-voice.php?a=language' }
+        };
+        var hooks = {
+            begin: function () { btn.classList.add('on'); },
+            end: function () { btn.classList.remove('on'); }
+        };
+        btn.addEventListener('click', function () {
+            load().then(function (v) { return v.isActive() ? v.stop() : v.start(hooks, opts); }).catch(function (e) { console.warn('kiosk voice:', e); });
+        });
+    })();
 
     var TILES = [buildPowerTile, buildLightsTile, buildThermostatsTile];
     var tiles = [];
