@@ -4797,7 +4797,7 @@
                 var bh = Math.max(h, 2);
                 var cls = 'wch-bar' + (b.ongoing ? ' ongoing' : '');
                 rects += '<rect class="' + cls + '" data-idx="' + i + '" x="' + x.toFixed(1) + '" y="' + (y0 - bh).toFixed(1)
-                    + '" width="' + barW.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="2.5">'
+                    + '" width="' + barW.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="0">'
                     + '<title>' + progEsc(wchWhen(card, b) + ' · ' + b.total + (b.ongoing ? ' · on the clock' : '')) + '</title></rect>';
             }
             hits += '<rect class="wch-hit" data-idx="' + i + '" x="' + (padL + step * i).toFixed(1) + '" y="' + padT
@@ -4892,7 +4892,7 @@
                     }
                     out += '<rect class="chart-bar" data-idx="' + i + '" style="fill:' + seriesColor(si) + '" x="' + x.toFixed(1)
                         + '" y="' + top.toFixed(1) + '" width="' + Math.max(barW - (stacked ? 0 : 1), 1).toFixed(1)
-                        + '" height="' + Math.max(h, 1).toFixed(1) + '" rx="' + (stacked ? 0 : 2) + '"/>';
+                        + '" height="' + Math.max(h, 1).toFixed(1) + '" rx="0"/>';
                 });
             });
         }
