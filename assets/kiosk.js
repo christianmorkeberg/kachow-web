@@ -441,10 +441,41 @@
         clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
         dateEl.textContent = d.toLocaleDateString(DA ? 'da-DK' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
     }
+    // Light by day, dark after sunset: the look follows the sun (computed here, no network). Location = Copenhagen (DK2); a degree or two changes the
+    // time by minutes only. The light / dark looks are the ones chosen in Appearance (data-light / data-dark on #kiosk).
+    var LAT = 55.68, LON = 12.57;
+    function sunTimes(now) {
+        var rad = Math.PI / 180, d0 = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+        var N = Math.floor((d0 - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000), lngH = LON / 15;
+        function at(rising) {
+            var t = N + ((rising ? 6 : 18) - lngH) / 24, M = 0.9856 * t - 3.289;
+            var L = (M + 1.916 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 282.634 + 720) % 360;
+            var RA = Math.atan(0.91764 * Math.tan(L * rad)) / rad; RA = (RA + 360) % 360; RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90; RA /= 15;
+            var sinD = 0.39782 * Math.sin(L * rad), cosD = Math.cos(Math.asin(sinD));
+            var cosH = (Math.cos(90.833 * rad) - sinD * Math.sin(LAT * rad)) / (cosD * Math.cos(LAT * rad));
+            if (cosH > 1) return null; if (cosH < -1) return Infinity;   // sun never rises / never sets
+            var H = Math.acos(cosH) / rad; if (rising) H = 360 - H; H /= 15;
+            var UT = ((H + RA - 0.06571 * t - 6.622 - lngH) % 24 + 24) % 24;
+            return d0 + UT * 3600000;
+        }
+        return { rise: at(true), set: at(false) };
+    }
+    function isNight(now) {
+        var s = sunTimes(now);
+        if (s.rise === null || s.set === null) return true;
+        if (s.rise === Infinity || s.set === Infinity) return false;
+        return now.getTime() < s.rise || now.getTime() >= s.set;
+    }
+    function followSun() {
+        var theme = isNight(new Date()) ? (root.getAttribute('data-dark') || 'aurora') : (root.getAttribute('data-light') || 'paper');
+        if (document.documentElement.getAttribute('data-theme') !== theme) document.documentElement.setAttribute('data-theme', theme);
+    }
+    window.__kioskSun = { sunTimes: sunTimes, isNight: isNight };
+
     // An always-on display reloads itself once a night (04:00-04:59, at most once an hour), so it picks up new deploys and a changed look.
     var startedAt = Date.now();
     function nightlyReload() { if (Date.now() - startedAt > 3600000 && new Date().getHours() === 4) location.reload(); }
-    function tick() { nightlyReload(); tickClock(); allTiles.forEach(function (t) { t.updRefresh(); }); tiles.forEach(function (t) { try { t.tick(); } catch (e) { console.warn('kiosk tile:', e); } }); }
+    function tick() { nightlyReload(); followSun(); tickClock(); allTiles.forEach(function (t) { t.updRefresh(); }); tiles.forEach(function (t) { try { t.tick(); } catch (e) { console.warn('kiosk tile:', e); } }); }
 
     // Keep the screen awake, and ask for browser fullscreen (honoured only from a tap: the first tap anywhere retries).
     var wake = null;

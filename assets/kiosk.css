@@ -20,6 +20,7 @@
 body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 :root[data-theme="paper"] body.kiosk-on, :root[data-theme="lavender"] body.kiosk-on, :root[data-theme="blush"] body.kiosk-on { background: #f7f5f0; }
 .kiosk, .kiosk * { border-radius: 0; box-shadow: none; }
+.kiosk, body.kiosk-on { transition: background-color 1.2s ease, color 1.2s ease; }
 .kiosk { position: fixed; inset: 0; height: 100vh; height: 100dvh; box-sizing: border-box; background: var(--k-bg); color: var(--k-ink); display: flex; flex-direction: column; gap: 2.4vmin; padding: 3vmin 4vmin; overflow: hidden; font-weight: 400; }
 .kiosk button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
