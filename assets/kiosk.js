@@ -327,8 +327,8 @@
             if (r.lights.length > 1) {
                 r.lights.forEach(function (l) {
                     var c = el('button', 'kl-lamp' + (l.on ? ' on' : '')); c.type = 'button'; c.title = l.name; c.setAttribute('aria-pressed', l.on ? 'true' : 'false');
-                    var ic = ico('bulb'); if (l.on && l.hex) { ic.style.setProperty('--lamp', l.hex); ic.classList.add('hex'); }   // outline stays dark; the lamp's real colour fills the bulb
-                    c.appendChild(ic); c.appendChild(el('span', 'nm', l.name));
+                    c.appendChild(ico('bulb'));   // one look for every lamp: on (filled, full strength) or off (outline, faded)
+                    c.appendChild(el('span', 'nm', l.name));
                     pressable(c, function () { lightToggle(l); }, function () { openPanel(l.name, [l], null); });
                     tools.appendChild(c);
                 });

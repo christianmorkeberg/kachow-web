@@ -110,7 +110,6 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 .kl-lamp .ic { width: 1.7em; height: 1.7em; opacity: .5; }
 .kl-lamp.on .ic { opacity: 1; }
 .kl-lamp.on .ic svg { fill: currentColor; fill-opacity: .35; }
-.kl-lamp.on .ic.hex svg { fill: var(--lamp); fill-opacity: 1; }
 .kl-lamp span.nm { max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kl-room.is-on .kl-lamp:hover { background: rgba(0, 0, 0, .07); }
 .kl-room:not(.is-on) .kl-lamp:hover { background: var(--k-wash); }
