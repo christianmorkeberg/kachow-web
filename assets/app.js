@@ -1324,10 +1324,10 @@
             setPanelState('open');
         }
         flashPanel();
-        // On desktop, every card open (fresh from chat, from the rail, reopened) re-fetches a
-        // card that's known to go stale (location/income/receipt/bookkeeping/work hours) so you
-        // never land on an old snapshot. No-ops for kinds freshenPanelCard doesn't cover.
-        if (desktop) freshenPanelCard();
+        // Every card open (fresh from chat, from the rail, reopened) re-fetches a card that's known to
+        // go stale (shopping list, books, work hours …) so you never land on an old snapshot — on a phone
+        // too. No-ops for kinds freshenPanelCard doesn't cover.
+        freshenPanelCard();
     }
 
     // ---- Live refresh of an open work card (desktop) ----------------------------------
@@ -1384,7 +1384,31 @@
         railRecents.forEach(function (r) { if (r.kind === card.kind) r.card = card; });
     }
 
-    // Re-fetch the card now in the panel if it's one that goes stale (work hours/charts),
+    // Cards whose own page/view is fully described by the card itself (a list name, a period offset), so the same endpoint can re-read them.
+    function refreshUrlFor(card) {
+        if (!card) return null;
+        var enc = encodeURIComponent;
+        switch (card.kind) {
+            case 'shopping_list':   return card.title ? '/api/shopping-list.php?list=' + enc(card.title) : null;
+            case 'moms':            return '/api/moms.php?offset=' + enc(card.offset || 0);
+            case 'mileage':         return '/api/mileage.php?offset=' + enc(card.offset || 0);
+            case 'pl':              return '/api/pl.php?granularity=' + enc(card.granularity || 'year') + '&offset=' + enc(card.offset || 0);
+            case 'cash':            return '/api/cash.php';
+            case 'calendar_month':  return card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null;
+        }
+        return null;
+    }
+    // Can the refresh button re-read this card? (Chat answers such as the weather are snapshots: ask again for fresh data.)
+    function canFreshen(card) {
+        if (!card) return false;
+        if (card.kind === 'location_day' && card.date === locToday()) return true;
+        if ((card.kind === 'income' || card.kind === 'receipt') && card.id) return true;
+        if (['bookkeeping', 'feedback', 'scheduled_tasks', 'dev_ideas'].indexOf(card.kind) !== -1) return true;
+        if (refreshUrlFor(card)) return true;
+        return !card.person && (card.kind === 'work_hours' || card.kind === 'work_chart');
+    }
+
+    // Re-fetch the card now in the panel if it's one that goes stale (shopping list, books, work hours …),
     // e.g. right after restoring it from the rail. Other kinds keep their snapshot.
     function freshenPanelCard() {
         var card = panelCard;
@@ -1446,11 +1470,28 @@
             return;
         }
 
+        var viewUrl = refreshUrlFor(card);
+        if (viewUrl) {
+            fetch(viewUrl, { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) { if (j && j.card && panelCard === card) refreshPanelCard(j.card); })
+                .catch(function () { /* keep the snapshot */ });
+            return;
+        }
+
         if (!card || card.person || (card.kind !== 'work_hours' && card.kind !== 'work_chart')) return;
         refetchWorkCard(card).then(function (j) {
             if (j && j.card && panelCard === card) refreshPanelCard(j.card);
         }).catch(function () { /* keep the snapshot */ });
     }
+
+    var lastFreshenAt = 0;
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible' || !cardPanel || cardPanel.hidden || !canFreshen(panelCard)) return;
+        if (Date.now() - lastFreshenAt < 15000) return;
+        lastFreshenAt = Date.now();
+        freshenPanelCard();
+    });
 
     setInterval(function () {
         var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
@@ -1473,10 +1514,11 @@
         var workspace = document.getElementById('workspace');
         function manualRefresh(e) {
             if (e) e.stopPropagation();
+            if (!canFreshen(panelCard)) { toast(daText('This one is a snapshot of the answer — ask me again for fresh data.', 'Det her er et øjebliksbillede af svaret — spørg igen for friske data.')); return; }
             var ic = refresh ? refresh.querySelector('svg') : null;
             if (ic) ic.classList.add('tl-spin');
             freshenPanelCard();
-            setTimeout(function () { if (ic) ic.classList.remove('tl-spin'); }, 500);
+            setTimeout(function () { if (ic) ic.classList.remove('tl-spin'); }, 700);
         }
         function toggleMin(e) {
             if (e) e.stopPropagation();
