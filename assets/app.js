@@ -9806,7 +9806,8 @@
             if (!res.ok) {
                 // Full server detail goes to the console; the bubble stays friendly.
                 if (data.debug) console.error('[Kachow] chat.php:', data.debug);
-                addMessage(data.error || 'Something went wrong.', 'error');
+                const errRow = addMessage(data.error || 'Something went wrong.', 'error');
+                if (data.code === 'ai_credits' && errRow && errRow.classList) errRow.classList.add('flash');   // out of AI credits: make sure it is noticed
                 return;
             }
 

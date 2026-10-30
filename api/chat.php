@@ -28,6 +28,7 @@ $bootMs = isset($_SERVER['REQUEST_TIME_FLOAT'])
     : 0;
 error_log('timing boot: ' . $bootMs . 'ms');
 
+use App\Assistant\AiCreditsException;
 use App\Assistant\AssistantLoop;
 use App\Assistant\GeminiClient;
 use App\Auth\GoogleOAuth;
@@ -285,10 +286,12 @@ try {
     // console (app.js console.errors it) — so errors are diagnosable without an
     // ugly bubble or digging through server logs.
     error_log('chat.php: ' . $e->getMessage());
+    // The Gemini account is out of credits: say exactly that (the page flashes it) instead of "Something went wrong".
+    $creditsText = $e instanceof AiCreditsException ? AiCreditsException::userText(SlowReply::isDanish($message)) : null;
     if (!empty($detached)) {
         // Too late to answer the request: say it in the conversation, and nudge when nobody is looking.
         try {
-            $failed = SlowReply::failed($message);
+            $failed = $creditsText ?? SlowReply::failed($message);
             (new Conversations())->addMessage($conversationId, 'assistant', $failed);
             pushLateReply($userId, $conversationId, $failed);
         } catch (\Throwable $e2) {
@@ -296,8 +299,9 @@ try {
         }
         exit;
     }
-    respond(500, [
-        'error' => 'Something went wrong handling your message.',
+    respond($creditsText !== null ? 503 : 500, [
+        'error' => $creditsText ?? 'Something went wrong handling your message.',
+        'code'  => $creditsText !== null ? 'ai_credits' : null,
         'debug' => get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine(),
     ]);
 }

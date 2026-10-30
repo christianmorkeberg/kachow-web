@@ -352,7 +352,11 @@ button.ghost {
     flex: 0 0 auto;
     margin-top: -2px;
 }
-.msg.error { align-self: flex-start; background: #2a1414; border: 1px solid #5a2020; color: #fecaca; }
+.msg.error { align-self: flex-start; background: var(--panel); border: 1px solid transparent; border-left: 3px solid var(--error); color: var(--text); }
+/* the bubble that says the AI credits are used up: it flashes a few times so it cannot be missed */
+.msg.error.flash { animation: msg-flash 1s ease-in-out 4; }
+@keyframes msg-flash { 0%, 100% { background: var(--panel); color: var(--text); } 50% { background: var(--fill-error); color: var(--accent-ink); } }
+@media (prefers-reduced-motion: reduce) { .msg.error.flash { animation: none; background: var(--fill-error); color: var(--accent-ink); } }
 .msg.typing,
 .row.typing .msg { color: var(--muted); font-style: italic; }
 .empty { margin: auto; color: var(--muted); text-align: center; padding: 0 12px; }
