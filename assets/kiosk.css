@@ -82,9 +82,9 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 .kp-chart .pw-bar.sel { stroke: var(--k-ink); stroke-width: 1; stroke-opacity: .6; }
 .kp-chart .pw-nowband { fill: var(--k-ink); fill-opacity: .055; }
 .kp-chart .pw-day { stroke: var(--k-line); stroke-width: 1; }
-.kp-chart .pw-nowtag-bg, .kp-chart .pw-nowtag-tip { fill: var(--k-ink); }
-.kp-chart .pw-nowtag-dot { fill: var(--k-mint); }
-.kp-chart .pw-nowtag-txt { fill: var(--k-bg); font-size: 1em; font-weight: 600; letter-spacing: .04em; }
+.kp-chart .pw-nowtag-bg, .kp-chart .pw-nowtag-tip { fill: var(--k-sky); }          /* a soft pastel tag, not a dark label */
+.kp-chart .pw-nowtag-dot { fill: var(--k-on-pastel); fill-opacity: .55; }
+.kp-chart .pw-nowtag-txt { fill: var(--k-on-pastel); font-size: 1em; font-weight: 500; letter-spacing: .04em; }
 .kp-chart .pw-window { fill: var(--k-mint); fill-opacity: .16; stroke: var(--k-mint); stroke-width: 1.4; stroke-dasharray: none; }
 .kp-readout { position: absolute; top: 0; right: 0; z-index: 2; pointer-events: none; background: var(--k-ink); color: var(--k-bg); padding: .25em .7em; font-size: 1.05em; white-space: nowrap; }
 .kp-readout-s { opacity: .65; font-size: .8em; }
@@ -92,17 +92,15 @@ body.kiosk-on { margin: 0; overflow: hidden; background: #15181d; }
 
 /* ---- lights: a room is ONE flat block (pastel while on, a faint wash while off); inside it only icons and text, no further boxes ---- */
 .kl-grid, .kt-grid { display: grid; gap: 1.1em; grid-template-columns: repeat(auto-fill, minmax(13em, 1fr)); }
+.kl-grid { grid-auto-rows: 1fr; }   /* every room block the same size, whatever it holds */
 .kl-room { background: var(--k-wash); padding: .8em .9em .6em; display: flex; flex-direction: column; gap: .5em; min-width: 0; transition: background .25s ease; }
 .kl-room.is-on { background: var(--k-butter); color: var(--k-on-pastel); }
 .kl-main { display: flex; align-items: center; gap: .6em; width: 100%; background: transparent; border: 0; color: inherit; text-align: left; padding: .15em 0; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
-.kl-main .ic { width: 1.9em; height: 1.9em; opacity: .55; }
-.kl-room.is-on .kl-main .ic { opacity: 1; }
-.kl-room.is-on .kl-main .ic svg { fill: currentColor; fill-opacity: .22; }
 .kl-txt { display: flex; flex-direction: column; min-width: 0; }
 .kl-name { font-size: 1.15em; font-weight: 500; line-height: 1.15; }
 .kl-count { font-size: .78em; color: var(--k-mute); }
 .kl-room.is-on .kl-count { color: inherit; opacity: .7; }
-.kl-tools { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 .1em; }
+.kl-tools { margin-top: auto; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 .1em; }
 .kl-tools .k-btn { color: inherit; min-width: 2em; min-height: 2em; }
 .kl-room:not(.is-on) .kl-tools .k-btn { color: var(--k-mute); }
 .kl-tools .kl-sp { flex: 1; }

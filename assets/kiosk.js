@@ -317,7 +317,6 @@
             var box = el('div', 'kl-room' + (r.on ? ' is-on' : ''));
             // The whole top row is the switch: tap = room on / off, hold = colours.
             var main = el('button', 'kl-main'); main.type = 'button'; main.setAttribute('aria-pressed', r.on ? 'true' : 'false');
-            main.appendChild(ico('bulb'));
             var txt = el('span', 'kl-txt');
             txt.appendChild(el('span', 'kl-name', r.name));
             txt.appendChild(el('span', 'kl-count', r.on ? on + '/' + r.lights.length + (r.brightness != null ? ' · ' + r.brightness + '%' : '') : da('off', 'slukket')));
