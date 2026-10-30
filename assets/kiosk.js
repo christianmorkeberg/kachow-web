@@ -443,7 +443,7 @@
     }
     // Light by day, dark after sunset: the look follows the sun (computed here, no network). Location = Copenhagen (DK2); a degree or two changes the
     // time by minutes only. The light / dark looks are the ones chosen in Appearance (data-light / data-dark on #kiosk).
-    var LAT = 55.68, LON = 12.57;
+    var LAT = 55.68, LON = 12.57, DUSK_MS = 30 * 60000;   // dark starts 30 min after sunset (a bright evening sky still looks dim on a light screen)
     function sunTimes(now) {
         var rad = Math.PI / 180, d0 = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
         var N = Math.floor((d0 - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000), lngH = LON / 15;
@@ -464,7 +464,7 @@
         var s = sunTimes(now);
         if (s.rise === null || s.set === null) return true;
         if (s.rise === Infinity || s.set === Infinity) return false;
-        return now.getTime() < s.rise || now.getTime() >= s.set;
+        return now.getTime() < s.rise || now.getTime() >= s.set + DUSK_MS;
     }
     function followSun() {
         var theme = isNight(new Date()) ? (root.getAttribute('data-dark') || 'aurora') : (root.getAttribute('data-light') || 'paper');
