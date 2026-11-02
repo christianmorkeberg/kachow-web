@@ -87,11 +87,44 @@ window.WorkoutTimer = (function () {
         else if (name === 'done') { [0, 220, 440].forEach(function (d) { setTimeout(function () { tone(784, 180, 0.5); }, d); }); buzz([200, 100, 200, 100, 400]); }
     }
 
-    var wake = null;
-    function wakeOn() {
-        try { if (navigator.wakeLock && !wake) navigator.wakeLock.request('screen').then(function (l) { wake = l; l.addEventListener('release', function () { wake = null; }); }).catch(function () { /* refused */ }); } catch (e) { /* unsupported */ }
+    // Keep the screen on while a session exists (running or paused; released when it is done or reset). The Screen Wake Lock API
+    // does it where the browser has it; iPhones' Home Screen apps have been unreliable about it, so there a tiny silent looping
+    // video is played as well (the well-known "NoSleep" trick). Both are harmless to run together.
+    var wake = null, vid = null;
+    var SILENT_MP4 = 'data:video/mp4;base64,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';
+    function isIosHomeScreenApp() {
+        var ua = navigator.userAgent || '', ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+        return ios && (navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches));
     }
-    function wakeOff() { try { if (wake) wake.release(); } catch (e) { /* ignore */ } wake = null; }
+    function fallbackOn() {
+        try {
+            if (!vid) {
+                vid = document.createElement('video');
+                vid.setAttribute('playsinline', ''); vid.setAttribute('muted', ''); vid.muted = true; vid.loop = true;
+                vid.src = SILENT_MP4;
+                vid.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
+                document.body.appendChild(vid);
+            }
+            var p = vid.play();
+            if (p && p.catch) p.catch(function () { /* needs a tap first; the next Start/Resume tap retries */ });
+        } catch (e) { /* unsupported */ }
+    }
+    function wakeOn() {
+        var lockOk = false;
+        try {
+            if (navigator.wakeLock && !wake) {
+                lockOk = true;
+                navigator.wakeLock.request('screen').then(function (l) { wake = l; l.addEventListener('release', function () { wake = null; }); })
+                    .catch(function () { fallbackOn(); });
+            } else if (navigator.wakeLock) lockOk = true;
+        } catch (e) { lockOk = false; }
+        if (!lockOk || isIosHomeScreenApp()) fallbackOn();
+    }
+    function wakeOff() {
+        try { if (wake) wake.release(); } catch (e) { /* ignore */ }
+        wake = null;
+        try { if (vid) vid.pause(); } catch (e) { /* ignore */ }
+    }
 
     function loadCfg() { try { return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { return {}; } }
     function saveCfg(part) { try { localStorage.setItem(STORE, JSON.stringify(Object.assign(loadCfg(), part))); } catch (e) { /* private mode */ } }
@@ -140,7 +173,7 @@ window.WorkoutTimer = (function () {
     }
     function pause() {
         if (!S || S.state !== 'running') return;
-        S.base = elapsed(); S.t0 = null; S.state = 'paused'; wakeOff();
+        S.base = elapsed(); S.t0 = null; S.state = 'paused';   // the screen stays on while paused (mid-workout)
         if (S.paint) S.paint(read());
     }
     function resume() {
@@ -155,7 +188,10 @@ window.WorkoutTimer = (function () {
         wakeOff();
     }
     document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible') { if (S && S.state === 'running') { wakeOn(); tick(); } }
+        if (document.visibilityState === 'visible' && S) {
+            if (S.state === 'running' || S.state === 'paused') wakeOn();   // the browser drops the lock when the page was hidden
+            if (S.state === 'running') tick();
+        }
     });
 
     // ---------------- UI ----------------
