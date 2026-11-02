@@ -9080,7 +9080,8 @@
             clearLayers();
             places.forEach(function (pl) {
                 var layer = drawPlace(L, placeLayer, pl, card.focus === pl.id);
-                layer.on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit(pl); } });
+                // Overlapping places (a site inside a bigger area): whichever layer receives the click, open the smallest place under the point.
+                layer.on('click', function (ev) { if (!draft) { L.DomEvent.stopPropagation(ev); edit(smallestPlaceAt(L, map, places, ev.latlng) || pl); } });
                 placeLayers[pl.id] = layer;
             });
             (card.suggestions || []).forEach(function (sg, i) {
@@ -9124,6 +9125,30 @@
             : L.circle([pl.lat, pl.lon], Object.assign({ radius: pl.radius_m || 100 }, style));
         layer.bindTooltip(pl.name, { direction: 'center', className: 'place-label', permanent: false });
         return layer.addTo(map);
+    }
+
+    // The smallest saved place (by area) that contains the point, or null.
+    function smallestPlaceAt(L, map, places, ll) {
+        var best = null, bestArea = Infinity, k = Math.cos(ll.lat * Math.PI / 180);
+        places.forEach(function (pl) {
+            var area;
+            if (pl.shape === 'polygon' && (pl.polygon || []).length >= 3) {
+                var v = pl.polygon, inside = false, sum = 0;
+                for (var i = 0, j = v.length - 1; i < v.length; j = i++) {
+                    var yi = v[i][0], xi = v[i][1], yj = v[j][0], xj = v[j][1];
+                    if ((yi > ll.lat) !== (yj > ll.lat) && ll.lng < (xj - xi) * (ll.lat - yi) / (yj - yi) + xi) inside = !inside;
+                    sum += (xj * k) * yi - (xi * k) * yj;
+                }
+                if (!inside) return;
+                area = Math.abs(sum) / 2 * 111320 * 111320;
+            } else {
+                var r = pl.radius_m || 100;
+                if (map.distance(ll, [pl.lat, pl.lon]) > r) return;
+                area = Math.PI * r * r;
+            }
+            if (area < bestArea) { best = pl; bestArea = area; }
+        });
+        return best;
     }
 
     // Bounds from the place's own data (a Leaflet circle can't measure itself before the map has a view).
