@@ -6010,6 +6010,12 @@
             res.appendChild(document.createTextNode(' ' + daText('Last run ', 'Sidst kørt ') + t.last_run + ' · ' + state
                 + (isSystem && t.last_ms != null ? ' · ' + (t.last_ms >= 1000 ? (t.last_ms / 1000).toFixed(1) + ' s' : t.last_ms + ' ms') : '')));
             box.appendChild(res);
+            if (isSystem && t.overdue) {   // it has stopped: the warning is the news, not the last (old) result
+                var late = document.createElement('div');
+                late.className = 'sched-overdue';
+                late.textContent = daText('⚠ Has not run for ' + t.overdue + ' — check the server cron.', '⚠ Har ikke kørt i ' + t.overdue + ' — tjek serverens cron.');
+                box.appendChild(late);
+            }
             var said = isSystem ? t.last_output : t.last_summary;
             if (said) {
                 var det = document.createElement('details');

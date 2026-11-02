@@ -3280,3 +3280,4 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .rem-chip:hover, .rem-chip:focus-visible { border-color: var(--accent); color: var(--accent); }
 .rem-empty { margin-top: 8px; color: var(--muted); }
 .rem-card.loading { opacity: .6; pointer-events: none; }
+.sched-overdue { margin-top: 4px; color: var(--warn); font-weight: 600; font-size: 13px; }

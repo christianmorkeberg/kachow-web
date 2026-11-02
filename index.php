@@ -288,6 +288,27 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
             </div>
         <?php endforeach; ?>
 
+        <?php
+        // The developer is warned when a built-in cron job has stopped reporting (a lost crontab line once silenced the reminders for days).
+        $stoppedJobs = [];
+        if ($users->isAdmin((int) $session->userId())) {
+            try {
+                $stoppedJobs = (new \App\Data\SystemTasks())->stale();
+            } catch (\Throwable $err) {
+                // the warning is a convenience, never worth failing the page
+            }
+        }
+        ?>
+        <?php if ($stoppedJobs !== []): ?>
+            <div class="banner warn" role="alert">
+                <strong>A background job has stopped.</strong>
+                <?php foreach ($stoppedJobs as $job): ?>
+                    <?= $e($job['label']) ?> last ran <?= $e($job['since']) ?> ago (<?= $e($job['schedule']) ?>).
+                <?php endforeach; ?>
+                Check the server's crontab, or ask &ldquo;show the system tasks&rdquo;.
+            </div>
+        <?php endif; ?>
+
         <!-- Shown when a scheduled task found something but its push may have been missed
              (dismissed, phone off, notifications denied) — cleared once its conversation is
              actually opened. Populated/toggled client-side (api/conversations.php?recent=1). -->
