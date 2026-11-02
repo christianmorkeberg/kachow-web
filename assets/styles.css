@@ -3286,3 +3286,7 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .banner-x { position: absolute; top: 6px; right: 8px; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: inherit; font-size: 20px; line-height: 1; cursor: pointer; opacity: .7; }
 .banner-x:hover, .banner-x:focus-visible { opacity: 1; }
 .banner:has(.banner-x) { padding-right: 40px; }
+.rem-done { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.rem-done summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.rem-item.approved .rem-text { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+.rem-tick.on { background: var(--ok); border-color: var(--ok); color: var(--accent-ink); }

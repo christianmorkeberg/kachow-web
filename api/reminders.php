@@ -10,6 +10,7 @@ declare(strict_types=1);
  *   POST { id:int, action:nudge, minutes:int }       → push it again in N minutes (it stays open until approved)
  *   POST { id:int, action:nudge, at:"YYYY-MM-DD HH:MM" } → ... at that local time
  *   POST { id:int, action:cancel }                   → drop it without approving
+ *   POST { id:int, action:reopen }                   → restore one that was ticked by mistake (card.done lists the last 48 h)
  *
  * `badge` is the number for the app icon (reminders awaiting approval). All rules live in App\Data\Reminders.
  */
@@ -59,6 +60,8 @@ try {
         }
         if ($action === 'approve') {
             $ok = $reminders->approve($userId, $id);
+        } elseif ($action === 'reopen') {
+            $ok = $reminders->reopen($userId, $id);
         } elseif ($action === 'cancel') {
             $ok = $reminders->cancel($userId, $id);
         } elseif ($action === 'nudge') {
@@ -68,7 +71,7 @@ try {
             }
             $ok = $reminders->nudge($userId, $id, $utc);
         } else {
-            out(400, ['error' => 'action must be approve, nudge or cancel.']);
+            out(400, ['error' => 'action must be approve, nudge, cancel or reopen.']);
         }
         if (!$ok) {
             // Already handled on another device: just show the current state.

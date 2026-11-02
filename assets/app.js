@@ -2181,12 +2181,12 @@
             return m;
         }
 
+        var done = card.done || [];
         if (!open.length && !upcoming.length) {
             var none = document.createElement('div');
             none.className = 'rem-empty';
             none.textContent = daText('Nothing waiting for you ✓', 'Intet venter på dig ✓');
             wrap.appendChild(none);
-            return;
         }
 
         var ul = document.createElement('ul');
@@ -2232,7 +2232,34 @@
             li.appendChild(btn('rem-act', icon('x'), daText('Cancel the reminder', 'Annuller påmindelsen'), function () { remPost({ action: 'cancel', id: it.id }, wrap); }));
             ul.appendChild(li);
         });
-        wrap.appendChild(ul);
+        if (ul.children.length) wrap.appendChild(ul);
+
+        // Ticked by mistake? The last 48 hours stay here; ticking one again puts it back as an open reminder (like a shopping item).
+        if (done.length) {
+            var det = document.createElement('details');
+            det.className = 'rem-done';
+            var sum = document.createElement('summary');
+            sum.textContent = daText('Recently approved (' + done.length + ')', 'Nylig godkendt (' + done.length + ')');
+            det.appendChild(sum);
+            var dl = document.createElement('ul');
+            dl.className = 'rem-list';
+            done.forEach(function (it) {
+                var li = document.createElement('li');
+                li.className = 'rem-item approved';
+                var body = document.createElement('div');
+                body.className = 'rem-body';
+                var t = document.createElement('div');
+                t.className = 'rem-text';
+                t.textContent = capFirst(it.text);
+                body.appendChild(t);
+                body.appendChild(meta(daText('Approved ', 'Godkendt ') + it.approved));
+                li.appendChild(btn('rem-tick on', icon('check'), daText('Not done: put it back', 'Ikke klaret: sæt den tilbage'), function () { remPost({ action: 'reopen', id: it.id }, wrap); }));
+                li.appendChild(body);
+                dl.appendChild(li);
+            });
+            det.appendChild(dl);
+            wrap.appendChild(det);
+        }
     }
 
     // The red number on the app icon = reminders waiting for approval. The service worker sets it when a push arrives (sw.js);
