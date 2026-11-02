@@ -1466,7 +1466,7 @@ button.ghost {
 }
 .cp-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .cp-actions { margin-left: auto; display: flex; gap: 2px; flex: 0 0 auto; }
-.cp-expand { display: none; }   /* desktop-only (shown in the min-width block) */
+.cp-expand { display: inline-flex; }   /* phone: full screen; desktop: widen over the chat rail */
 /* Dev idea #41: on mobile you can only MINIMISE a card (to its icon/title bar via
    cp-min), never fully dismiss it — so there's always a way back to it. The close
    (X) button only exists on desktop, shown in the min-width block below, where it
@@ -3290,3 +3290,18 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .rem-done summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .rem-item.approved .rem-text { text-decoration: line-through; color: var(--muted); font-weight: 400; }
 .rem-tick.on { background: var(--ok); border-color: var(--ok); color: var(--accent-ink); }
+
+/* Phone: a card in FULL SCREEN (the ⤢ button on the panel head) covers the chat; the head stays with the buttons, the body scrolls. */
+@media (max-width: 1023.98px) {
+    .card-panel[data-full="1"] {
+        position: fixed; inset: 0; z-index: 65; border-top: 0;
+        padding-top: env(safe-area-inset-top);
+    }
+    .card-panel[data-full="1"] .card-panel-head { cursor: default; }
+    .card-panel[data-full="1"] .cp-grip, .card-panel[data-full="1"] .cp-min { display: none; }
+    .card-panel[data-full="1"] .card-panel-body {
+        max-height: none; flex: 1 1 auto; min-height: 0;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+    body.card-full { overflow: hidden; }
+}

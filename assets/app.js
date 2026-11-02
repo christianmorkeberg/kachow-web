@@ -1264,8 +1264,27 @@
         if (tgl) tgl.setAttribute('aria-label', state === 'min' ? 'Expand' : 'Minimise');
     }
 
+    // The ⤢ button on the card panel: on a phone the card goes FULL SCREEN over the chat (and back); on desktop it widens the card
+    // canvas over the chat rail (ws-focus-card). One icon/label for both.
+    function isDesktopLayout() { return window.matchMedia && window.matchMedia('(min-width: 1024px)').matches; }
+    function setExpandIcon(full) {
+        var b = document.getElementById('cardPanelExpand');
+        if (!b) return;
+        b.innerHTML = icon(full ? 'minimize-2' : 'maximize-2');
+        b.setAttribute('aria-label', full ? daText('Back to the chat', 'Tilbage til chatten') : daText('Full screen', 'Fuld skærm'));
+        b.title = b.getAttribute('aria-label');
+    }
+    function setPanelFull(on) {
+        if (!cardPanel) return;
+        if (on) { cardPanel.setAttribute('data-full', '1'); setPanelState('open'); }
+        else cardPanel.removeAttribute('data-full');
+        document.body.classList.toggle('card-full', !!on);
+        setExpandIcon(!!on);
+    }
+
     function hidePanel() {
         if (!cardPanel) return;
+        setPanelFull(false);
         cardPanel.hidden = true;
         setPanelState('hidden');
         cardPanelBody.innerHTML = '';
@@ -1528,19 +1547,23 @@
         }
         function toggleMin(e) {
             if (e) e.stopPropagation();
+            if (cardPanel.getAttribute('data-full') === '1') return;   // full screen is never folded
             setPanelState(cardPanel.getAttribute('data-state') === 'min' ? 'open' : 'min');
         }
         // Desktop-only: expand the card canvas to the full viewport width (collapse the
         // chat rail) for large widgets, and back. The class does nothing on mobile.
         function toggleExpand(e) {
             if (e) e.stopPropagation();
-            if (!workspace) return;
-            var full = workspace.classList.toggle('ws-focus-card');
-            if (expand) {
-                expand.innerHTML = icon(full ? 'minimize-2' : 'maximize-2');
-                expand.setAttribute('aria-label', full ? 'Collapse to split view' : 'Expand to full width');
+            if (!isDesktopLayout()) {                 // phone: the card covers the whole screen
+                setPanelFull(cardPanel.getAttribute('data-full') !== '1');
+                return;
             }
+            if (!workspace) return;
+            setExpandIcon(workspace.classList.toggle('ws-focus-card'));
         }
+        document.addEventListener('keydown', function (e) {   // Esc leaves full screen
+            if (e.key === 'Escape' && cardPanel.getAttribute('data-full') === '1') setPanelFull(false);
+        });
         if (head)    head.addEventListener('click', toggleMin);
         if (tgl)     tgl.addEventListener('click', toggleMin);
         if (expand)  expand.addEventListener('click', toggleExpand);
