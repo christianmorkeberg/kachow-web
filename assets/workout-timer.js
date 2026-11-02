@@ -79,12 +79,59 @@ window.WorkoutTimer = (function () {
             o.start(t); o.stop(t + ms / 1000 + 0.02);
         } catch (e) { /* no sound */ }
     }
-    function play(name) {
+    // Sound setting: beep | voice | both | off (remembered). Voice uses the browser's speech synthesis (Danish or English like the app).
+    var SOUNDS = ['both', 'beep', 'voice', 'off'];
+    function soundMode() { var m = loadCfg().sound; return SOUNDS.indexOf(m) !== -1 ? m : 'both'; }
+    function langTag() { return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? 'da-DK' : 'en-GB'; }
+    var talk = null;   // the app's daText, set by render() — the spoken words are translated like the screen
+    var voiceCache = null;
+    function pickVoice(tag) {
+        try {
+            var list = window.speechSynthesis.getVoices() || [], pre = tag.slice(0, 2);
+            voiceCache = list.filter(function (v) { return v.lang === tag; })[0] || list.filter(function (v) { return (v.lang || '').slice(0, 2) === pre; })[0] || null;
+        } catch (e) { voiceCache = null; }
+        return voiceCache;
+    }
+    function speak(text) {
+        try {
+            var ss = window.speechSynthesis;
+            if (!ss || !text) return;
+            ss.cancel();   // never queue behind a slow earlier phrase
+            var u = new SpeechSynthesisUtterance(text);
+            u.lang = langTag(); u.rate = 1.05;
+            var v = voiceCache || pickVoice(u.lang);
+            if (v) u.voice = v;
+            ss.speak(u);
+        } catch (e) { /* no voice */ }
+    }
+    /** iOS only lets a page speak after a tap has spoken once: an empty phrase on Start/Resume unlocks it. */
+    function unlockVoice() {
+        try { if (window.speechSynthesis && soundMode() !== 'beep' && soundMode() !== 'off') window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) { /* ignore */ }
+    }
+    /** The words for a cue, from the reading r (round, rounds). */
+    function words(name, r) {
+        var T = talk || function (en) { return en; }, v = r && r.v ? r.v : {};
+        if (name === 'prep') return T('Get ready', 'Gør klar');
+        if (name === 'work') return v.round && v.rounds > 1 && v.round === v.rounds ? T('Last round. Work!', 'Sidste runde. Arbejd!') : (v.round ? T('Work! Round ', 'Arbejd! Runde ') + v.round : T('Go!', 'Kør!'));
+        if (name === 'rest') return T('Rest', 'Hvil');
+        if (name === 'done') return T('Done. Well done!', 'Færdig. Flot arbejde!');
+        if (name === 'tick' && r && r.sec >= 1 && r.sec <= 3) return String(r.sec);
+        return '';
+    }
+    function play(name, r) {
+        var mode = soundMode();
+        if (mode === 'off') return;
+        var beeps = mode === 'beep' || mode === 'both', voice = mode === 'voice' || mode === 'both';
         var buzz = function (p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* unsupported */ } };
-        if (name === 'tick')   { tone(660, 90, 0.3); buzz(30); }
-        else if (name === 'work') { tone(988, 450, 0.5); buzz([120, 60, 120]); }
-        else if (name === 'rest') { tone(523, 350, 0.4); buzz(200); }
-        else if (name === 'done') { [0, 220, 440].forEach(function (d) { setTimeout(function () { tone(784, 180, 0.5); }, d); }); buzz([200, 100, 200, 100, 400]); }
+        if (name === 'tick') {
+            // The last 3 seconds: beeps (also with "both" — a spoken count would talk over the next phrase); voice alone counts out loud.
+            if (beeps) { tone(660, 90, 0.3); buzz(30); } else speak(words('tick', r));
+            return;
+        }
+        if (voice) speak(words(name, r));
+        if (name === 'work')      { if (beeps) tone(988, 450, 0.5); buzz([120, 60, 120]); }
+        else if (name === 'rest') { if (beeps) tone(523, 350, 0.4); buzz(200); }
+        else if (name === 'done') { if (beeps) [0, 220, 440].forEach(function (d) { setTimeout(function () { tone(784, 180, 0.5); }, d); }); buzz([200, 100, 200, 100, 400]); }
     }
 
     // Keep the screen on while a session exists (running or paused; released when it is done or reset). The Screen Wake Lock API
@@ -141,7 +188,7 @@ window.WorkoutTimer = (function () {
         if (S.mode === 'emom') {
             var v = emomAt(S.plan, ms), sec = Math.ceil(v.leftMs / 1000);
             return { v: v, ms: ms, key: v.state + ':' + v.round, sec: sec, tickable: v.state !== 'done' && v.phaseMs > 3000,
-                start: v.state === 'work' ? 'work' : (v.state === 'rest' ? 'rest' : (v.state === 'done' ? 'done' : null)) };
+                start: v.state === 'prep' ? 'prep' : (v.state === 'work' ? 'work' : (v.state === 'rest' ? 'rest' : (v.state === 'done' ? 'done' : null))) };
         }
         if (S.mode === 'timer') {
             var left = Math.max(0, S.total - ms), done = left <= 0;
@@ -154,7 +201,7 @@ window.WorkoutTimer = (function () {
     function tick() {
         if (!S || S.state !== 'running') return;
         var r = read();
-        cues(S.last, r).forEach(play);
+        cues(S.last, r).forEach(function (c) { play(c, r); });
         S.last = r;
         var finished = (S.mode === 'emom' && r.v.state === 'done') || (S.mode === 'timer' && r.v.state === 'done');
         if (finished) { S.base = elapsed(); S.t0 = null; S.state = 'done'; clearInterval(S.timer); wakeOff(); }
@@ -163,6 +210,7 @@ window.WorkoutTimer = (function () {
 
     function begin(mode, cfg) {
         ensureAudio();
+        unlockVoice();
         end();
         S = { mode: mode, cfg: cfg, base: 0, t0: performance.now(), state: 'running', laps: [], last: null, paint: null };
         if (mode === 'emom') S.plan = emomPlan(cfg);
@@ -179,6 +227,7 @@ window.WorkoutTimer = (function () {
     function resume() {
         if (!S || S.state !== 'paused') return;
         ensureAudio();
+        unlockVoice();
         S.t0 = performance.now(); S.state = 'running'; wakeOn();
         tick();
     }
@@ -206,6 +255,7 @@ window.WorkoutTimer = (function () {
     /** Draws the card into root. hooks: { icon(name, cls), daText(en, da) }. card: { mode: 'emom'|'timer'|'stopwatch', work, rest, rounds, total_minutes, minutes, seconds }. */
     function render(root, card, hooks) {
         var icon = hooks.icon, T = hooks.daText;
+        talk = T;
         var saved = loadCfg();
         var mode = S ? S.mode : (['emom', 'timer', 'stopwatch'].indexOf(card.mode) !== -1 ? card.mode : (saved.mode || 'emom'));
 
@@ -260,6 +310,23 @@ window.WorkoutTimer = (function () {
         }
         var sum = function () { /* set by the emom setup */ };
 
+        function soundRow() {
+            var row = el('div', 'wt-row');
+            row.appendChild(el('div', 'wt-lab', T('Sound', 'Lyd')));
+            var seg = el('div', 'wt-seg wt-sound'), cur = soundMode();
+            [['both', T('Both', 'Begge')], ['beep', T('Beeps', 'Bip')], ['voice', T('Voice', 'Stemme')], ['off', T('Off', 'Fra')]].forEach(function (o) {
+                seg.appendChild(btn('wt-segb' + (cur === o[0] ? ' on' : ''), o[1], null, function () {
+                    saveCfg({ sound: o[0] });
+                    seg.querySelectorAll('.wt-segb').forEach(function (b) { b.classList.remove('on'); });
+                    this.classList.add('on');
+                    if (o[0] === 'voice' || o[0] === 'both') { unlockVoice(); speak(T('Rest', 'Hvil')); }   // a sample, and the unlock iOS needs
+                    else if (o[0] === 'beep') { ensureAudio(); tone(988, 200, 0.4); }
+                }));
+            });
+            row.appendChild(seg);
+            return row;
+        }
+
         // ----- setup views -----
         function setupEmom() {
             var presets = el('div', 'wt-presets');
@@ -288,6 +355,7 @@ window.WorkoutTimer = (function () {
                     + formatMs((p.per * p.rounds) * 1000) + (p.prep ? ' + ' + p.prep + ' s ' + T('to get ready', 'til at gøre klar') : '');
             };
             sum();
+            body.appendChild(soundRow());
             body.appendChild(btn('wt-go', icon('play') + ' ' + T('Start', 'Start'), null, function () { saveCfg({ mode: 'emom', emom: emom }); begin('emom', emom); again(); }));
         }
         function setupTimer() {
@@ -298,6 +366,7 @@ window.WorkoutTimer = (function () {
             body.appendChild(presets);
             body.appendChild(stepper(T('Minutes', 'Minutter'), function () { return cd.minutes; }, function (v) { cd.minutes = v; }, 0, 600, 1, 'min'));
             body.appendChild(stepper(T('Seconds', 'Sekunder'), function () { return cd.seconds; }, function (v) { cd.seconds = v; }, 0, 59, 5, 's'));
+            body.appendChild(soundRow());
             body.appendChild(btn('wt-go', icon('play') + ' ' + T('Start', 'Start'), null, function () {
                 if (!clamp(cd.minutes, 0, 600) && !clamp(cd.seconds, 0, 59)) return;
                 saveCfg({ mode: 'timer', timer: cd }); begin('timer', cd); again();

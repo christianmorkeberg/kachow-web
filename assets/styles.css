@@ -3351,3 +3351,4 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .wt-lapn { color: var(--muted); width: 2.5em; }
 .wt-lapt { font-weight: 700; flex: 1; }
 .wt-lapa { color: var(--muted); }
+.wt-sound { align-self: auto; }
