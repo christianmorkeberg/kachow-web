@@ -65,7 +65,15 @@ window.WorkoutTimer = (function () {
      *  'playback' = heard even on silent (and other apps' music pauses); 'auto' = the browser's default (muted by the switch). */
     function silentOk() { return loadCfg().silent !== false; }
     function applyAudioSession() {
-        try { if (navigator.audioSession) navigator.audioSession.type = silentOk() ? 'playback' : 'auto'; } catch (e) { /* unsupported */ }
+        try {
+            var as = navigator.audioSession;
+            if (!as || as.type === 'play-and-record') return;   // a voice session is using the mic: leave its audio session alone
+            as.type = silentOk() ? 'playback' : 'auto';
+        } catch (e) { /* unsupported */ }
+    }
+    /** Give the audio session back when the timer is not sounding any more ('playback' blocks the microphone: voice mode could not start). */
+    function releaseAudioSession() {
+        try { var as = navigator.audioSession; if (as && as.type === 'playback') as.type = 'auto'; } catch (e) { /* unsupported */ }
     }
     function ensureAudio() {
         applyAudioSession();
@@ -97,7 +105,7 @@ window.WorkoutTimer = (function () {
             if (p && p.catch) p.catch(function () { /* needs a tap; the next Start/Resume tap retries */ });
         } catch (e) { /* unsupported */ }
     }
-    function keepOff() { try { if (keep) keep.pause(); } catch (e) { /* ignore */ } }
+    function keepOff() { try { if (keep) keep.pause(); } catch (e) { /* ignore */ } releaseAudioSession(); }
 
     function tone(freq, ms, gain) {
         if (!audio) return;
@@ -244,9 +252,9 @@ window.WorkoutTimer = (function () {
     }
 
     function begin(mode, cfg) {
+        end();   // first: it gives the audio session back, which the lines below then claim again
         ensureAudio();
         unlockVoice();
-        end();
         S = { mode: mode, cfg: cfg, base: 0, t0: performance.now(), state: 'running', laps: [], last: null, paint: null };
         if (mode === 'emom') S.plan = emomPlan(cfg);
         if (mode === 'timer') S.total = (clamp(cfg.minutes, 0, 600) * 60 + clamp(cfg.seconds, 0, 59)) * 1000;

@@ -15,6 +15,9 @@
 
     var IN_RATE = 16000;
     var EARCON_AFTER_MS = 800;          // a tool call this slow gets a soft sound, so there is no dead air
+    // Speaker + "interrupt": the mic stays gated while the assistant talks, but a clearly louder voice (> BARGE_FACTOR x the echo level,
+    // at least BARGE_MIN, for BARGE_FRAMES x 50 ms) cuts the assistant off. Off by default (a speaker can hear itself).
+    var BARGE_MIN = 0.05, BARGE_FACTOR = 2.4, BARGE_FRAMES = 3, BARGE_DROP_MS = 2500;
     var MIC_TAIL_MS = 350;              // in speaker mode the mic stays closed this long after the assistant stops (room echo)
 
     // Two processors in one module: the microphone (any rate -> 16 kHz PCM16) and the speaker (24 kHz PCM16 queue ->
@@ -70,6 +73,11 @@
         'registerProcessor("kachow-play", KachowPlay);'
     ].join('\n');
 
+    // iOS Safari: the page's audio session must allow capture while a voice session runs ('play-and-record'); a leftover 'playback' type
+    // (the workout timer sets it so its beeps are heard on silent) makes getUserMedia fail with "AudioSession category is not compatible".
+    function useCaptureSession() { try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* unsupported */ } }
+    function releaseCaptureSession() { try { if (navigator.audioSession && navigator.audioSession.type === 'play-and-record') navigator.audioSession.type = 'auto'; } catch (e) { /* unsupported */ } }
+
     var S = null;   // the live session state, null when no session
 
     function b64FromBytes(bytes) {
@@ -108,6 +116,7 @@
             '<div class="vd-row">' +
             '<button type="button" class="vd-btn vd-stop" hidden>Stop talking</button>' +
             '<button type="button" class="vd-lang" aria-label="Language" title="Voice language — tap to switch"><span data-l="en">EN</span><span data-l="da">DA</span></button>' +
+            '<button type="button" class="vd-btn vd-int" aria-pressed="false" hidden title="On a speaker: speaking clearly over the assistant interrupts it (it can misfire if the volume is high). Off by default.">Interrupt: off</button>' +
             '<button type="button" class="vd-btn vd-out" title="Speaker: the microphone stays closed while the assistant talks, so it cannot hear itself. Headphones: you can interrupt by speaking.">Speaker</button>' +
             '<button type="button" class="vd-btn vd-mute" aria-pressed="false">Mute</button>' +
             '<button type="button" class="vd-btn vd-end">End</button>' +
@@ -179,6 +188,7 @@
     // Chunks go to the playback worklet (gapless, resampled continuously); the worklet says when it starts and drains.
     function playPcm(b64, rate) {
         if (!S || !S.play) return;
+        if (Date.now() < S.dropAudioUntil) return;   // we cut in: what the assistant was still sending is not played (until the server says "interrupted")
         var bytes = bytesFromB64(b64);
         if (bytes.length < 2) return;
         var ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + (bytes.length & ~1));
@@ -288,6 +298,7 @@
 
     function handleContent(sc) {
         if (sc.interrupted) {
+            S.dropAudioUntil = 0;
             S.turns = (S.turns || 0) + 1;
             flushPlayback();
             logEvent('interrupted');
@@ -437,6 +448,31 @@
     }
     window.addEventListener('pagehide', releaseMic);
 
+    // Speaker mode with "interrupt" on: the assistant is talking and the mic is gated, but a voice clearly louder than the echo cuts in.
+    // The last few gated frames are kept and sent first, so the start of what you said is not lost.
+    function rmsOf(buf) {
+        var a = new Int16Array(buf), sum = 0;
+        for (var i = 0; i < a.length; i++) sum += a[i] * a[i];
+        return Math.sqrt(sum / a.length) / 32768;
+    }
+    function bargeCheck(buf) {
+        if (!S || !S.interrupt || S.muted || !S.ready || S.outMode !== 'speaker') return;
+        if (!(S.speaking || Date.now() - S.lastAudioAt < 700)) return;
+        var r = rmsOf(buf), gate = Math.max(BARGE_MIN, BARGE_FACTOR * S.echoRms);
+        S.gated.push(buf);
+        if (S.gated.length > BARGE_FRAMES + 3) S.gated.shift();
+        if (r > gate) S.loud++;
+        else { S.loud = 0; S.echoRms = S.echoRms * 0.97 + r * 0.03; }   // learns how loud the assistant's own echo is
+        if (S.loud < BARGE_FRAMES) return;
+        var frames = S.gated;
+        S.loud = 0; S.gated = [];
+        S.dropAudioUntil = Date.now() + BARGE_DROP_MS;
+        flushPlayback();
+        S.micHoldUntil = 0; S.lastAudioAt = 0;     // the mic is open again right now
+        logEvent('barge_in', { detail: { rms: Math.round(r * 1000) / 1000, gate: Math.round(gate * 1000) / 1000 } });
+        frames.forEach(function (f) { send({ realtimeInput: { audio: { data: b64FromBytes(new Uint8Array(f)), mimeType: 'audio/pcm;rate=' + IN_RATE } } }); });
+    }
+
     function startMic() {
         getMic().then(function (stream) {
             if (!S) { keepMic(stream); return; }
@@ -444,8 +480,8 @@
             S.src = S.ctx.createMediaStreamSource(stream);
             S.node = new AudioWorkletNode(S.ctx, 'kachow-cap');
             S.node.port.onmessage = function (ev) {
-                if (!micOpen()) return;
-                send({ realtimeInput: { audio: { data: b64FromBytes(new Uint8Array(ev.data.pcm)), mimeType: 'audio/pcm;rate=' + IN_RATE } } });
+                if (micOpen()) { S.loud = 0; S.gated = []; send({ realtimeInput: { audio: { data: b64FromBytes(new Uint8Array(ev.data.pcm)), mimeType: 'audio/pcm;rate=' + IN_RATE } } }); return; }
+                bargeCheck(ev.data.pcm);
             };
             S.src.connect(S.node);       // not connected to the speakers: nothing to echo
         }).catch(function (e) {
@@ -478,11 +514,14 @@
         setState('connecting');
         showError('');
         // The audio context must be created in this tap (browsers/iOS only allow audio after a gesture).
+        useCaptureSession();
         var AC = window.AudioContext || window.webkitAudioContext;
         S.ctx = new AC();
         if (S.ctx.resume) S.ctx.resume();
         var toolMode = (window.localStorage && localStorage.getItem('kachow.voice.toolmode')) || 'auto';
         try { S.outMode = localStorage.getItem('kachow.voice.output') === 'headphones' ? 'headphones' : 'speaker'; } catch (e) { /* default */ }
+        try { S.interrupt = localStorage.getItem('kachow.voice.interrupt') === '1'; } catch (e) { S.interrupt = false; }
+        S.loud = 0; S.echoRms = 0.01; S.gated = []; S.dropAudioUntil = 0;
         setOutLabel();
 
         return post(api.token, { tool_mode: toolMode, lang_hint: navigator.language || '' }).then(function (r) {
@@ -591,6 +630,7 @@
         var dock = s.dock;
         S = null;
         document.body.classList.remove('voice-on');
+        releaseCaptureSession();
         // leave the dock up a moment so the reason can be read, unless it never got started
         setTimeout(function () { if (!S && dock) dock.hidden = true; }, failed ? 6000 : 4000);
     }
@@ -612,6 +652,15 @@
         if (!S) return;
         var b = S.dock.querySelector('.vd-out');
         if (b) b.textContent = S.outMode === 'speaker' ? 'Speaker' : 'Headphones';
+        var i = S.dock.querySelector('.vd-int');
+        if (i) { i.hidden = S.outMode !== 'speaker'; i.textContent = 'Interrupt: ' + (S.interrupt ? 'on' : 'off'); i.setAttribute('aria-pressed', S.interrupt ? 'true' : 'false'); }   // headphones always interrupt
+    }
+    function toggleInterrupt() {
+        if (!S) return;
+        S.interrupt = !S.interrupt;
+        S.loud = 0; S.gated = [];
+        try { localStorage.setItem('kachow.voice.interrupt', S.interrupt ? '1' : '0'); } catch (e) { /* ignore */ }
+        setOutLabel();
     }
     // Speaker: the mic is closed while the assistant talks (it cannot hear itself); use Stop talking to cut in.
     // Headphones: the mic stays open, so speaking over the assistant interrupts it.
@@ -670,6 +719,7 @@
         if (e.target.closest('#voiceDock .vd-end')) stop();
         else if (e.target.closest('#voiceDock .vd-mute')) toggleMute();
         else if (e.target.closest('#voiceDock .vd-out')) toggleOutMode();
+        else if (e.target.closest('#voiceDock .vd-int')) toggleInterrupt();
         else if (e.target.closest('#voiceDock .vd-lang')) toggleLang();
         else if (e.target.closest('#voiceDock .vd-stop')) { if (S) { flushPlayback(); S.micHoldUntil = 0; } }
     });
