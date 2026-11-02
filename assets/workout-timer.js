@@ -252,6 +252,20 @@ window.WorkoutTimer = (function () {
         return e;
     }
 
+    var RING_C = 2 * Math.PI * 90;
+    /** A progress ring (SVG) around a big number; .set(fraction 0..1) moves it. */
+    function ringOf(big) {
+        var box = el('div', 'wt-ring');
+        box.innerHTML = '<svg viewBox="0 0 200 200" aria-hidden="true"><circle class="wt-ring-bg" cx="100" cy="100" r="90"/>'
+            + '<circle class="wt-ring-fg" cx="100" cy="100" r="90" transform="rotate(-90 100 100)"/></svg>';
+        box.appendChild(big);
+        var fg = box.querySelector('.wt-ring-fg');
+        fg.style.strokeDasharray = RING_C.toFixed(1);
+        var set = function (f) { fg.style.strokeDashoffset = (RING_C * (1 - Math.max(0, Math.min(1, f)))).toFixed(1); };
+        set(0);
+        return { box: box, set: set };
+    }
+
     /** Draws the card into root. hooks: { icon(name, cls), daText(en, da) }. card: { mode: 'emom'|'timer'|'stopwatch', work, rest, rounds, total_minutes, minutes, seconds }. */
     function render(root, card, hooks) {
         var icon = hooks.icon, T = hooks.daText;
@@ -286,15 +300,15 @@ window.WorkoutTimer = (function () {
         var tabs = el('div', 'wt-tabs');
         [['emom', 'EMOM'], ['timer', T('Timer', 'Timer')], ['stopwatch', T('Stopwatch', 'Stopur')]].forEach(function (t) {
             var b = btn('wt-tab' + (t[0] === mode ? ' on' : ''), t[1], null, function () { saveCfg({ mode: t[0] }); card = Object.assign({}, card, { mode: t[0] }); again(); });
-            if (S) b.disabled = true;
             tabs.appendChild(b);
         });
-        wrap.appendChild(tabs);
+        if (!S) wrap.appendChild(tabs);   // while a session runs the tabs would only be in the way
         var body = el('div', 'wt-body');
         wrap.appendChild(body);
 
-        function stepper(label, get, set, lo, hi, step, unit) {
-            var row = el('div', 'wt-row');
+        // A number you can nudge with − / + or type. With a tone (work / rest / accent) it is a big coloured tile, without one a plain row.
+        function stepper(label, get, set, lo, hi, step, unit, tone) {
+            var row = el('div', tone ? 'wt-tile wt-tone-' + tone : 'wt-row');
             row.appendChild(el('div', 'wt-lab', label));
             var ctl = el('div', 'wt-step');
             var inp = el('input', 'wt-num');
@@ -302,8 +316,10 @@ window.WorkoutTimer = (function () {
             function commit(v) { set(clamp(v, lo, hi)); inp.value = get(); sum(); }
             ctl.appendChild(btn('wt-pm', icon('minus'), T('Less', 'Mindre'), function () { commit(get() - step); }));
             inp.addEventListener('change', function () { commit(inp.value); });
-            ctl.appendChild(inp);
-            if (unit) ctl.appendChild(el('span', 'wt-unit', unit));
+            var mid = el('div', 'wt-mid');
+            mid.appendChild(inp);
+            if (unit) mid.appendChild(el('span', 'wt-unit', unit));
+            ctl.appendChild(mid);
             ctl.appendChild(btn('wt-pm', icon('plus'), T('More', 'Mere'), function () { commit(get() + step); }));
             row.appendChild(ctl);
             return row;
@@ -336,23 +352,37 @@ window.WorkoutTimer = (function () {
                 }));
             });
             body.appendChild(presets);
-            body.appendChild(stepper(T('Work', 'Arbejde'), function () { return emom.work; }, function (v) { emom.work = v; }, 5, 900, 5, 's'));
-            body.appendChild(stepper(T('Rest', 'Pause'), function () { return emom.rest; }, function (v) { emom.rest = v; }, 0, 900, 5, 's'));
+            var grid = el('div', 'wt-grid');
+            grid.appendChild(stepper(T('Work', 'Arbejde'), function () { return emom.work; }, function (v) { emom.work = v; }, 5, 900, 5, 's', 'work'));
+            grid.appendChild(stepper(T('Rest', 'Pause'), function () { return emom.rest; }, function (v) { emom.rest = v; }, 0, 900, 5, 's', 'rest'));
+            body.appendChild(grid);
             var by = el('div', 'wt-seg');
             [['rounds', T('Rounds', 'Runder')], ['total', T('Total time', 'Samlet tid')]].forEach(function (o) {
                 by.appendChild(btn('wt-segb' + (emom.by === o[0] ? ' on' : ''), o[1], null, function () { emom.by = o[0]; saveCfg({ emom: emom }); again(); }));
             });
             body.appendChild(by);
             body.appendChild(emom.by === 'total'
-                ? stepper(T('Total', 'Samlet'), function () { return emom.total; }, function (v) { emom.total = v; }, 1, 240, 1, 'min')
-                : stepper(T('Rounds', 'Runder'), function () { return emom.rounds; }, function (v) { emom.rounds = v; }, 1, 200, 1, ''));
+                ? stepper(T('Total time', 'Samlet tid'), function () { return emom.total; }, function (v) { emom.total = v; }, 1, 240, 1, 'min', 'accent')
+                : stepper(T('Rounds', 'Runder'), function () { return emom.rounds; }, function (v) { emom.rounds = v; }, 1, 200, 1, '', 'accent'));
             body.appendChild(stepper(T('Get ready', 'Gør klar'), function () { return emom.prep; }, function (v) { emom.prep = v; }, 0, 30, 5, 's'));
+            // The pattern at a glance: get-ready, then each round's work (green) and rest (yellow), widths in proportion.
+            var pat = el('div', 'wt-pattern');
+            body.appendChild(pat);
             var s = el('div', 'wt-sum');
             body.appendChild(s);
             sum = function () {
                 var p = emomPlan(emom);
+                pat.innerHTML = '';
+                if (p.prep) { var pp = el('i', 'p'); pp.style.flexGrow = p.prep; pat.appendChild(pp); }
+                for (var k = 0; k < Math.min(p.rounds, 30); k++) {
+                    var r = el('span', 'r'); r.style.flexGrow = p.per;
+                    var w = el('i', 'w'); w.style.flexGrow = p.work; r.appendChild(w);
+                    if (p.rest) { var q = el('i', 'q'); q.style.flexGrow = p.rest; r.appendChild(q); }
+                    pat.appendChild(r);
+                }
                 s.textContent = p.rounds + ' × (' + p.work + ' s ' + T('work', 'arbejde') + (p.rest ? ' + ' + p.rest + ' s ' + T('rest', 'pause') : '') + ') = '
-                    + formatMs((p.per * p.rounds) * 1000) + (p.prep ? ' + ' + p.prep + ' s ' + T('to get ready', 'til at gøre klar') : '');
+                    + formatMs((p.per * p.rounds) * 1000) + (p.prep ? ' + ' + p.prep + ' s ' + T('to get ready', 'til at gøre klar') : '')
+                    + (p.rounds > 30 ? ' · ' + T('first 30 rounds shown', 'de første 30 runder vist') : '');
             };
             sum();
             body.appendChild(soundRow());
@@ -364,8 +394,10 @@ window.WorkoutTimer = (function () {
                 presets.appendChild(btn('wt-chip', m + ' min', null, function () { cd.minutes = m; cd.seconds = 0; saveCfg({ timer: cd }); again(); }));
             });
             body.appendChild(presets);
-            body.appendChild(stepper(T('Minutes', 'Minutter'), function () { return cd.minutes; }, function (v) { cd.minutes = v; }, 0, 600, 1, 'min'));
-            body.appendChild(stepper(T('Seconds', 'Sekunder'), function () { return cd.seconds; }, function (v) { cd.seconds = v; }, 0, 59, 5, 's'));
+            var tg = el('div', 'wt-grid');
+            tg.appendChild(stepper(T('Minutes', 'Minutter'), function () { return cd.minutes; }, function (v) { cd.minutes = v; }, 0, 600, 1, 'min', 'accent'));
+            tg.appendChild(stepper(T('Seconds', 'Sekunder'), function () { return cd.seconds; }, function (v) { cd.seconds = v; }, 0, 59, 5, 's', 'accent'));
+            body.appendChild(tg);
             body.appendChild(soundRow());
             body.appendChild(btn('wt-go', icon('play') + ' ' + T('Start', 'Start'), null, function () {
                 if (!clamp(cd.minutes, 0, 600) && !clamp(cd.seconds, 0, 59)) return;
@@ -374,18 +406,23 @@ window.WorkoutTimer = (function () {
         }
         function setupStopwatch() {
             var big = el('div', 'wt-big', formatMs(0, { tenths: true }));
-            body.appendChild(big);
+            body.appendChild(ringOf(big).box);
             body.appendChild(btn('wt-go', icon('play') + ' ' + T('Start', 'Start'), null, function () { saveCfg({ mode: 'stopwatch' }); begin('stopwatch', {}); again(); }));
         }
 
         // ----- run view (shared by the three modes) -----
         function runView() {
             var box = el('div', 'wt-run');
-            var phase = el('div', 'wt-phase'), big = el('div', 'wt-big'), bar = el('div', 'wt-bar'), fill = el('i'), meta = el('div', 'wt-meta');
-            bar.appendChild(fill);
-            box.appendChild(phase); box.appendChild(big);
-            if (S.mode !== 'stopwatch') box.appendChild(bar);
-            box.appendChild(meta);
+            var phase = el('div', 'wt-phase'), big = el('div', 'wt-big'), meta = el('div', 'wt-meta');
+            var ring = ringOf(big);
+            box.appendChild(phase); box.appendChild(ring.box); box.appendChild(meta);
+            // One square per round (EMOM, up to 30): done = filled, now = outlined, to come = faint.
+            var dots = [];
+            if (S.mode === 'emom' && S.plan.rounds <= 30) {
+                var dr = el('div', 'wt-dots');
+                for (var d = 0; d < S.plan.rounds; d++) { var dd = el('i'); dots.push(dd); dr.appendChild(dd); }
+                box.appendChild(dr);
+            }
             var actions = el('div', 'wt-actions');
             var main = btn('wt-go', '', null, function () { if (S.state === 'running') pause(); else if (S.state === 'paused') resume(); else { var m = S.mode, c = S.cfg; begin(m, c); again(); } });
             var lap = btn('wt-sec', icon('flag') + ' ' + T('Lap', 'Omgang'), null, function () {
@@ -408,17 +445,19 @@ window.WorkoutTimer = (function () {
                 if (S.mode === 'emom') {
                     phase.textContent = st === 'done' ? T('Done!', 'Færdig!') : (st === 'paused' ? T('Paused', 'Pause') : (v.state === 'prep' ? T('Get ready', 'Gør klar') : (v.state === 'work' ? T('WORK', 'ARBEJD') : T('REST', 'HVIL'))));
                     big.textContent = st === 'done' ? formatMs(S.plan.totalMs) : formatMs(v.leftMs);
-                    fill.style.width = (v.phaseMs ? 100 - v.leftMs / v.phaseMs * 100 : 100).toFixed(1) + '%';
+                    ring.set(st === 'done' ? 1 : (v.phaseMs ? 1 - v.leftMs / v.phaseMs : 0));
+                    dots.forEach(function (dd, k) { dd.className = st === 'done' || k + 1 < v.round ? 'done' : (k + 1 === v.round && v.state !== 'prep' ? 'now' : ''); });
                     meta.textContent = v.state === 'prep' ? '' : T('Round ', 'Runde ') + v.round + ' / ' + v.rounds + ' · ' + T('left ', 'tilbage ') + formatMs(v.totalLeftMs);
                     if (st === 'done') meta.textContent = S.plan.rounds + ' ' + T('rounds', 'runder');
                 } else if (S.mode === 'timer') {
                     phase.textContent = st === 'done' ? T('Time!', 'Tid!') : (st === 'paused' ? T('Paused', 'Pause') : T('Timer', 'Timer'));
                     big.textContent = formatMs(v.leftMs);
-                    fill.style.width = (S.total ? 100 - v.leftMs / S.total * 100 : 100).toFixed(1) + '%';
+                    ring.set(S.total ? 1 - v.leftMs / S.total : 1);
                     meta.textContent = '';
                 } else {
                     phase.textContent = st === 'paused' ? T('Paused', 'Pause') : T('Stopwatch', 'Stopur');
                     big.textContent = formatMs(r.ms, { tenths: true });
+                    ring.set((r.ms % 60000) / 60000);   // one lap of the ring per minute
                     meta.textContent = '';
                     laps.innerHTML = '';
                     S.laps.slice().reverse().forEach(function (l, i) {
