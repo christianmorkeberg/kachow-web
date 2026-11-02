@@ -456,6 +456,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
     </div>
     <script src="<?= asset('icons.js') ?>" defer></script>
     <script src="<?= asset('power-chart.js') ?>" defer></script>
+    <script src="<?= asset('workout-timer.js') ?>" defer></script>
     <script src="<?= asset('app.js') ?>" defer></script>
 <?php endif; ?>
 </body>

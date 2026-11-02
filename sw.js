@@ -14,6 +14,7 @@ const ASSETS = [
     '/assets/styles.css',
     '/assets/app.js',
     '/assets/power-chart.js',
+    '/assets/workout-timer.js',
     '/assets/icons.js',
     '/assets/icon.svg',
     '/assets/icon-192.png',

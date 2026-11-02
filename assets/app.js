@@ -1010,6 +1010,7 @@
     var CARD_TITLES = {
         shopping_list: ['shopping-cart', 'Shopping list'],
         reminders:     ['alarm-clock', 'Reminders'],
+        workout_timer: ['timer', 'Workout timer'],
         workout_plan:  ['dumbbell', 'Workout plan'],
         agenda:        ['calendar', 'Agenda'],
         calendar_month: ['calendar', 'Month'],
@@ -1642,9 +1643,10 @@
         scheduled_tasks: { kind: 'scheduled_tasks', icon: 'repeat',        en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
         feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
         home:            { kind: 'home',            icon: 'house',         en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
-        dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') }
+        dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') },
+        timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } }
     };
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home', 'timer'];
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
 
@@ -1882,6 +1884,7 @@
         if (card.kind === 'training_program') { renderTrainingProgram(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
         if (card.kind === 'reminders') { renderReminders(card); return; }
+        if (card.kind === 'workout_timer') { renderWorkoutTimer(card); return; }
         if (card.kind === 'export_preview') { renderExportPreview(card); return; }
 
         let sections, endpoint, doneKey;
@@ -2137,6 +2140,17 @@
                 }
             }
         }).catch(function () { wrap.classList.remove('loading'); });
+    }
+
+    // Workout timer (EMOM / timer / stopwatch): the engine and UI live in assets/workout-timer.js; a running session survives this card being redrawn.
+    function renderWorkoutTimer(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card wt-host';
+        if (window.WorkoutTimer) window.WorkoutTimer.render(wrap, card, { icon: icon, daText: daText });
+        else wrap.textContent = daText('The timer could not load.', 'Timeren kunne ikke indlæses.');
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
     }
 
     // ---- Reminders: fired ones wait here, emphasized and unticked, until approved (ticked). A nudge is only ever on request. ----

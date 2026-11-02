@@ -3305,3 +3305,49 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
     }
     body.card-full { overflow: hidden; }
 }
+
+/* Workout timer card (assets/workout-timer.js): EMOM, countdown, stopwatch. Flat and sharp like the rest; the phase colours the big numbers. */
+.wt-card { display: flex; flex-direction: column; gap: 14px; }
+.wt-tabs { display: flex; border: 1px solid var(--border-strong); }
+.wt-tab { flex: 1; padding: 9px 6px; border: 0; border-left: 1px solid var(--border-strong); background: transparent; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.wt-tab:first-child { border-left: 0; }
+.wt-tab.on { background: var(--accent); color: var(--accent-ink); }
+.wt-tab:disabled:not(.on) { opacity: .4; cursor: default; }
+.wt-body { display: flex; flex-direction: column; gap: 12px; }
+.wt-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.wt-chip { padding: 6px 11px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.wt-chip:hover, .wt-chip:focus-visible { border-color: var(--accent); color: var(--accent); }
+.wt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wt-lab { font-weight: 600; }
+.wt-step { display: flex; align-items: center; gap: 4px; }
+.wt-pm { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--border-strong); background: transparent; color: var(--text); cursor: pointer; }
+.wt-pm:hover, .wt-pm:focus-visible { border-color: var(--accent); color: var(--accent); }
+.wt-num { width: 64px; height: 38px; text-align: center; font: inherit; font-size: 18px; font-weight: 700; color: var(--text-strong); background: transparent; border: 1px solid var(--border); -moz-appearance: textfield; }
+.wt-num::-webkit-outer-spin-button, .wt-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.wt-unit { min-width: 28px; color: var(--muted); font-size: 13px; }
+.wt-seg { display: flex; border: 1px solid var(--border-strong); align-self: flex-start; }
+.wt-segb { padding: 7px 14px; border: 0; border-left: 1px solid var(--border-strong); background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.wt-segb:first-child { border-left: 0; }
+.wt-segb.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.wt-sum { color: var(--muted); font-size: 13px; }
+.wt-go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 18px; border: 0; background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; flex: 1; }
+.wt-sec { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 14px 16px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
+.wt-sec[hidden] { display: none; }
+.wt-run { --wt: var(--accent); display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 16px 12px; text-align: center; border-top: 4px solid var(--wt); background: color-mix(in srgb, var(--wt) 9%, transparent); }
+.wt-run.wt-work { --wt: var(--ok); }
+.wt-run.wt-rest { --wt: var(--warn); }
+.wt-run.wt-prep { --wt: var(--accent); }
+.wt-run.wt-done { --wt: var(--series-3); }
+.wt-run.wt-paused { --wt: var(--muted); }
+.wt-phase { font-size: 15px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--wt); }
+.wt-big { font-size: clamp(3.6rem, 24cqi, 9rem); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text-strong); }
+.wt-body > .wt-big { text-align: center; padding: 10px 0; }
+.wt-bar { height: 8px; background: var(--line); }
+.wt-bar i { display: block; height: 100%; width: 0; background: var(--wt); }
+.wt-meta { min-height: 1.3em; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.wt-actions { display: flex; gap: 8px; margin-top: 6px; }
+.wt-laps { list-style: none; margin: 4px 0 0; padding: 0; text-align: left; }
+.wt-laps li { display: flex; gap: 12px; padding: 6px 4px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.wt-lapn { color: var(--muted); width: 2.5em; }
+.wt-lapt { font-weight: 700; flex: 1; }
+.wt-lapa { color: var(--muted); }
