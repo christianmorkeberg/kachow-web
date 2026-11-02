@@ -345,13 +345,15 @@ window.WorkoutTimer = (function () {
         wrap.appendChild(body);
 
         // A number you can nudge with − / + or type. With a tone (work / rest / accent) it is a big coloured tile, without one a plain row.
-        function stepper(label, get, set, lo, hi, step, unit, tone) {
+        function stepper(label, get, set, lo, hi, step, unit, tone, big) {
             var row = el('div', tone ? 'wt-tile wt-tone-' + tone : 'wt-row');
             row.appendChild(el('div', 'wt-lab', label));
             var ctl = el('div', 'wt-step');
             var inp = el('input', 'wt-num');
             inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = lo; inp.max = hi; inp.value = get();
-            function commit(v) { set(clamp(v, lo, hi)); inp.value = get(); sum(); }
+            var hint = el('div', 'wt-hint');
+            function showHint() { hint.textContent = unit === 's' && get() >= 60 ? '= ' + formatMs(get() * 1000) : ''; }
+            function commit(v) { set(clamp(v, lo, hi)); inp.value = get(); showHint(); sum(); }
             ctl.appendChild(btn('wt-pm', icon('minus'), T('Less', 'Mindre'), function () { commit(get() - step); }));
             inp.addEventListener('change', function () { commit(inp.value); });
             var mid = el('div', 'wt-mid');
@@ -360,6 +362,13 @@ window.WorkoutTimer = (function () {
             ctl.appendChild(mid);
             ctl.appendChild(btn('wt-pm', icon('plus'), T('More', 'Mere'), function () { commit(get() + step); }));
             row.appendChild(ctl);
+            if (tone) { showHint(); row.appendChild(hint); }
+            if (big && tone) {   // a bigger jump under the number: "−1 min / +1 min" (a whole minute of work or rest in one tap)
+                var jump = el('div', 'wt-jump');
+                jump.appendChild(btn('wt-pm2', '−' + big.label, T('Less by ', 'Mindre med ') + big.label, function () { commit(get() - big.step); }));
+                jump.appendChild(btn('wt-pm2', '+' + big.label, T('More by ', 'Mere med ') + big.label, function () { commit(get() + big.step); }));
+                row.appendChild(jump);
+            }
             return row;
         }
         var sum = function () { /* set by the emom setup */ };
@@ -410,8 +419,8 @@ window.WorkoutTimer = (function () {
             });
             body.appendChild(presets);
             var grid = el('div', 'wt-grid');
-            grid.appendChild(stepper(T('Work', 'Arbejde'), function () { return emom.work; }, function (v) { emom.work = v; }, 5, 900, 5, 's', 'work'));
-            grid.appendChild(stepper(T('Rest', 'Pause'), function () { return emom.rest; }, function (v) { emom.rest = v; }, 0, 900, 5, 's', 'rest'));
+            grid.appendChild(stepper(T('Work', 'Arbejde'), function () { return emom.work; }, function (v) { emom.work = v; }, 5, 900, 5, 's', 'work', { step: 60, label: '1 min' }));
+            grid.appendChild(stepper(T('Rest', 'Pause'), function () { return emom.rest; }, function (v) { emom.rest = v; }, 0, 900, 5, 's', 'rest', { step: 60, label: '1 min' }));
             body.appendChild(grid);
             var by = el('div', 'wt-seg');
             [['rounds', T('Rounds', 'Runder')], ['total', T('Total time', 'Samlet tid')]].forEach(function (o) {
@@ -419,8 +428,8 @@ window.WorkoutTimer = (function () {
             });
             body.appendChild(by);
             body.appendChild(emom.by === 'total'
-                ? stepper(T('Total time', 'Samlet tid'), function () { return emom.total; }, function (v) { emom.total = v; }, 1, 240, 1, 'min', 'accent')
-                : stepper(T('Rounds', 'Runder'), function () { return emom.rounds; }, function (v) { emom.rounds = v; }, 1, 200, 1, '', 'accent'));
+                ? stepper(T('Total time', 'Samlet tid'), function () { return emom.total; }, function (v) { emom.total = v; }, 1, 240, 1, 'min', 'accent', { step: 10, label: '10 min' })
+                : stepper(T('Rounds', 'Runder'), function () { return emom.rounds; }, function (v) { emom.rounds = v; }, 1, 200, 1, '', 'accent', { step: 5, label: '5' }));
             body.appendChild(stepper(T('Get ready', 'Gør klar'), function () { return emom.prep; }, function (v) { emom.prep = v; }, 0, 30, 5, 's'));
             // The pattern at a glance: get-ready, then each round's work (green) and rest (yellow), widths in proportion.
             var pat = el('div', 'wt-pattern');
@@ -453,8 +462,8 @@ window.WorkoutTimer = (function () {
             });
             body.appendChild(presets);
             var tg = el('div', 'wt-grid');
-            tg.appendChild(stepper(T('Minutes', 'Minutter'), function () { return cd.minutes; }, function (v) { cd.minutes = v; }, 0, 600, 1, 'min', 'accent'));
-            tg.appendChild(stepper(T('Seconds', 'Sekunder'), function () { return cd.seconds; }, function (v) { cd.seconds = v; }, 0, 59, 5, 's', 'accent'));
+            tg.appendChild(stepper(T('Minutes', 'Minutter'), function () { return cd.minutes; }, function (v) { cd.minutes = v; }, 0, 600, 1, 'min', 'accent', { step: 10, label: '10 min' }));
+            tg.appendChild(stepper(T('Seconds', 'Sekunder'), function () { return cd.seconds; }, function (v) { cd.seconds = v; }, 0, 59, 5, 's', 'accent', { step: 30, label: '30 s' }));
             body.appendChild(tg);
             body.appendChild(soundRow());
             var sr = silentRow(); if (sr) body.appendChild(sr);

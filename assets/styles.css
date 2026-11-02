@@ -3377,3 +3377,7 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .wt-lapt { font-weight: 700; flex: 1; }
 .wt-lapa { color: var(--muted); }
 .wt-sound { align-self: auto; }
+.wt-jump { display: flex; justify-content: center; gap: 6px; }
+.wt-pm2 { padding: 6px 11px; border: 0; background: color-mix(in srgb, var(--tone) 16%, transparent); color: var(--tone); font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.wt-pm2:hover, .wt-pm2:focus-visible { background: color-mix(in srgb, var(--tone) 30%, transparent); }
+.wt-hint { min-height: 1.2em; margin-top: -4px; text-align: center; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
