@@ -62,10 +62,10 @@ window.WorkoutTimer = (function () {
 
     var audio = null;
     /** Sound that ignores the phone's silent switch, where the browser lets a page ask for it (the Audio Session API: iPhone Safari / Home Screen apps).
-     *  'transient' = short sounds that are heard even on silent and mix with (duck) music; 'auto' = the browser's default (muted by the switch). */
+     *  'playback' = heard even on silent (and other apps' music pauses); 'auto' = the browser's default (muted by the switch). */
     function silentOk() { return loadCfg().silent !== false; }
     function applyAudioSession() {
-        try { if (navigator.audioSession) navigator.audioSession.type = silentOk() ? 'transient' : 'auto'; } catch (e) { /* unsupported */ }
+        try { if (navigator.audioSession) navigator.audioSession.type = silentOk() ? 'playback' : 'auto'; } catch (e) { /* unsupported */ }
     }
     function ensureAudio() {
         applyAudioSession();
@@ -74,6 +74,31 @@ window.WorkoutTimer = (function () {
             if (audio && audio.state === 'suspended') audio.resume();
         } catch (e) { audio = null; }
     }
+    // iPhone: the silent switch mutes Web Audio (the beeps) — but not an HTML audio element that is playing. Looping a silent one while the
+    // timer runs switches the page's audio to "playback", so the beeps are heard on silent too (the usual "unmute iOS audio" trick).
+    // Only on iOS (elsewhere it would just show a media notification); needs the tap on Start/Resume to be allowed to play.
+    var keep = null, keepUrl = null;
+    function silentWavUrl() {
+        if (keepUrl) return keepUrl;
+        var n = 800, rate = 8000, b = new Uint8Array(44 + n), dv = new DataView(b.buffer);
+        var str = function (o, t) { for (var i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+        str(0, 'RIFF'); dv.setUint32(4, 36 + n, true); str(8, 'WAVE'); str(12, 'fmt ');
+        dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, rate, true);
+        dv.setUint32(28, rate, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true); str(36, 'data'); dv.setUint32(40, n, true);
+        for (var i = 0; i < n; i++) b[44 + i] = 128;   // 8-bit silence
+        keepUrl = URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+        return keepUrl;
+    }
+    function keepOn() {
+        if (!isIos() || !silentOk()) return;
+        try {
+            if (!keep) { keep = new Audio(); keep.loop = true; keep.setAttribute('playsinline', ''); keep.src = silentWavUrl(); }
+            var p = keep.play();
+            if (p && p.catch) p.catch(function () { /* needs a tap; the next Start/Resume tap retries */ });
+        } catch (e) { /* unsupported */ }
+    }
+    function keepOff() { try { if (keep) keep.pause(); } catch (e) { /* ignore */ } }
+
     function tone(freq, ms, gain) {
         if (!audio) return;
         try {
@@ -146,9 +171,12 @@ window.WorkoutTimer = (function () {
     // video is played as well (the well-known "NoSleep" trick). Both are harmless to run together.
     var wake = null, vid = null;
     var SILENT_MP4 = 'data:video/mp4;base64,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';
+    function isIos() {
+        var ua = navigator.userAgent || '';
+        return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    }
     function isIosHomeScreenApp() {
-        var ua = navigator.userAgent || '', ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-        return ios && (navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches));
+        return isIos() && (navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches));
     }
     function fallbackOn() {
         try {
@@ -211,7 +239,7 @@ window.WorkoutTimer = (function () {
         cues(S.last, r).forEach(function (c) { play(c, r); });
         S.last = r;
         var finished = (S.mode === 'emom' && r.v.state === 'done') || (S.mode === 'timer' && r.v.state === 'done');
-        if (finished) { S.base = elapsed(); S.t0 = null; S.state = 'done'; clearInterval(S.timer); wakeOff(); }
+        if (finished) { S.base = elapsed(); S.t0 = null; S.state = 'done'; clearInterval(S.timer); wakeOff(); setTimeout(keepOff, 2500); }
         if (S.paint) S.paint(r);
     }
 
@@ -224,16 +252,18 @@ window.WorkoutTimer = (function () {
         if (mode === 'timer') S.total = (clamp(cfg.minutes, 0, 600) * 60 + clamp(cfg.seconds, 0, 59)) * 1000;
         S.timer = setInterval(tick, 100);
         wakeOn();
+        keepOn();   // after end() above, which stops the loop of a previous session
         tick();
     }
     function pause() {
         if (!S || S.state !== 'running') return;
-        S.base = elapsed(); S.t0 = null; S.state = 'paused';   // the screen stays on while paused (mid-workout)
+        S.base = elapsed(); S.t0 = null; S.state = 'paused'; keepOff();   // the screen stays on while paused (mid-workout)
         if (S.paint) S.paint(read());
     }
     function resume() {
         if (!S || S.state !== 'paused') return;
         ensureAudio();
+        keepOn();
         unlockVoice();
         S.t0 = performance.now(); S.state = 'running'; wakeOn();
         tick();
@@ -242,6 +272,7 @@ window.WorkoutTimer = (function () {
         if (S) clearInterval(S.timer);
         S = null;
         wakeOff();
+        keepOff();
     }
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible' && S) {
@@ -350,9 +381,9 @@ window.WorkoutTimer = (function () {
             return row;
         }
 
-        // "Play even when the phone is on silent": only offered where the browser has the Audio Session API.
+        // "Play even when the phone is on silent": offered on iPhone/iPad (and anywhere the browser has the Audio Session API).
         function silentRow() {
-            if (!navigator.audioSession) return null;
+            if (!navigator.audioSession && !isIos()) return null;
             var row = el('div', 'wt-row');
             row.appendChild(el('div', 'wt-lab', T('Play on silent', 'Spil på lydløs')));
             var seg = el('div', 'wt-seg'), cur = silentOk();
@@ -361,7 +392,8 @@ window.WorkoutTimer = (function () {
                     saveCfg({ silent: o[0] });
                     seg.querySelectorAll('.wt-segb').forEach(function (b) { b.classList.remove('on'); });
                     this.classList.add('on');
-                    ensureAudio(); tone(988, 200, 0.4);   // a sample, so you can hear whether it gets through
+                    ensureAudio(); keepOn(); tone(988, 200, 0.4);   // a sample, so you can hear whether it gets through
+                    if (!S) setTimeout(keepOff, 1500);
                 }));
             });
             row.appendChild(seg);
