@@ -300,13 +300,29 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
         }
         ?>
         <?php if ($stoppedJobs !== []): ?>
-            <div class="banner warn" role="alert">
+            <div class="banner warn" role="alert" id="jobBanner" data-sig="<?= $e(implode(',', array_column($stoppedJobs, 'key'))) ?>">
+                <button type="button" class="banner-x" id="jobBannerX" aria-label="Hide for 24 hours" title="Hide for 24 hours">&times;</button>
                 <strong>A background job has stopped.</strong>
                 <?php foreach ($stoppedJobs as $job): ?>
                     <?= $e($job['label']) ?> last ran <?= $e($job['since']) ?> ago (<?= $e($job['schedule']) ?>).
                 <?php endforeach; ?>
                 Check the server's crontab, or ask &ldquo;show the system tasks&rdquo;.
             </div>
+            <script>
+            // × hides it for 24 hours on this device; a different set of stopped jobs shows it again.
+            (function () {
+                var b = document.getElementById('jobBanner'), x = document.getElementById('jobBannerX'), K = 'kachow-job-banner-off';
+                if (!b || !x) return;
+                try {
+                    var d = JSON.parse(localStorage.getItem(K) || 'null');
+                    if (d && d.sig === b.getAttribute('data-sig') && d.until > Date.now()) b.hidden = true;
+                } catch (e) { /* storage unavailable: just show it */ }
+                x.addEventListener('click', function () {
+                    b.hidden = true;
+                    try { localStorage.setItem(K, JSON.stringify({ sig: b.getAttribute('data-sig'), until: Date.now() + 24 * 3600 * 1000 })); } catch (e) { /* ignore */ }
+                });
+            })();
+            </script>
         <?php endif; ?>
 
         <!-- Shown when a scheduled task found something but its push may have been missed

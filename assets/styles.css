@@ -3281,3 +3281,8 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .rem-empty { margin-top: 8px; color: var(--muted); }
 .rem-card.loading { opacity: .6; pointer-events: none; }
 .sched-overdue { margin-top: 4px; color: var(--warn); font-weight: 600; font-size: 13px; }
+.banner { position: relative; }
+.banner[hidden] { display: none; }
+.banner-x { position: absolute; top: 6px; right: 8px; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: inherit; font-size: 20px; line-height: 1; cursor: pointer; opacity: .7; }
+.banner-x:hover, .banner-x:focus-visible { opacity: 1; }
+.banner:has(.banner-x) { padding-right: 40px; }
