@@ -61,7 +61,14 @@ window.WorkoutTimer = (function () {
     // ---------------- device bits ----------------
 
     var audio = null;
+    /** Sound that ignores the phone's silent switch, where the browser lets a page ask for it (the Audio Session API: iPhone Safari / Home Screen apps).
+     *  'transient' = short sounds that are heard even on silent and mix with (duck) music; 'auto' = the browser's default (muted by the switch). */
+    function silentOk() { return loadCfg().silent !== false; }
+    function applyAudioSession() {
+        try { if (navigator.audioSession) navigator.audioSession.type = silentOk() ? 'transient' : 'auto'; } catch (e) { /* unsupported */ }
+    }
     function ensureAudio() {
+        applyAudioSession();
         try {
             if (!audio) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) audio = new AC(); }
             if (audio && audio.state === 'suspended') audio.resume();
@@ -343,6 +350,24 @@ window.WorkoutTimer = (function () {
             return row;
         }
 
+        // "Play even when the phone is on silent": only offered where the browser has the Audio Session API.
+        function silentRow() {
+            if (!navigator.audioSession) return null;
+            var row = el('div', 'wt-row');
+            row.appendChild(el('div', 'wt-lab', T('Play on silent', 'Spil på lydløs')));
+            var seg = el('div', 'wt-seg'), cur = silentOk();
+            [[true, T('On', 'Til')], [false, T('Off', 'Fra')]].forEach(function (o) {
+                seg.appendChild(btn('wt-segb' + (cur === o[0] ? ' on' : ''), o[1], null, function () {
+                    saveCfg({ silent: o[0] });
+                    seg.querySelectorAll('.wt-segb').forEach(function (b) { b.classList.remove('on'); });
+                    this.classList.add('on');
+                    ensureAudio(); tone(988, 200, 0.4);   // a sample, so you can hear whether it gets through
+                }));
+            });
+            row.appendChild(seg);
+            return row;
+        }
+
         // ----- setup views -----
         function setupEmom() {
             var presets = el('div', 'wt-presets');
@@ -386,6 +411,7 @@ window.WorkoutTimer = (function () {
             };
             sum();
             body.appendChild(soundRow());
+            var sr = silentRow(); if (sr) body.appendChild(sr);
             body.appendChild(btn('wt-go', icon('play') + ' ' + T('Start', 'Start'), null, function () { saveCfg({ mode: 'emom', emom: emom }); begin('emom', emom); again(); }));
         }
         function setupTimer() {
@@ -399,6 +425,7 @@ window.WorkoutTimer = (function () {
             tg.appendChild(stepper(T('Seconds', 'Sekunder'), function () { return cd.seconds; }, function (v) { cd.seconds = v; }, 0, 59, 5, 's', 'accent'));
             body.appendChild(tg);
             body.appendChild(soundRow());
+            var sr = silentRow(); if (sr) body.appendChild(sr);
             body.appendChild(btn('wt-go', icon('play') + ' ' + T('Start', 'Start'), null, function () {
                 if (!clamp(cd.minutes, 0, 600) && !clamp(cd.seconds, 0, 59)) return;
                 saveCfg({ mode: 'timer', timer: cd }); begin('timer', cd); again();
