@@ -3256,3 +3256,27 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .email-files { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .email-files .email-attach { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; max-width: 100%; padding: 9px 14px; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
 .email-files .email-attach:hover { background: var(--accent-line); }
+
+/* Reminders card: fired reminders wait emphasized and unticked (accent bar + bold) until approved; upcoming ones are quiet. */
+.rem-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.rem-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 8px 10px 10px; border-top: 1px solid var(--line); }
+.rem-item:first-child { border-top: 0; }
+.rem-item.open { border-left: 3px solid var(--warn); background: var(--accent-soft); }
+.rem-item.open.focus { box-shadow: inset 0 0 0 1px var(--warn); }
+.rem-item.open .rem-text { font-weight: 700; }
+.rem-item.upcoming { opacity: .85; }
+.rem-body { flex: 1; min-width: 0; }
+.rem-text { word-break: break-word; }
+.rem-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.rem-tick { flex: none; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    border: 2px solid var(--warn); background: transparent; color: transparent; cursor: pointer; }
+.rem-tick:hover, .rem-tick:focus-visible { background: var(--warn); color: var(--accent-ink); }
+.rem-act { flex: none; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.rem-act:hover, .rem-act:focus-visible { color: var(--text-strong); }
+.rem-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rem-chips[hidden] { display: none; }
+.rem-chip { padding: 5px 10px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.rem-chip:hover, .rem-chip:focus-visible { border-color: var(--accent); color: var(--accent); }
+.rem-empty { margin-top: 8px; color: var(--muted); }
+.rem-card.loading { opacity: .6; pointer-events: none; }

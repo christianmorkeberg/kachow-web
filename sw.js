@@ -47,8 +47,20 @@ self.addEventListener('push', (event) => {
         data: { url: data.url || '/', type: data.type || '' },
         tag: data.type || 'kachow',   // same type replaces, doesn't stack
     };
-    event.waitUntil(self.registration.showNotification(title, options));
+    const work = [self.registration.showNotification(title, options)];
+    if (typeof data.badge === 'number') work.push(setBadge(data.badge));   // the number on the app icon: reminders awaiting approval
+    event.waitUntil(Promise.all(work));
 });
+
+// The red number on the Home Screen icon (iOS 16.4+ installed PWAs, Android, desktop). 0 clears it. Never throws.
+function setBadge(n) {
+    try {
+        const nav = self.navigator;
+        if (n > 0 && nav && 'setAppBadge' in nav) return nav.setAppBadge(n).catch(() => {});
+        if (n <= 0 && nav && 'clearAppBadge' in nav) return nav.clearAppBadge().catch(() => {});
+    } catch (e) { /* unsupported — the push still shows */ }
+    return Promise.resolve();
+}
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();

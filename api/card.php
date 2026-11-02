@@ -88,25 +88,9 @@ try {
             $card = ListFeedback::build(new FeedbackReports(), 'open')['card'];
             break;
         case 'reminder':
-            $rid = isset($_GET['rid']) ? (int) $_GET['rid'] : 0;
-            $rem = $rid > 0 ? (new Reminders())->get($userId, $rid) : null;
-            if ($rem === null) {
-                out(404, ['error' => 'Reminder not found.']);
-            }
-            if ($rem['remind_at'] === null) {
-                // Location-triggered: fired on arrival at a place.
-                $detail = 'Reminder · at ' . $rem['place'];
-            } else {
-                $when = (new DateTimeImmutable($rem['remind_at'], new DateTimeZone('UTC')))
-                    ->setTimezone(new DateTimeZone('Europe/Copenhagen'));
-                $detail = 'Reminder · ' . $when->format('D j M, H:i');
-            }
-            $card = [
-                'kind'   => 'notice',
-                'tone'   => 'info',
-                'title'  => '⏰ ' . $rem['text'],
-                'detail' => $detail,
-            ];
+            // The Reminders card, with the one the push was about in focus (an old or unknown id just shows the card).
+            $rid  = isset($_GET['rid']) ? (int) $_GET['rid'] : 0;
+            $card = (new Reminders())->card($userId, $rid > 0 ? $rid : null);
             break;
         default:
             out(404, ['error' => 'Unknown card.']);

@@ -1009,6 +1009,7 @@
     // kind → [icon, title]. Icon names come from assets/icons.js (Lucide).
     var CARD_TITLES = {
         shopping_list: ['shopping-cart', 'Shopping list'],
+        reminders:     ['alarm-clock', 'Reminders'],
         workout_plan:  ['dumbbell', 'Workout plan'],
         agenda:        ['calendar', 'Agenda'],
         calendar_month: ['calendar', 'Month'],
@@ -1234,6 +1235,10 @@
             var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
             return openN + (openN === 1 ? ' item' : ' items');
         }
+        if (card.kind === 'reminders') {
+            var wn = (card.open || []).length;
+            return wn ? wn + daText(' waiting', ' venter') : daText('all done', 'alt klaret');
+        }
         if (typeof card.remaining === 'number') return card.remaining + ' left';
         if (Array.isArray(card.items)) return card.items.length + (card.items.length === 1 ? ' item' : ' items');
         return '';
@@ -1394,6 +1399,7 @@
             case 'mileage':         return '/api/mileage.php?offset=' + enc(card.offset || 0);
             case 'pl':              return '/api/pl.php?granularity=' + enc(card.granularity || 'year') + '&offset=' + enc(card.offset || 0);
             case 'cash':            return '/api/cash.php';
+            case 'reminders':       return '/api/reminders.php';
             case 'calendar_month':  return card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null;
         }
         return null;
@@ -1852,6 +1858,7 @@
         if (card.kind === 'home') { renderHome(card); return; }
         if (card.kind === 'training_program') { renderTrainingProgram(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
+        if (card.kind === 'reminders') { renderReminders(card); return; }
         if (card.kind === 'export_preview') { renderExportPreview(card); return; }
 
         let sections, endpoint, doneKey;
@@ -2108,6 +2115,143 @@
             }
         }).catch(function () { wrap.classList.remove('loading'); });
     }
+
+    // ---- Reminders: fired ones wait here, emphasized and unticked, until approved (ticked). A nudge is only ever on request. ----
+    function renderReminders(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card rem-card';
+        buildReminders(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+        if (typeof card.badge === 'number') setAppIconBadge(card.badge);
+    }
+
+    function remPost(body, wrap) {
+        wrap.classList.add('loading');
+        return fetch('/api/reminders.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body)
+        }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (res) {
+            wrap.classList.remove('loading');
+            if (res && res.card) {
+                buildReminders(wrap, res.card);
+                if (panelCard && panelCard.kind === 'reminders') {   // keep the panel's and the rail's copy current
+                    panelCard = res.card;
+                    railRecents.forEach(function (r) { if (r.kind === 'reminders') r.card = res.card; });
+                    if (cardPanelSub) cardPanelSub.textContent = cardSubFor(res.card);
+                }
+                if (typeof res.badge === 'number') setAppIconBadge(res.badge);
+                if (res.stale) toast(daText('That one was already handled.', 'Den var allerede håndteret.'));
+            } else {
+                toast((res && res.error) || daText('Could not do that.', 'Kunne ikke det.'));
+            }
+        }).catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); });
+    }
+
+    // Tomorrow 09:00 in Copenhagen as "YYYY-MM-DD HH:MM" (the server reads it as local time).
+    function remTomorrowNine() {
+        var today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Copenhagen' });
+        var d = new Date(today + 'T12:00:00Z');
+        d.setUTCDate(d.getUTCDate() + 1);
+        return d.toISOString().slice(0, 10) + ' 09:00';
+    }
+
+    function buildReminders(wrap, card) {
+        wrap.innerHTML = '';
+        var open = card.open || [], upcoming = card.upcoming || [];
+        var h = document.createElement('div');
+        h.className = 'plan-card-title';
+        h.textContent = daText('Reminders', 'Påmindelser') + (open.length ? ' · ' + open.length + daText(' waiting', ' venter') : '');
+        wrap.appendChild(h);
+
+        function btn(cls, html, label, fn) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = cls;
+            b.innerHTML = html;
+            b.setAttribute('aria-label', label);
+            b.title = label;
+            b.addEventListener('click', fn);
+            return b;
+        }
+        function meta(text) {
+            var m = document.createElement('div');
+            m.className = 'rem-meta';
+            m.textContent = text;
+            return m;
+        }
+
+        if (!open.length && !upcoming.length) {
+            var none = document.createElement('div');
+            none.className = 'rem-empty';
+            none.textContent = daText('Nothing waiting for you ✓', 'Intet venter på dig ✓');
+            wrap.appendChild(none);
+            return;
+        }
+
+        var ul = document.createElement('ul');
+        ul.className = 'rem-list';
+        open.forEach(function (it) {
+            var li = document.createElement('li');
+            li.className = 'rem-item open' + (card.focus === it.id ? ' focus' : '');
+            var body = document.createElement('div');
+            body.className = 'rem-body';
+            var t = document.createElement('div');
+            t.className = 'rem-text';
+            t.textContent = capFirst(it.text);
+            body.appendChild(t);
+            body.appendChild(meta((it.place ? daText('At ', 'Ved ') + it.place + ' · ' : '') + it.fired
+                + (it.nudge ? ' · ' + daText('nudge ', 'påmindelse ') + it.nudge : '')));
+            var chips = document.createElement('div');
+            chips.className = 'rem-chips';
+            chips.hidden = true;
+            [[daText('30 min', '30 min'), { minutes: 30 }], [daText('1 hour', '1 time'), { minutes: 60 }], [daText('3 hours', '3 timer'), { minutes: 180 }],
+                [daText('Tomorrow 09:00', 'I morgen 09:00'), { at: remTomorrowNine() }]].forEach(function (c) {
+                chips.appendChild(btn('rem-chip', c[0], daText('Nudge me in ', 'Mind mig om ') + c[0], function () {
+                    remPost(Object.assign({ action: 'nudge', id: it.id }, c[1]), wrap);
+                }));
+            });
+            body.appendChild(chips);
+            li.appendChild(btn('rem-tick', icon('check'), daText('Approve: done', 'Godkend: klaret'), function () { remPost({ action: 'approve', id: it.id }, wrap); }));
+            li.appendChild(body);
+            li.appendChild(btn('rem-act', icon('bell'), daText('Nudge me again…', 'Mind mig igen…'), function () { chips.hidden = !chips.hidden; }));
+            li.appendChild(btn('rem-act', icon('x'), daText('Dismiss without approving', 'Fjern uden at godkende'), function () { remPost({ action: 'cancel', id: it.id }, wrap); }));
+            ul.appendChild(li);
+        });
+        upcoming.forEach(function (it) {
+            var li = document.createElement('li');
+            li.className = 'rem-item upcoming';
+            var body = document.createElement('div');
+            body.className = 'rem-body';
+            var t = document.createElement('div');
+            t.className = 'rem-text';
+            t.textContent = capFirst(it.text);
+            body.appendChild(t);
+            body.appendChild(meta(it.when || (it.place ? daText('Next time at ', 'Næste gang ved ') + it.place : '')));
+            li.appendChild(body);
+            li.appendChild(btn('rem-act', icon('x'), daText('Cancel the reminder', 'Annuller påmindelsen'), function () { remPost({ action: 'cancel', id: it.id }, wrap); }));
+            ul.appendChild(li);
+        });
+        wrap.appendChild(ul);
+    }
+
+    // The red number on the app icon = reminders waiting for approval. The service worker sets it when a push arrives (sw.js);
+    // here it is kept right when the app opens, comes back to the front, or a reminder is ticked. Unsupported browsers ignore it.
+    function setAppIconBadge(n) {
+        try {
+            if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n).catch(function () { /* not allowed */ });
+            else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(function () { /* not allowed */ });
+        } catch (e) { /* unsupported */ }
+    }
+    function syncAppIconBadge() {
+        if (!navigator.setAppBadge) return;
+        fetch('/api/reminders.php', { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) { if (j && typeof j.badge === 'number') setAppIconBadge(j.badge); })
+            .catch(function () { /* offline: keep the last number */ });
+    }
+    syncAppIconBadge();
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') syncAppIconBadge(); });
 
     // Well-spread hues so distinct calendars are easy to tell apart.
     const CAL_PALETTE = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#f87171', '#fb923c', '#a3e635'];
@@ -10313,7 +10457,6 @@
     // so it reads naturally as the user's answer (the notification text is in the chat too).
     var NOTIF_REPLIES = {
         checkout_nudge: { en: ['Clock me out now', 'I left earlier — I\'ll tell you when'], da: ['Stempl mig ud nu', 'Jeg gik tidligere — jeg siger hvornår'] },
-        reminder:       { en: ['Done ✓', 'Remind me again in 1 hour'],                    da: ['Klaret ✓', 'Mind mig om det igen om 1 time'] },
         cycle_upcoming: { en: ['My period started today', 'Not yet'],                        da: ['Min menstruation startede i dag', 'Ikke endnu'] },
         work_log_nudge: { en: ['Nothing to log today'],                                       da: ['Intet at logge i dag'] },
         wfh_prompt:     { en: ['Yes, I\'m working from home today', 'Not working today'],    da: ['Ja, jeg arbejder hjemmefra i dag', 'Jeg arbejder ikke i dag'] },
@@ -10703,7 +10846,7 @@
             if (replies) renderSuggestions(replies);
             return;
         }
-        if (noticeText) {                              // the notification says it all; its card is one tap away, not forced open
+        if (noticeText && key !== 'reminder') {        // the notification says it all; its card is one tap away, not forced open (a reminder's card IS the answer, so it opens)
             addOpenCardButton(key, rid);
             if (replies) renderSuggestions(replies);
             return;
