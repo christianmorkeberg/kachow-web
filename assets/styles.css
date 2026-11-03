@@ -3381,3 +3381,34 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .wt-pm2 { padding: 6px 11px; border: 0; background: color-mix(in srgb, var(--tone) 16%, transparent); color: var(--tone); font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; }
 .wt-pm2:hover, .wt-pm2:focus-visible { background: color-mix(in srgb, var(--tone) 30%, transparent); }
 .wt-hint { min-height: 1.2em; margin-top: -4px; text-align: center; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+/* Regnskabspakke card */
+.lp-card { overflow: hidden; }
+.lp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.lp-year { font-weight: 700; font-size: 1.05rem; }
+.lp-nav { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface, transparent); color: inherit; font-size: 1.2rem; cursor: pointer; }
+.lp-nav:disabled { opacity: .35; cursor: default; }
+.lp-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
+@media (min-width: 560px) { .lp-tiles { grid-template-columns: repeat(4, 1fr); } }
+.lp-tile { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.lp-tile-k { font-size: .75rem; opacity: .7; }
+.lp-tile-v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lp-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; scrollbar-width: thin; }
+.lp-tab { flex: 0 0 auto; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: inherit; font: inherit; font-size: .85rem; cursor: pointer; }
+.lp-tab.on { background: var(--accent-soft); border-color: var(--accent, currentColor); font-weight: 600; }
+.lp-title { font-weight: 600; margin: 4px 0 6px; }
+.lp-scroll { overflow-x: auto; max-height: 360px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+.lp-table { border-collapse: collapse; width: 100%; font-size: .82rem; }
+.lp-table th { position: sticky; top: 0; background: var(--bg, #fff); text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; opacity: .75; padding: 6px 8px; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.lp-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.lp-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lp-table tr.lp-sum td { font-weight: 700; border-top: 1px solid currentColor; }
+.lp-note { font-size: .78rem; opacity: .7; margin: 8px 0; }
+.lp-items { list-style: none; margin: 8px 0; padding: 0; font-size: .85rem; }
+.lp-items li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.lp-x { border: 0; background: transparent; color: inherit; font-size: 1.2rem; cursor: pointer; opacity: .6; }
+.lp-form { display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
+@media (min-width: 560px) { .lp-form { grid-template-columns: 150px 1fr 120px auto; } }
+.lp-form select, .lp-form input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: inherit; min-width: 0; }
+.lp-btn { font: inherit; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--accent-soft); color: inherit; cursor: pointer; }
+.lp-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }

@@ -1010,6 +1010,7 @@
     var CARD_TITLES = {
         shopping_list: ['shopping-cart', 'Shopping list'],
         reminders:     ['alarm-clock', 'Reminders'],
+        loan_pack:     ['book-open', 'Regnskabspakke'],
         workout_timer: ['timer', 'Workout timer'],
         workout_plan:  ['dumbbell', 'Workout plan'],
         agenda:        ['calendar', 'Agenda'],
@@ -1420,6 +1421,7 @@
             case 'pl':              return '/api/pl.php?granularity=' + enc(card.granularity || 'year') + '&offset=' + enc(card.offset || 0);
             case 'cash':            return '/api/cash.php';
             case 'reminders':       return '/api/reminders.php';
+            case 'loan_pack':       return '/api/loanpack.php?year=' + enc(card.year || '');
             case 'calendar_month':  return card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null;
         }
         return null;
@@ -1884,6 +1886,7 @@
         if (card.kind === 'training_program') { renderTrainingProgram(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
         if (card.kind === 'reminders') { renderReminders(card); return; }
+        if (card.kind === 'loan_pack') { renderLoanPack(card); return; }
         if (card.kind === 'workout_timer') { renderWorkoutTimer(card); return; }
         if (card.kind === 'export_preview') { renderExportPreview(card); return; }
 
@@ -2191,6 +2194,124 @@
         var d = new Date(today + 'T12:00:00Z');
         d.setUTCDate(d.getUTCDate() + 1);
         return d.toISOString().slice(0, 10) + ' 09:00';
+    }
+
+    // Regnskabspakke (loan pack): year switch, key figures, one tab per statement, downloads, and a form for balance items the books cannot know.
+    function renderLoanPack(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card lp-card';
+        buildLoanPack(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function lpFetch(wrap, url, body) {
+        wrap.classList.add('loading');
+        var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) } : { credentials: 'same-origin' };
+        return fetch(url, opts).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (res) {
+            wrap.classList.remove('loading');
+            if (res && res.card) {
+                buildLoanPack(wrap, res.card);
+                if (panelCard && panelCard.kind === 'loan_pack') {
+                    panelCard = res.card;
+                    railRecents.forEach(function (r) { if (r.kind === 'loan_pack') r.card = res.card; });
+                }
+            } else {
+                toast((res && res.error) || daText('Could not do that.', 'Kunne ikke det.'));
+            }
+        }).catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); });
+    }
+
+    function buildLoanPack(wrap, card) {
+        var tab = wrap._lpTab || 'result';
+        if (!(card.sections || []).some(function (s) { return s.id === tab; })) tab = (card.sections[0] || {}).id;
+        wrap._lpTab = tab;
+        wrap.innerHTML = '';
+        function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+        // Display only: 18000,00 → 18.000,00 (the exports keep the plain form so the sums still parse)
+        function money(v) { return String(v).replace(/^(-?)(\d+),/, function (m, sg, int) { return sg + int.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ','; }); }
+
+        var head = el('div', 'lp-head');
+        var prev = el('button', 'lp-nav'); prev.type = 'button'; prev.textContent = '‹'; prev.setAttribute('aria-label', daText('Previous year', 'Året før'));
+        prev.addEventListener('click', function () { lpFetch(wrap, '/api/loanpack.php?year=' + (card.year - 1)); });
+        var next = el('button', 'lp-nav'); next.type = 'button'; next.textContent = '›'; next.setAttribute('aria-label', daText('Next year', 'Året efter'));
+        next.disabled = !card.can_next;
+        next.addEventListener('click', function () { lpFetch(wrap, '/api/loanpack.php?year=' + (card.year + 1)); });
+        head.appendChild(prev); head.appendChild(el('div', 'lp-year', 'Regnskabspakke ' + card.year)); head.appendChild(next);
+        wrap.appendChild(head);
+
+        var key = card.key || {};
+        var tiles = el('div', 'lp-tiles');
+        [['Omsætning', key.omsaetning], ['Resultat', key.resultat], ['Egenkapital', key.egenkapital], ['Udestående', key.udestaaende]].forEach(function (t) {
+            var d = el('div', 'lp-tile'); d.appendChild(el('div', 'lp-tile-k', t[0])); d.appendChild(el('div', 'lp-tile-v', money(t[1] || '0,00') + ' kr')); tiles.appendChild(d);
+        });
+        wrap.appendChild(tiles);
+
+        var NAMES = { result: 'Resultat', balance: 'Balance', moms: 'Moms', customers: 'Kunder', invoices: 'Fakturaer', trial: 'Saldobalance', ledger: 'Kassekladde', budget: 'Budget' };
+        var tabs = el('div', 'lp-tabs');
+        card.sections.forEach(function (s) {
+            var b = el('button', 'lp-tab' + (s.id === tab ? ' on' : ''), NAMES[s.id] || s.title); b.type = 'button';
+            b.addEventListener('click', function () { wrap._lpTab = s.id; buildLoanPack(wrap, card); });
+            tabs.appendChild(b);
+        });
+        wrap.appendChild(tabs);
+
+        var sec = card.sections.filter(function (s) { return s.id === tab; })[0];
+        if (sec) {
+            wrap.appendChild(el('div', 'lp-title', sec.title));
+            var sc = el('div', 'lp-scroll'), tbl = document.createElement('table'); tbl.className = 'lp-table';
+            var tr = document.createElement('tr');
+            sec.labels.forEach(function (l) { tr.appendChild(el('th', null, l)); });
+            var th = document.createElement('thead'); th.appendChild(tr); tbl.appendChild(th);
+            var tb = document.createElement('tbody');
+            sec.rows.forEach(function (r) {
+                var row = document.createElement('tr');
+                if (/^(I alt|Aktiver i alt|Passiver i alt|Gæld i alt|Udgifter i alt|Egenkapital$|Resultat før skat)/.test(r[0]) || /^(Aktiver i alt|Passiver i alt|Gæld i alt|Egenkapital$)/.test(r[1] || '')) row.className = 'lp-sum';
+                r.forEach(function (c) { var isNum = /^-?\d+,\d\d$/.test(c); row.appendChild(el('td', isNum ? 'num' : null, isNum ? money(c) : c)); });
+                tb.appendChild(row);
+            });
+            tbl.appendChild(tb); sc.appendChild(tbl); wrap.appendChild(sc);
+        }
+
+        if (tab === 'balance') {
+            wrap.appendChild(el('div', 'lp-note', daText('Bank: ', 'Bank: ') + (card.bank_source || '')));
+            var items = card.items || [];
+            if (items.length) {
+                var ul = el('ul', 'lp-items');
+                items.forEach(function (it) {
+                    var li = el('li', null, (it.kind === 'liability' ? 'Gæld' : 'Aktiv') + ' · ' + it.label + ' · ' + money(String(it.amount.toFixed(2)).replace('.', ',')) + ' kr · ' + daText('from ', 'fra ') + it.as_of.split('-').reverse().join('-'));
+                    var x = el('button', 'lp-x', '×'); x.type = 'button'; x.setAttribute('aria-label', daText('Remove', 'Fjern'));
+                    x.addEventListener('click', function () { lpFetch(wrap, '/api/loanpack.php', { year: card.year, action: 'set_item', kind: it.kind, label: it.label, amount: 0 }); });
+                    li.appendChild(x); ul.appendChild(li);
+                });
+                wrap.appendChild(ul);
+            }
+            var form = el('form', 'lp-form');
+            var kind = document.createElement('select');
+            [['asset', 'Aktiv (ejer)'], ['liability', 'Gæld (skylder)']].forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; kind.appendChild(op); });
+            var label = document.createElement('input'); label.placeholder = 'Fx Udstyr, Lån, Bank'; label.maxLength = 80; label.required = true;
+            var amount = document.createElement('input'); amount.placeholder = 'Beløb kr'; amount.inputMode = 'decimal'; amount.required = true;
+            var go = el('button', 'lp-btn', daText('Save', 'Gem')); go.type = 'submit';
+            form.appendChild(kind); form.appendChild(label); form.appendChild(amount); form.appendChild(go);
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                lpFetch(wrap, '/api/loanpack.php', { year: card.year, action: 'set_item', kind: kind.value, label: label.value, amount: amount.value });
+            });
+            wrap.appendChild(form);
+            wrap.appendChild(el('div', 'lp-note', daText('Equipment, loans or a stated bank balance (label "Bank") — things the books cannot know. Valid from the date shown until you change it.', 'Udstyr, lån eller en oplyst banksaldo (navn "Bank") — det bøgerne ikke kan vide. Gælder fra datoen indtil du ændrer det.')));
+        }
+
+        var acts = el('div', 'lp-acts');
+        [['PDF', card.pdf_url, 'file-down'], ['CSV', card.csv_url], [daText('Receipts ZIP', 'Bilag (ZIP)'), card.zip_url]].forEach(function (a) {
+            var b = el('button', 'ep-btn' + (a[0] === 'PDF' ? ' is-main' : ''), a[0]); b.type = 'button';
+            if (a[0] === 'PDF') setIconText(b, 'file-down', 'PDF');
+            b.addEventListener('click', function () { downloadUrl(a[1]); });
+            acts.appendChild(b);
+        });
+        var op = el('a', 'ep-btn', daText('Open', 'Åbn')); op.href = card.print_url || '#'; op.target = '_blank'; op.rel = 'noopener';
+        acts.appendChild(op);
+        wrap.appendChild(acts);
     }
 
     function buildReminders(wrap, card) {
