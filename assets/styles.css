@@ -3452,3 +3452,7 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 @media (min-width: 1024px) {
     .card-sheet { left: auto; right: 64px; width: 440px; max-height: min(80vh, 680px); }
 }
+
+/* "All cards" sheet: a quiet label per group */
+.cs-sub { grid-column: 1 / -1; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); opacity: .65; margin: 6px 2px 0; }
+.cs-sub:first-child { margin-top: 0; }

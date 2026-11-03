@@ -1011,7 +1011,7 @@
         shopping_list: ['shopping-cart', 'Shopping list'],
         reminders:     ['alarm-clock', 'Reminders'],
         loan_pack:     ['book-open', 'Regnskabspakke'],
-        udlaeg:        ['wallet', 'Udlæg'],
+        udlaeg:        ['wallet', 'Paid privately'],
         workout_timer: ['timer', 'Workout timer'],
         workout_plan:  ['dumbbell', 'Workout plan'],
         agenda:        ['calendar', 'Agenda'],
@@ -1650,9 +1650,16 @@
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') },
         timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } },
         loan_pack:       { kind: 'loan_pack',       icon: 'book-open',     en: 'Regnskabspakke',  da: 'Regnskabspakke', load: cardFromUrl('/api/loanpack.php') },
-        udlaeg:          { kind: 'udlaeg',          icon: 'wallet',        en: 'Udlæg',           da: 'Udlæg',          load: cardFromUrl('/api/udlaeg.php') }
+        udlaeg:          { kind: 'udlaeg',          icon: 'wallet',        en: 'Paid privately', da: 'Udlæg',          load: cardFromUrl('/api/udlaeg.php') }
     };
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home', 'timer', 'loan_pack', 'udlaeg'];
+    // The "All cards" list is shown in these groups (key lists must name HOME_CARDS keys; anything unlisted still shows, last).
+    var CARD_GROUPS = [
+        ['Work', 'Arbejde', ['work_hours', 'work_week', 'work_log']],
+        ['Day', 'Dagen', ['calendar', 'location', 'cycle', 'timer']],
+        ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'udlaeg', 'loan_pack']],
+        ['Assistant', 'Assistent', ['scheduled_tasks', 'feedback', 'dev_ideas', 'home']]
+    ];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'location', 'cycle', 'timer', 'books', 'moms', 'cash', 'pl', 'mileage', 'udlaeg', 'loan_pack', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home'];
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
 
@@ -2211,7 +2218,7 @@
         if (!it || !it.udlaeg) return;
         var t = document.createElement('span');
         t.className = 'udl-tag udl-' + it.udlaeg;
-        t.textContent = it.udlaeg === 'owed' ? daText('udlæg · owed', 'udlæg · til gode') : daText('udlæg · repaid', 'udlæg · tilbagebetalt');
+        t.textContent = it.udlaeg === 'owed' ? daText('paid privately · owed', 'udlæg · til gode') : daText('paid privately · repaid', 'udlæg · tilbagebetalt');
         t.title = it.udlaeg === 'owed' ? daText('Paid with private money, not paid back yet', 'Betalt med private penge, ikke tilbagebetalt endnu') : daText('Paid with private money, paid back', 'Betalt med private penge, tilbagebetalt');
         parent.appendChild(t);
     }
@@ -2237,7 +2244,7 @@
         var items = card.items || [];
         var nOwed = items.filter(function (i) { return i.status === 'owed'; }).length;
 
-        wrap.appendChild(el('div', 'plan-card-title', daText('Udlæg', 'Udlæg')));
+        wrap.appendChild(el('div', 'plan-card-title', daText('Paid privately', 'Udlæg')));
         var tot = el('div', 'udl-totals');
         function line(label, arr, cls) {
             var d = el('div', 'udl-total ' + cls);
@@ -7770,7 +7777,7 @@
             u.type = 'button';
             u.className = 'books-note books-note-link';
             u.title = daText('Show the full list', 'Vis hele listen');
-            u.textContent = daText('Udlæg owed to you: ', 'Udlæg du har til gode: ') + fmtMoney(owed.total, cur) + ' (' + (owed.count || 0) + ') ›';
+            u.textContent = daText('Owed to you (paid privately): ', 'Udlæg du har til gode: ') + fmtMoney(owed.total, cur) + ' (' + (owed.count || 0) + ') ›';
             u.addEventListener('click', function () { openUdlaeg(); });
             m.appendChild(u);
         }
@@ -11500,11 +11507,23 @@
                 grid.className = 'cs-grid';
                 head(daText('All cards', 'Alle kort'));
             }
-            rest.forEach(function (k) { var c = HOME_CARDS[k]; tile(grid, c.icon, daText(c.en, c.da), function () { openHomeCard(k); }, false, railKind(panelKind) === c.kind); });
-            RAIL_STAPLES.forEach(function (s) {                 // the default staples that are not in HOME_CARDS (Appearance …)
-                if (HOME_CARD_ORDER.some(function (k) { return HOME_CARDS[k].kind === s.kind; })) return;
-                tile(grid, s.icon, s.label, s.open, false, railKind(panelKind) === s.kind);
+            // The rest, in subtle groups (a quiet label per group, no boxes).
+            var left = rest.slice();
+            var extras = RAIL_STAPLES.filter(function (st) {   // default staples that are not in HOME_CARDS (Appearance …)
+                return !HOME_CARD_ORDER.some(function (k) { return HOME_CARDS[k].kind === st.kind; });
             });
+            CARD_GROUPS.forEach(function (g, gi) {
+                var keys = g[2].filter(function (k) { return left.indexOf(k) !== -1; });
+                var last = gi === CARD_GROUPS.length - 1;
+                if (!keys.length && !(last && extras.length)) return;
+                var sub = document.createElement('div');
+                sub.className = 'cs-sub';
+                sub.textContent = daText(g[0], g[1]);
+                grid.appendChild(sub);
+                keys.forEach(function (k) { var c = HOME_CARDS[k]; left.splice(left.indexOf(k), 1); tile(grid, c.icon, daText(c.en, c.da), function () { openHomeCard(k); }, false, railKind(panelKind) === c.kind); });
+                if (last) extras.forEach(function (st) { tile(grid, st.icon, st.label, st.open, false, railKind(panelKind) === st.kind); });
+            });
+            left.forEach(function (k) { var c = HOME_CARDS[k]; tile(grid, c.icon, daText(c.en, c.da), function () { openHomeCard(k); }, false, railKind(panelKind) === c.kind); });   // a new card no group knows yet
             sheet.appendChild(grid);
             if (railRecents.length) {
                 head(daText('Opened this session', 'Åbnet i denne session'));
@@ -12097,7 +12116,7 @@
             'Dine bogførte fakturaer for perioden; betalt eller ubetalt afhænger af, om du har markeret dem betalt. Beløbene er som faktureret. Regnskab viser de samme fakturaer sammen med udgifter og hævninger.',
             ['books']],
         expenses: ['Expenses — a list', 'Udgifter — en liste',
-            'Your expenses (bilag). Drafts are not booked and do not count in moms or profit. Udlæg means you paid with private money and have not been paid back yet. The Books overview shows the same expenses next to income.',
+            'Your expenses (bilag). Drafts are not booked and do not count in moms or profit. "Paid privately" means you paid with your own money and have not been paid back yet. The Books overview shows the same expenses next to income.',
             'Dine udgifter (bilag). Kladder er ikke bogført og tæller ikke med i moms eller overskud. Udlæg betyder, at du har betalt med private penge og endnu ikke er blevet betalt tilbage. Regnskab viser de samme udgifter sammen med indtægter.',
             ['books']],
         draws: ['Owner draws — a list', 'Hævninger — en liste',
@@ -12108,7 +12127,7 @@
             'Business trips give a deduction per km; commuting to a fixed workplace is private and does not count. The business deduction is subtracted in the P&L.',
             'Erhvervskørsel giver et fradrag pr. km; pendling til et fast arbejdssted er privat og tæller ikke. Erhvervsfradraget trækkes fra i Resultat.',
             ['pl']],
-        udlaeg: ['Udlæg — paid with private money', 'Udlæg — betalt med private penge',
+        udlaeg: ['Paid privately — your own money', 'Udlæg — betalt med private penge',
             'Every expense you paid with your own money, and whether the company has paid you back. It is still a normal business expense (moms and deduction count); it only means the company owes you the amount until you are repaid. Foreign-currency ones are listed here but not in the DKK totals elsewhere.',
             'Alle udgifter du har betalt med dine egne penge, og om firmaet har betalt dig tilbage. Det er stadig en almindelig firmaudgift (moms og fradrag tæller); det betyder kun, at firmaet skylder dig beløbet, til du er betalt tilbage. Udgifter i fremmed valuta står her, men ikke i DKK-totalerne andre steder.',
             ['books', 'cash']],
@@ -12123,7 +12142,7 @@
         moms: [['percent', 'Moms', 'Moms', '/api/moms.php?offset=0'], 0],
         cash: [['landmark', 'Cash', 'Likviditet', '/api/cash.php'], 0],
         loan_pack: [['book-open', 'Regnskabspakke', 'Regnskabspakke', '/api/loanpack.php'], 0],
-        udlaeg: [['wallet', 'Udlæg', 'Udlæg', '/api/udlaeg.php'], 0]
+        udlaeg: [['wallet', 'Paid privately', 'Udlæg', '/api/udlaeg.php'], 0]
     };
 
     function bookHelp(wrap, key) {
