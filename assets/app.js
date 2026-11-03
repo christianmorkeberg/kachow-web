@@ -1011,7 +1011,6 @@
         shopping_list: ['shopping-cart', 'Shopping list'],
         reminders:     ['alarm-clock', 'Reminders'],
         loan_pack:     ['book-open', 'Regnskabspakke'],
-        udlaeg:        ['wallet', 'Paid privately'],
         workout_timer: ['timer', 'Workout timer'],
         workout_plan:  ['dumbbell', 'Workout plan'],
         agenda:        ['calendar', 'Agenda'],
@@ -1423,7 +1422,6 @@
             case 'cash':            return '/api/cash.php';
             case 'reminders':       return '/api/reminders.php';
             case 'loan_pack':       return '/api/loanpack.php?year=' + enc(card.year || '');
-            case 'udlaeg':          return '/api/udlaeg.php';
             case 'calendar_month':  return card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null;
         }
         return null;
@@ -1649,14 +1647,13 @@
         home:            { kind: 'home',            icon: 'house',         en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') },
         timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } },
-        loan_pack:       { kind: 'loan_pack',       icon: 'book-open',     en: 'Regnskabspakke',  da: 'Regnskabspakke', load: cardFromUrl('/api/loanpack.php') },
-        udlaeg:          { kind: 'udlaeg',          icon: 'wallet',        en: 'Paid privately', da: 'Udlæg',          load: cardFromUrl('/api/udlaeg.php') }
+        loan_pack:       { kind: 'loan_pack',       icon: 'book-open',     en: 'Regnskabspakke',  da: 'Regnskabspakke', load: cardFromUrl('/api/loanpack.php') }
     };
     // The "All cards" list is shown in these groups (key lists must name HOME_CARDS keys; anything unlisted still shows, last).
     var CARD_GROUPS = [
         ['Work', 'Arbejde', ['work_hours', 'work_week', 'work_log']],
         ['Day', 'Dagen', ['calendar', 'location', 'cycle', 'timer']],
-        ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'udlaeg', 'loan_pack']],
+        ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack']],
         ['Assistant', 'Assistent', ['scheduled_tasks', 'feedback', 'dev_ideas', 'home']]
     ];
     var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'location', 'cycle', 'timer', 'books', 'moms', 'cash', 'pl', 'mileage', 'udlaeg', 'loan_pack', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home'];
@@ -1903,7 +1900,6 @@
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
         if (card.kind === 'reminders') { renderReminders(card); return; }
         if (card.kind === 'loan_pack') { renderLoanPack(card); return; }
-        if (card.kind === 'udlaeg') { renderUdlaeg(card); return; }
         if (card.kind === 'workout_timer') { renderWorkoutTimer(card); return; }
         if (card.kind === 'export_preview') { renderExportPreview(card); return; }
 
@@ -2223,80 +2219,10 @@
         parent.appendChild(t);
     }
 
-    function openUdlaeg() {
-        fetch('/api/udlaeg.php', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.card) presentCard(j.card, 'open'); })
+    function openUdlaeg() {   // the Expenses card, all time, paid-privately ones, opened on what is still owed
+        fetch('/api/expenses.php?period=all&paid_privately=any', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) { j.card.filter = 'owed'; presentCard(j.card, 'open'); } })
             .catch(function () { toast(daText('Could not open that.', 'Kunne ikke åbne den.')); });
-    }
-
-    function renderUdlaeg(card) {
-        clearEmptyHint();
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card udl-card';
-        drawUdlaeg(wrap, card, 'all');
-        messages.appendChild(wrap);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
-    function drawUdlaeg(wrap, card, filter) {
-        wrap.innerHTML = '';
-        function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-        var items = card.items || [];
-        var nOwed = items.filter(function (i) { return i.status === 'owed'; }).length;
-
-        wrap.appendChild(el('div', 'plan-card-title', daText('Paid privately', 'Udlæg')));
-        var tot = el('div', 'udl-totals');
-        function line(label, arr, cls) {
-            var d = el('div', 'udl-total ' + cls);
-            d.appendChild(el('span', 'udl-total-k', label));
-            d.appendChild(el('span', 'udl-total-v', (arr || []).length ? arr.map(function (t) { return fmtMoney(t.total, t.currency) + ' (' + t.count + ')'; }).join(' · ') : '—'));
-            return d;
-        }
-        tot.appendChild(line(daText('Owed to you', 'Til gode'), card.owed, 'is-owed'));
-        tot.appendChild(line(daText('Paid back', 'Tilbagebetalt'), card.repaid, 'is-repaid'));
-        wrap.appendChild(tot);
-
-        var chips = el('div', 'books-chips udl-chips');
-        [['all', daText('All', 'Alle'), items.length], ['owed', daText('Owed', 'Til gode'), nOwed], ['reimbursed', daText('Paid back', 'Tilbagebetalt'), items.length - nOwed]].forEach(function (c) {
-            var b = el('button', 'books-period' + (filter === c[0] ? ' is-active' : ''), c[1] + ' ' + c[2]); b.type = 'button';
-            b.addEventListener('click', function () { drawUdlaeg(wrap, card, c[0]); });
-            chips.appendChild(b);
-        });
-        wrap.appendChild(chips);
-
-        var shown = items.filter(function (i) { return filter === 'all' || i.status === filter; });
-        if (!shown.length) {
-            wrap.appendChild(el('div', 'rem-empty', daText('Nothing here.', 'Intet her.')));
-        }
-        var ul = el('ul', 'books-list udl-list');
-        shown.forEach(function (it) {
-            var li = el('li', 'books-row udl-row');
-            var main = el('div', 'books-row-main');
-            rowDateName(main, it.date, it.vendor || '—');
-            udlaegTag(main, { udlaeg: it.status });
-            if (it.status === 'reimbursed' && it.reimbursed_at) main.appendChild(el('span', 'udl-when', ' ' + it.reimbursed_at.split('-').reverse().join('-')));
-            li.appendChild(main);
-            li.appendChild(el('span', 'exp-amt', fmtMoney(it.total, it.currency)));
-            var act = el('button', 'udl-act', it.status === 'owed' ? daText('Paid back', 'Tilbagebetalt') : daText('Undo', 'Fortryd')); act.type = 'button';
-            act.title = it.status === 'owed' ? daText('Mark as paid back today', 'Markér som tilbagebetalt i dag') : daText('Mark as owed again', 'Markér som til gode igen');
-            act.addEventListener('click', function () {
-                if (it.status === 'owed' && !window.confirm(daText('Mark as paid back today? Do it only after the transfer.', 'Markér som tilbagebetalt i dag? Gør det først efter overførslen.'))) return;
-                act.disabled = true;
-                wrap.classList.add('loading');
-                fetch('/api/udlaeg.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: it.status === 'owed' ? 'reimburse' : 'undo', id: it.id }) })
-                    .then(function (r) { return r.json(); })
-                    .then(function (j) {
-                        wrap.classList.remove('loading');
-                        if (j && j.card) {
-                            drawUdlaeg(wrap, j.card, filter);
-                            if (panelCard && panelCard.kind === 'udlaeg') { panelCard = j.card; railRecents.forEach(function (r) { if (r.kind === 'udlaeg') r.card = j.card; }); }
-                        } else { act.disabled = false; toast((j && j.error) || daText('Could not do that.', 'Kunne ikke det.')); }
-                    }).catch(function () { wrap.classList.remove('loading'); act.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
-            });
-            li.appendChild(act);
-            ul.appendChild(li);
-        });
-        wrap.appendChild(ul);
     }
 
     // Regnskabspakke (loan pack): year switch, key figures, one tab per statement, downloads, and a form for balance items the books cannot know.
@@ -4448,7 +4374,7 @@
 
         var head = document.createElement('div');
         head.className = 'plan-card-title';
-        head.textContent = card.title || 'Expenses';
+        head.textContent = card.paid_privately ? daText('Expenses · paid privately', 'Udgifter · udlæg') : (card.title || 'Expenses');
         wrap.appendChild(head);
 
         // Per-currency totals (never blended). Keep DOM refs so a row delete updates them.
@@ -4493,11 +4419,35 @@
         }
 
         var items = card.items || [];
+        var expFilter = card.filter || 'all';
+        var expChips = null, expRows = [];
+        function applyExpFilter() {
+            expRows.forEach(function (r) { r.li.hidden = !(expFilter === 'all' || r.it.udlaeg === expFilter); });
+            if (!expChips) return;
+            var owed = items.filter(function (i) { return i.udlaeg === 'owed'; }).length;
+            var rep = items.filter(function (i) { return i.udlaeg === 'reimbursed'; }).length;
+            var counts = { all: items.length, owed: owed, reimbursed: rep };
+            Array.prototype.forEach.call(expChips.children, function (b) {
+                b.className = 'books-period' + (b.getAttribute('data-f') === expFilter ? ' is-active' : '');
+                b.textContent = b.getAttribute('data-l') + ' ' + counts[b.getAttribute('data-f')];
+            });
+        }
+        if (items.some(function (i) { return i.udlaeg; })) {   // only when some were paid with private money
+            expChips = document.createElement('div');
+            expChips.className = 'books-chips exp-filter';
+            [['all', daText('All', 'Alle')], ['owed', daText('Paid privately · owed', 'Udlæg · til gode')], ['reimbursed', daText('Paid privately · repaid', 'Udlæg · tilbagebetalt')]].forEach(function (c) {
+                var b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-f', c[0]); b.setAttribute('data-l', c[1]);
+                b.addEventListener('click', function () { expFilter = c[0]; applyExpFilter(); });
+                expChips.appendChild(b);
+            });
+            wrap.appendChild(expChips);
+        }
         if (items.length) {
             var list = document.createElement('ul');
             list.className = 'exp-list';
             items.forEach(function (it) {
                 var li = document.createElement('li');
+                expRows.push({ li: li, it: it });
                 var left = document.createElement('div');
                 left.className = 'exp-when';
                 var main = document.createElement('div');
@@ -4545,10 +4495,38 @@
 
                 li.appendChild(left);
                 li.appendChild(right);
+                if (it.udlaeg) {   // paid with private money: mark it paid back once the company has transferred it (or undo)
+                    var pay = document.createElement('button');
+                    pay.type = 'button';
+                    pay.className = 'udl-act';
+                    var setPay = function () {
+                        pay.textContent = it.udlaeg === 'owed' ? daText('Paid back', 'Tilbagebetalt') : daText('Undo', 'Fortryd');
+                        pay.title = it.udlaeg === 'owed' ? daText('Mark as paid back today', 'Markér som tilbagebetalt i dag') : daText('Mark as owed again', 'Markér som til gode igen');
+                    };
+                    setPay();
+                    pay.addEventListener('click', function () {
+                        if (it.udlaeg === 'owed' && !window.confirm(daText('Mark as paid back today? Do it only after the transfer.', 'Markér som tilbagebetalt i dag? Gør det først efter overførslen.'))) return;
+                        pay.disabled = true;
+                        fetch('/api/udlaeg.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: it.udlaeg === 'owed' ? 'reimburse' : 'undo', id: it.id }) })
+                            .then(function (r) { return r.json(); })
+                            .then(function (j) {
+                                pay.disabled = false;
+                                if (j && j.ok) {
+                                    it.udlaeg = it.udlaeg === 'owed' ? 'reimbursed' : 'owed';
+                                    var old = main.querySelector('.udl-tag'); if (old) old.remove();
+                                    udlaegTag(main, it);
+                                    setPay();
+                                    applyExpFilter();
+                                } else { toast((j && j.error) || daText('Could not do that.', 'Kunne ikke det.')); }
+                            }).catch(function () { pay.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
+                    });
+                    li.appendChild(pay);
+                }
                 li.appendChild(del);
                 list.appendChild(li);
             });
             wrap.appendChild(list);
+            applyExpFilter();
         } else {
             var empty = document.createElement('div');
             empty.className = 'plan-empty';
@@ -12098,7 +12076,7 @@
         books: ['Books — the overview', 'Regnskab — overblikket',
             'Your overview for a period: turnover, moms, expenses, unpaid invoices and what to set aside, with the invoices, expenses and withdrawals underneath — this is where you add and edit entries. Turnover and profit exclude moms; the Expenses tile includes it, as on the receipts. Reserve here is for the chosen period only.',
             'Dit overblik for en periode: omsætning, moms, udgifter, ubetalte fakturaer og hvad du bør lægge til side — med fakturaer, udgifter og hævninger nedenunder. Her tilføjer og retter du poster. Omsætning og overskud er ekskl. moms; Udgifter-feltet er inkl. moms, som på bilagene. Hensæt gælder kun den valgte periode.',
-            ['pl', 'moms', 'cash', 'udlaeg', 'loan_pack']],
+            ['pl', 'moms', 'cash', 'loan_pack']],
         pl: ['P&L — profit and loss', 'Resultat — resultatopgørelse',
             'Revenue minus expenses (both excluding moms) minus the business driving deduction = profit before tax. The tax figure is an estimate from your reserve percentage. Moms is left out: it is neither your income nor your cost.',
             'Omsætning minus udgifter (begge ekskl. moms) minus kørselsfradrag = overskud før skat. Skatten er et skøn efter din hensættelsesprocent. Moms er holdt udenfor: den er hverken din indtægt eller dit tab.',
@@ -12116,8 +12094,8 @@
             'Dine bogførte fakturaer for perioden; betalt eller ubetalt afhænger af, om du har markeret dem betalt. Beløbene er som faktureret. Regnskab viser de samme fakturaer sammen med udgifter og hævninger.',
             ['books']],
         expenses: ['Expenses — a list', 'Udgifter — en liste',
-            'Your expenses (bilag). Drafts are not booked and do not count in moms or profit. "Paid privately" means you paid with your own money and have not been paid back yet. The Books overview shows the same expenses next to income.',
-            'Dine udgifter (bilag). Kladder er ikke bogført og tæller ikke med i moms eller overskud. Udlæg betyder, at du har betalt med private penge og endnu ikke er blevet betalt tilbage. Regnskab viser de samme udgifter sammen med indtægter.',
+            'Your expenses (bilag). Drafts are not booked and do not count in moms or profit. The chips filter the ones you paid with your own money ("paid privately"): still owed to you, or paid back — use "Paid back" on a row once the company has transferred it. The Books overview shows the same expenses next to income.',
+            'Dine udgifter (bilag). Kladder er ikke bogført og tæller ikke med i moms eller overskud. Filtrene viser dem, du har betalt med private penge (udlæg): stadig til gode, eller tilbagebetalt — brug "Tilbagebetalt" på en række, når firmaet har overført beløbet. Regnskab viser de samme udgifter sammen med indtægter.',
             ['books']],
         draws: ['Owner draws — a list', 'Hævninger — en liste',
             'Money you take out of the business for yourself. It is not an expense: it changes neither profit nor moms, only how much cash is left (see Cash).',
@@ -12127,10 +12105,6 @@
             'Business trips give a deduction per km; commuting to a fixed workplace is private and does not count. The business deduction is subtracted in the P&L.',
             'Erhvervskørsel giver et fradrag pr. km; pendling til et fast arbejdssted er privat og tæller ikke. Erhvervsfradraget trækkes fra i Resultat.',
             ['pl']],
-        udlaeg: ['Paid privately — your own money', 'Udlæg — betalt med private penge',
-            'Every expense you paid with your own money, and whether the company has paid you back. It is still a normal business expense (moms and deduction count); it only means the company owes you the amount until you are repaid. Foreign-currency ones are listed here but not in the DKK totals elsewhere.',
-            'Alle udgifter du har betalt med dine egne penge, og om firmaet har betalt dig tilbage. Det er stadig en almindelig firmaudgift (moms og fradrag tæller); det betyder kun, at firmaet skylder dig beløbet, til du er betalt tilbage. Udgifter i fremmed valuta står her, men ikke i DKK-totalerne andre steder.',
-            ['books', 'cash']],
         loan_pack: ['Regnskabspakke — a year as a document', 'Regnskabspakke — et år som dokument',
             'A whole calendar year gathered for a bank or accountant. The numbers are the same as in Books, P&L, Moms and Cash — just all in one place per year. The balance needs you to add equipment, loans and a stated bank balance yourself.',
             'Et helt kalenderår samlet til bank eller revisor. Tallene er de samme som i Regnskab, Resultat, Moms og Likviditet — bare samlet ét sted pr. år. Balancen kræver, at du selv tilføjer udstyr, lån og en oplyst banksaldo.',
@@ -12141,8 +12115,7 @@
         pl: [['trending-up', 'P&L', 'Resultat', '/api/pl.php?granularity=year&offset=0'], 0],
         moms: [['percent', 'Moms', 'Moms', '/api/moms.php?offset=0'], 0],
         cash: [['landmark', 'Cash', 'Likviditet', '/api/cash.php'], 0],
-        loan_pack: [['book-open', 'Regnskabspakke', 'Regnskabspakke', '/api/loanpack.php'], 0],
-        udlaeg: [['wallet', 'Paid privately', 'Udlæg', '/api/udlaeg.php'], 0]
+        loan_pack: [['book-open', 'Regnskabspakke', 'Regnskabspakke', '/api/loanpack.php'], 0]
     };
 
     function bookHelp(wrap, key) {
@@ -12203,6 +12176,5 @@
     renderIncomeSummary = withBookHelpLast(renderIncomeSummary, 'income');
     renderOwnerDraws = withBookHelpLast(renderOwnerDraws, 'draws');
     renderExpenses = withBookHelpLast(renderExpenses, 'expenses');
-    drawUdlaeg = withBookHelp(drawUdlaeg, 'udlaeg');
     })();
 })();
