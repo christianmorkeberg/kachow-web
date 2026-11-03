@@ -3348,6 +3348,14 @@
         csv.textContent = 'CSV';
         csv.addEventListener('click', function () { downloadUrl(card.csv_url); });
         actions.appendChild(csv);
+        if (card.zip_url) {
+            var zip = document.createElement('button');
+            zip.type = 'button';
+            zip.className = 'ep-btn';
+            zip.textContent = daText('Receipts ZIP', 'Bilag (ZIP)');
+            zip.addEventListener('click', function () { downloadUrl(card.zip_url); });
+            actions.appendChild(zip);
+        }
         head.appendChild(actions);
         wrap.appendChild(head);
         if (card.summary) {
