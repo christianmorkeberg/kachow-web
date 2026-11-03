@@ -12037,7 +12037,7 @@
             setIconText(b, r[0], daText(r[1], r[2]));
             b.addEventListener('click', function () {
                 fetch(r[3], { credentials: 'same-origin' }).then(function (x) { return x.json(); })
-                    .then(function (j) { if (j && j.card) renderCard(j.card); })
+                    .then(function (j) { if (j && j.card) presentCard(j.card, 'open'); })   // into the card panel, like every other card
                     .catch(function () { toast(daText('Could not open that.', 'Kunne ikke åbne den.')); });
             });
             rel.appendChild(b);
