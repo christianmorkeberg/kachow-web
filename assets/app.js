@@ -12020,6 +12020,7 @@
         if (old) old.remove();
         var d = document.createElement('details');
         d.className = 'bk-help';
+        d.open = isDesktopLayout();   // desktop has the room: the note is shown; on a phone it stays folded away
         var sum = document.createElement('summary');
         sum.textContent = 'ⓘ ' + daText(h[0], h[1]);
         d.appendChild(sum);

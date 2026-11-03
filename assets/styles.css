@@ -3422,3 +3422,10 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .bk-rel { display: flex; gap: 6px; flex-wrap: wrap; }
 .bk-rel-btn { font: inherit; font-size: .8rem; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .bk-rel-btn:hover { background: var(--accent-soft); }
+@media (min-width: 1024px) {
+    .bk-help { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 24px; align-items: start; }
+    .bk-help > summary { grid-column: 1 / -1; }
+    .bk-help p { margin: 6px 0 0; max-width: 78ch; }
+    .bk-help .bk-rel { flex-direction: column; align-items: stretch; margin-top: 6px; }
+    .lp-scroll { max-height: 520px; }
+}
