@@ -1648,9 +1648,11 @@
         feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
         home:            { kind: 'home',            icon: 'house',         en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') },
-        timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } }
+        timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } },
+        loan_pack:       { kind: 'loan_pack',       icon: 'book-open',     en: 'Regnskabspakke',  da: 'Regnskabspakke', load: cardFromUrl('/api/loanpack.php') },
+        udlaeg:          { kind: 'udlaeg',          icon: 'wallet',        en: 'Udlæg',           da: 'Udlæg',          load: cardFromUrl('/api/udlaeg.php') }
     };
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home', 'timer'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'location', 'calendar', 'cycle', 'books', 'moms', 'cash', 'pl', 'mileage', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home', 'timer', 'loan_pack', 'udlaeg'];
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
 
@@ -1798,6 +1800,8 @@
         if (railRecents.length > 6) railRecents = railRecents.slice(0, 6);
     }
 
+    var openAllCards = function () { /* set by the cards sheet below */ };
+
     function renderRail() {
         var rail = document.getElementById('cardRail');
         if (!rail) return;
@@ -1812,6 +1816,9 @@
             b.addEventListener('click', onClick);
             return b;
         }
+        // Every card in one place — the desktop twin of the phone's cards button.
+        rail.appendChild(railBtn('layout-grid', daText('All cards', 'Alle kort'), false, function (ev) { ev.stopPropagation(); openAllCards(); }));
+        var sepTop = document.createElement('div'); sepTop.className = 'rail-sep'; rail.appendChild(sepTop);
         railStaples().forEach(function (s) {
             rail.appendChild(railBtn(s.icon, s.label, railKind(panelKind) === s.kind, s.open));
         });
@@ -11508,10 +11515,17 @@
             }
         }
         function place() {
+            if (isDesktopLayout()) {   // beside the rail, from the top
+                sheet.style.bottom = '';
+                sheet.style.top = '72px';
+                return;
+            }
+            sheet.style.top = '';
             var top = composer.getBoundingClientRect().top;
             sheet.style.bottom = Math.max(8, Math.round(window.innerHeight - top + 8)) + 'px';
         }
         function open() { fill(); place(); sheet.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+        openAllCards = function () { if (sheet.hidden) open(); else close(); };
         function close() { sheet.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
         btn.addEventListener('click', function (ev) { ev.stopPropagation(); if (sheet.hidden) open(); else close(); });
         document.addEventListener('click', function (ev) { if (!sheet.hidden && !sheet.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) close(); });

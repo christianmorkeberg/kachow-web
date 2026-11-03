@@ -1647,7 +1647,9 @@ button.ghost {
 /* Cards button + sheet (phones / tablets: the desktop has the rail): every card one tap away from any chat. */
 .cards-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; color: var(--muted); }
 .cards-btn[aria-expanded="true"] { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
-@media (min-width: 1024px) { .cards-btn, .card-sheet { display: none !important; } }
+@media (min-width: 1024px) {
+    .cards-btn { display: none !important; }   /* the rail's "All cards" button opens the same sheet */
+}
 .card-sheet {
     position: fixed; left: 8px; right: 8px; z-index: 60; max-height: min(62vh, 520px); overflow-y: auto;
     background: var(--panel-2); border: 1px solid transparent; border-radius: 0;
@@ -3445,3 +3447,8 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .udl-act { font: inherit; font-size: .78rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; white-space: nowrap; }
 .udl-act:hover { background: var(--accent-soft); }
 .books-note-link { display: block; width: 100%; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; padding: 0; cursor: pointer; text-decoration: underline dotted; }
+
+/* Desktop: the cards sheet opens beside the rail (after the base .card-sheet rule so it wins) */
+@media (min-width: 1024px) {
+    .card-sheet { left: auto; right: 64px; width: 440px; max-height: min(80vh, 680px); }
+}
