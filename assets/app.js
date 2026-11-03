@@ -7381,9 +7381,10 @@
             .catch(function () {});
     }
 
-    function booksTile(label, value, sub, tone) {
+    function booksTile(label, value, sub, tone, help) {
         var t = document.createElement('div');
         t.className = 'books-kpi' + (tone ? ' books-kpi-' + tone : '');
+        if (help) t.title = help;
         var l = document.createElement('div'); l.className = 'books-kpi-label'; l.textContent = label;
         var v = document.createElement('div'); v.className = 'books-kpi-val'; v.textContent = value;
         t.appendChild(l); t.appendChild(v);
@@ -7452,12 +7453,17 @@
         var momsSub  = (k.net_moms || 0) >= 0
             ? daText('to pay · salgs − købs', 'at betale · salgs − købs')
             : daText('to reclaim', 'til gode');
-        kpis.appendChild(booksTile(daText('Revenue', 'Omsætning'), fmtMoney(k.revenue, cur), daText('ex. moms', 'ekskl. moms')));
-        kpis.appendChild(booksTile(daText('Net moms', 'Moms (netto)'), fmtMoney(k.net_moms, cur), momsSub, momsTone));
-        kpis.appendChild(booksTile(daText('Expenses', 'Udgifter'), fmtMoney(k.expenses, cur), daText('incl. moms', 'inkl. moms')));
-        kpis.appendChild(booksTile(daText('Outstanding', 'Udestående'), fmtMoney(k.outstanding, cur), daText('unpaid invoices', 'ubetalte fakturaer')));
+        kpis.appendChild(booksTile(daText('Revenue', 'Omsætning'), fmtMoney(k.revenue, cur), daText('ex. moms', 'ekskl. moms'), null,
+            daText('Invoiced in the period, excluding moms (booked invoices only).', 'Faktureret i perioden, ekskl. moms (kun bogførte fakturaer).')));
+        kpis.appendChild(booksTile(daText('Net moms', 'Moms (netto)'), fmtMoney(k.net_moms, cur), momsSub, momsTone,
+            daText('Sales moms on your invoices minus purchase moms on your receipts. Positive = you owe SKAT. See the Moms card for the quarter and deadline.', 'Salgsmoms på dine fakturaer minus købsmoms på dine bilag. Positiv = du skylder SKAT. Se Moms-kortet for kvartal og frist.')));
+        kpis.appendChild(booksTile(daText('Expenses', 'Udgifter'), fmtMoney(k.expenses, cur), daText('incl. moms', 'inkl. moms'), null,
+            daText('Confirmed expenses including moms, as on the receipts. The profit and the P&L card use them excluding moms.', 'Bekræftede udgifter inkl. moms, som på bilagene. Overskud og Resultat-kortet bruger dem ekskl. moms.')));
+        kpis.appendChild(booksTile(daText('Outstanding', 'Udestående'), fmtMoney(k.outstanding, cur), daText('unpaid invoices', 'ubetalte fakturaer'), null,
+            daText('Booked invoices in this period that you have not marked as paid yet (incl. moms).', 'Bogførte fakturaer i perioden, som du endnu ikke har markeret betalt (inkl. moms).')));
         kpis.appendChild(booksTile(daText('Reserve', 'Hensæt'), fmtMoney(reserve.total, cur),
-            daText('moms ', 'moms ') + fmtMoney(reserve.moms, cur) + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ' (' + (reserve.pct || 0) + '%)', 'accent'));
+            daText('moms ', 'moms ') + fmtMoney(reserve.moms, cur) + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ' (' + (reserve.pct || 0) + '%) · ' + daText('this period', 'denne periode'), 'accent',
+            daText('What to set aside from this period: the moms you owe plus an estimate of tax on the profit. Only this period — the Cash card shows the total since you started.', 'Hvad du bør lægge til side for denne periode: moms du skylder plus et skøn over skat af overskuddet. Kun denne periode — Likviditet viser det samlede beløb siden start.')));
         wrap.appendChild(kpis);
 
         // A profit strap line under the tiles.
@@ -8029,7 +8035,7 @@
         // Reserve note (why free < expected).
         var res = document.createElement('div');
         res.className = 'cash-reserve';
-        setIconText(res, 'lock', daText('Set aside: ', 'Hensat: ') + fmtMoney(reserve.total, cur)
+        setIconText(res, 'lock', daText('Set aside since the start: ', 'Hensat siden start: ') + fmtMoney(reserve.total, cur)
             + ' (' + daText('moms ', 'moms ') + fmtMoney(reserve.moms, cur)
             + ' + ' + daText('tax ', 'skat ') + fmtMoney(reserve.tax, cur) + ', ' + (reserve.pct || 0) + '%)');
         wrap.appendChild(res);
@@ -11958,5 +11964,111 @@
                 }
             }).catch(function () { /* non-fatal */ });
         }
+
+    // ---- Books-family cards: a short "what is this card" note + links to the related cards ----------------------------------------------
+    // Each card in the books family answers one question; the footer says which, and where the neighbouring numbers live.
+    var BOOK_HELP = {
+        books: ['Books — the overview', 'Regnskab — overblikket',
+            'Your overview for a period: turnover, moms, expenses, unpaid invoices and what to set aside, with the invoices, expenses and withdrawals underneath — this is where you add and edit entries. Turnover and profit exclude moms; the Expenses tile includes it, as on the receipts. Reserve here is for the chosen period only.',
+            'Dit overblik for en periode: omsætning, moms, udgifter, ubetalte fakturaer og hvad du bør lægge til side — med fakturaer, udgifter og hævninger nedenunder. Her tilføjer og retter du poster. Omsætning og overskud er ekskl. moms; Udgifter-feltet er inkl. moms, som på bilagene. Hensæt gælder kun den valgte periode.',
+            ['pl', 'moms', 'cash', 'loan_pack']],
+        pl: ['P&L — profit and loss', 'Resultat — resultatopgørelse',
+            'Revenue minus expenses (both excluding moms) minus the business driving deduction = profit before tax. The tax figure is an estimate from your reserve percentage. Moms is left out: it is neither your income nor your cost.',
+            'Omsætning minus udgifter (begge ekskl. moms) minus kørselsfradrag = overskud før skat. Skatten er et skøn efter din hensættelsesprocent. Moms er holdt udenfor: den er hverken din indtægt eller dit tab.',
+            ['books', 'moms', 'loan_pack']],
+        moms: ['Moms — one quarter', 'Moms — ét kvartal',
+            'The moms settlement for one quarter: sales moms (on your invoices) minus purchase moms (on your receipts) = what you pay SKAT, or get back. Only booked invoices and confirmed expenses count; drafts do not. The whole year at once is in the Regnskabspakke.',
+            'Momsafregningen for ét kvartal: salgsmoms (på dine fakturaer) minus købsmoms (på dine bilag) = det du betaler til SKAT, eller får tilbage. Kun bogførte fakturaer og bekræftede udgifter tæller, kladder gør ikke. Hele året på én gang står i Regnskabspakken.',
+            ['books', 'cash', 'loan_pack']],
+        cash: ['Cash — what should be in the bank', 'Likviditet — hvad der bør stå i banken',
+            'Expected balance = opening balance + paid invoices + deposits − expenses the business paid − withdrawals − fees, moms and tax you have paid. Free to spend is what remains after moms and tax are set aside. The set-aside here is the total since the start; the Books overview shows it for one period only.',
+            'Forventet saldo = åbningssaldo + betalte fakturaer + indskud − udgifter betalt af firmaet − hævninger − gebyrer, moms og skat du har betalt. Frit at bruge er det, der er tilbage efter moms og skat er lagt til side. Hensat er her samlet siden start; Regnskab viser det kun for en periode.',
+            ['books', 'moms', 'loan_pack']],
+        income: ['Income — a list', 'Indtægt — en liste',
+            'Your booked invoices for the period; paid or unpaid depends on whether you have marked them paid. Amounts are as invoiced. The Books overview has the same invoices together with expenses and withdrawals.',
+            'Dine bogførte fakturaer for perioden; betalt eller ubetalt afhænger af, om du har markeret dem betalt. Beløbene er som faktureret. Regnskab viser de samme fakturaer sammen med udgifter og hævninger.',
+            ['books']],
+        expenses: ['Expenses — a list', 'Udgifter — en liste',
+            'Your expenses (bilag). Drafts are not booked and do not count in moms or profit. Udlæg means you paid with private money and have not been paid back yet. The Books overview shows the same expenses next to income.',
+            'Dine udgifter (bilag). Kladder er ikke bogført og tæller ikke med i moms eller overskud. Udlæg betyder, at du har betalt med private penge og endnu ikke er blevet betalt tilbage. Regnskab viser de samme udgifter sammen med indtægter.',
+            ['books']],
+        draws: ['Owner draws — a list', 'Hævninger — en liste',
+            'Money you take out of the business for yourself. It is not an expense: it changes neither profit nor moms, only how much cash is left (see Cash).',
+            'Penge du tager ud af firmaet til dig selv. Det er ikke en udgift: det ændrer hverken overskud eller moms, kun hvor meget der er tilbage (se Likviditet).',
+            ['books', 'cash']],
+        mileage: ['Mileage — the driving log', 'Kørsel — kørebogen',
+            'Business trips give a deduction per km; commuting to a fixed workplace is private and does not count. The business deduction is subtracted in the P&L.',
+            'Erhvervskørsel giver et fradrag pr. km; pendling til et fast arbejdssted er privat og tæller ikke. Erhvervsfradraget trækkes fra i Resultat.',
+            ['pl']],
+        loan_pack: ['Regnskabspakke — a year as a document', 'Regnskabspakke — et år som dokument',
+            'A whole calendar year gathered for a bank or accountant. The numbers are the same as in Books, P&L, Moms and Cash — just all in one place per year. The balance needs you to add equipment, loans and a stated bank balance yourself.',
+            'Et helt kalenderår samlet til bank eller revisor. Tallene er de samme som i Regnskab, Resultat, Moms og Likviditet — bare samlet ét sted pr. år. Balancen kræver, at du selv tilføjer udstyr, lån og en oplyst banksaldo.',
+            ['books', 'pl', 'moms', 'cash']]
+    };
+    var BOOK_RELATED = {
+        books: [['book-open', 'Books', 'Regnskab', '/api/books.php?granularity=quarter&offset=0'], 0],
+        pl: [['trending-up', 'P&L', 'Resultat', '/api/pl.php?granularity=year&offset=0'], 0],
+        moms: [['percent', 'Moms', 'Moms', '/api/moms.php?offset=0'], 0],
+        cash: [['landmark', 'Cash', 'Likviditet', '/api/cash.php'], 0],
+        loan_pack: [['book-open', 'Regnskabspakke', 'Regnskabspakke', '/api/loanpack.php'], 0]
+    };
+
+    function bookHelp(wrap, key) {
+        var h = BOOK_HELP[key];
+        if (!wrap || !h) return;
+        var old = wrap.querySelector(':scope > .bk-help');
+        if (old) old.remove();
+        var d = document.createElement('details');
+        d.className = 'bk-help';
+        var sum = document.createElement('summary');
+        sum.textContent = 'ⓘ ' + daText(h[0], h[1]);
+        d.appendChild(sum);
+        var p = document.createElement('p');
+        p.textContent = daText(h[2], h[3]);
+        d.appendChild(p);
+        var rel = document.createElement('div');
+        rel.className = 'bk-rel';
+        h[4].forEach(function (k) {
+            var r = BOOK_RELATED[k][0];
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'bk-rel-btn';
+            setIconText(b, r[0], daText(r[1], r[2]));
+            b.addEventListener('click', function () {
+                fetch(r[3], { credentials: 'same-origin' }).then(function (x) { return x.json(); })
+                    .then(function (j) { if (j && j.card) renderCard(j.card); })
+                    .catch(function () { toast(daText('Could not open that.', 'Kunne ikke åbne den.')); });
+            });
+            rel.appendChild(b);
+        });
+        d.appendChild(rel);
+        wrap.appendChild(d);
+    }
+
+    // Wrap the redrawing builders so the note survives a period switch, and the one-shot list cards get it once.
+    function withBookHelp(drawFn, key) {
+        return function (wrap) {
+            var out = drawFn.apply(this, arguments);
+            bookHelp(wrap, key);
+            return out;
+        };
+    }
+    function withBookHelpLast(renderFn, key) {
+        return function () {
+            var out = renderFn.apply(this, arguments);
+            var w = messages.lastElementChild;
+            if (w && w.classList.contains('plan-card')) bookHelp(w, key);
+            return out;
+        };
+    }
+    drawBooksOverview = withBookHelp(drawBooksOverview, 'books');
+    drawPl = withBookHelp(drawPl, 'pl');
+    drawMoms = withBookHelp(drawMoms, 'moms');
+    drawCash = withBookHelp(drawCash, 'cash');
+    drawMileage = withBookHelp(drawMileage, 'mileage');
+    buildLoanPack = withBookHelp(buildLoanPack, 'loan_pack');
+    renderIncomeSummary = withBookHelpLast(renderIncomeSummary, 'income');
+    renderOwnerDraws = withBookHelpLast(renderOwnerDraws, 'draws');
+    renderExpenses = withBookHelpLast(renderExpenses, 'expenses');
     })();
 })();

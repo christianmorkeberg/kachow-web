@@ -3412,3 +3412,13 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .lp-form select, .lp-form input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: inherit; min-width: 0; }
 .lp-btn { font: inherit; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--accent-soft); color: inherit; cursor: pointer; }
 .lp-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* Books family: the "what is this card" note + links to the neighbouring cards */
+.bk-help { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; font-size: .82rem; }
+.bk-help > summary { cursor: pointer; opacity: .8; list-style: none; user-select: none; }
+.bk-help > summary::-webkit-details-marker { display: none; }
+.bk-help[open] > summary { opacity: 1; font-weight: 600; }
+.bk-help p { margin: 8px 0; line-height: 1.5; opacity: .9; }
+.bk-rel { display: flex; gap: 6px; flex-wrap: wrap; }
+.bk-rel-btn { font: inherit; font-size: .8rem; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.bk-rel-btn:hover { background: var(--accent-soft); }
