@@ -10692,7 +10692,6 @@
         fetch('/api/conversations.php?recent=1', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
-                showUnseenTaskAlert(data && data.unseen_tasks);
                 var recent = data && data.recent ? data.recent : null;
                 if (recent && recent.age_seconds <= IDLE_RESUME_SECONDS) {
                     return loadConversation(recent.id).then(function () {
@@ -10703,28 +10702,6 @@
             })
             .catch(function () { /* start without the old chat */ })
             .then(function () { handlePendingOpen(p); });
-    }
-
-    // A scheduled task found something (notify_me fired, see bin/scheduled-tasks-cron.php)
-    // but the push may have been missed (dismissed, phone off, notifications denied) — show
-    // a persistent banner above the chat until its conversation is actually opened, which
-    // clears it server-side. tasks is api/conversations.php?recent=1's unseen_tasks.
-    function showUnseenTaskAlert(tasks) {
-        var el = document.getElementById('taskAlert');
-        if (!el) return;
-        if (!tasks || !tasks.length) { el.hidden = true; return; }
-        var first = tasks[0];
-        var extra = tasks.length > 1 ? ' (+' + (tasks.length - 1) + ' more)' : '';
-        var open = function () {
-            el.hidden = true;
-            loadConversation(first.conversation_id).catch(function () { /* non-fatal */ });
-        };
-        setIconText(el, 'bell', (first.last_result_title || first.label) + extra + ' — tap to view');
-        el.onclick = open;
-        el.onkeydown = function (e) {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-        };
-        el.hidden = false;
     }
 
     // Resume the last conversation only if it's still "warm" (server says its last
@@ -10739,7 +10716,6 @@
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
                 if (gen !== navGen) return;
-                showUnseenTaskAlert(data && data.unseen_tasks);
                 var recent = data && data.recent ? data.recent : null;
                 if (recent && recent.age_seconds <= IDLE_RESUME_SECONDS) {
                     loadConversation(recent.id, gen).catch(function () { if (gen === navGen) startFreshChat(recent); });
