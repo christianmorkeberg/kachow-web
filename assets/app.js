@@ -10850,13 +10850,20 @@
         b.type = 'button';
         b.className = 'notif-open';
         b.textContent = daText('Open the card', 'Åbn kortet');
-        b.addEventListener('click', function () {
+        function openIt() {
             var url = '/api/card.php?for=' + encodeURIComponent(key) + (rid ? '&rid=' + encodeURIComponent(rid) : '');
             fetch(url, { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
                 .then(function (data) { if (data && data.card) presentCard(data.card, 'open'); })
                 .catch(function () { toast(daText('Could not open it.', 'Kunne ikke åbne den.')); });
-        });
+        }
+        b.addEventListener('click', function (ev) { ev.stopPropagation(); openIt(); });
+        // The whole banner opens it too — tapping the bubble does what tapping the notification did.
+        bubble.classList.add('is-openable');
+        bubble.setAttribute('role', 'button');
+        bubble.tabIndex = 0;
+        bubble.addEventListener('click', function (ev) { if (!ev.target.closest('a, button')) openIt(); });
+        bubble.addEventListener('keydown', function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === bubble) { ev.preventDefault(); openIt(); } });
         bubble.appendChild(b);
     }
 
@@ -11091,10 +11098,11 @@
         var replies = notifReplies(note && note.type);
         if (replies && added) renderSuggestions(replies);
         if (!key) return;
-        if (note && (note.title || note.body)) {          // the notification says it all; its card is one tap away, not forced open
+        if (note && (note.title || note.body) && key !== 'reminder') {   // the notification says it all; its card is one tap away, not forced open (a reminder's card IS the answer, so it opens — as in a fresh chat)
             if (added) addOpenCardButton(key, rid);
             return;
         }
+        if (note && (note.title || note.body) && added) addOpenCardButton(key, rid);   // …and the banner stays tappable
         var url = '/api/card.php?for=' + encodeURIComponent(key);
         if (rid) url += '&rid=' + encodeURIComponent(rid);
         fetch(url, { credentials: 'same-origin' })
