@@ -13,6 +13,7 @@ require __DIR__ . '/../bootstrap.php';
 
 use App\Auth\RememberMe;
 use App\Auth\Session;
+use App\Data\EntryAttachments;
 use App\Data\Ledger;
 use App\Data\RememberTokens;
 use App\Data\Users;
@@ -50,6 +51,7 @@ if (!class_exists('ZipArchive')) {
 }
 
 $storage = new ReceiptStorage();
+$extras  = new EntryAttachments();
 $tmp     = tempnam(sys_get_temp_dir(), 'bilag');
 $zip     = new ZipArchive();
 $zip->open((string) $tmp, ZipArchive::OVERWRITE);
@@ -57,12 +59,26 @@ $added = 0;
 foreach ((new Ledger())->rows($userId, $year . '-01-01', $year . '-12-31') as $r) {
     $ref = (string) ($r['file_ref'] ?? '');
     $path = $ref !== '' ? $storage->pathFor($userId, $ref) : null;
-    if ($path === null) {
-        continue;
+    if ($path !== null) {
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION)) ?: 'bin';
+        $zip->addFile($path, $r['voucher'] . '.' . $ext);
+        $added++;
     }
-    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION)) ?: 'bin';
-    $zip->addFile($path, $r['voucher'] . '.' . $ext);
-    $added++;
+    // Extra attachments (a timesheet behind an invoice …) sit next to it: 2025-0003_1_<name>
+    if (isset($r['entity'], $r['entity_id'])) {
+        try {
+            foreach ($extras->listFor($userId, (string) $r['entity'], (int) $r['entity_id']) as $n => $a) {
+                $row = $extras->get($userId, $a['id']);
+                $p   = $row !== null ? $storage->pathFor($userId, $row['file_ref']) : null;
+                if ($p !== null) {
+                    $zip->addFile($p, $r['voucher'] . '_' . ($n + 1) . '_' . $a['name']);
+                    $added++;
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('bilag-zip attachments: ' . $e->getMessage());   // table not migrated yet: the bilag still go in
+        }
+    }
 }
 $zip->close();
 

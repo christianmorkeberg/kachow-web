@@ -6634,6 +6634,67 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
+    // Extra files on an income or expense entry (a timesheet behind an invoice, a contract, a spreadsheet …) — next to, not instead of, its invoice/receipt file.
+    function buildAttachments(parent, kind, id) {
+        if (!id) return;
+        var box = document.createElement('div');
+        box.className = 'att-box';
+        var head = document.createElement('div');
+        head.className = 'att-head';
+        head.textContent = daText('Attachments', 'Vedhæftninger');
+        box.appendChild(head);
+        var list = document.createElement('ul');
+        list.className = 'att-list';
+        box.appendChild(list);
+        var add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'ghost att-add';
+        setIconText(add, 'paperclip', daText('Add file (timesheet, contract, Excel …)', 'Tilføj fil (timeseddel, kontrakt, Excel …)'));
+        box.appendChild(add);
+
+        function size(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+        function draw(items) {
+            list.innerHTML = '';
+            (items || []).forEach(function (a) {
+                var li = document.createElement('li');
+                var link = document.createElement('a');
+                link.href = '/api/attachments.php?id=' + a.id;
+                link.target = '_blank'; link.rel = 'noopener';
+                setIconText(link, /^image\//.test(a.mime) ? 'image' : 'file-text', a.name);
+                li.appendChild(link);
+                var meta = document.createElement('span'); meta.className = 'att-size'; meta.textContent = size(a.size);
+                li.appendChild(meta);
+                var x = document.createElement('button');
+                x.type = 'button'; x.className = 'att-x'; x.textContent = '×';
+                x.setAttribute('aria-label', daText('Remove', 'Fjern')); x.title = daText('Remove', 'Fjern');
+                x.addEventListener('click', function () {
+                    if (!window.confirm(daText('Remove this file?', 'Fjern denne fil?'))) return;
+                    fetch('/api/attachments.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', id: a.id }) })
+                        .then(function (r) { return r.json(); }).then(function (j) { if (j && j.ok) draw(j.items); else toast((j && j.error) || daText('Could not remove it.', 'Kunne ikke fjerne den.')); })
+                        .catch(function () { toast(daText('Network error.', 'Netværksfejl.')); });
+                });
+                li.appendChild(x);
+                list.appendChild(li);
+            });
+        }
+        add.addEventListener('click', function () {
+            pickFile('.pdf,.jpg,.jpeg,.png,.webp,.heic,.csv,.txt,.xlsx,.xls,.docx,.doc,.ods,.odt,image/*,application/pdf', function (f) {
+                add.disabled = true;
+                setIconText(add, 'paperclip', daText('Uploading…', 'Uploader…'));
+                var fd = new FormData(); fd.append('kind', kind); fd.append('entry_id', String(id)); fd.append('file', f);
+                fetch('/api/attachments.php', { method: 'POST', credentials: 'same-origin', body: fd })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) {
+                        if (j && j.ok) draw(j.items); else toast((j && j.error) || daText('Upload failed — try again', 'Upload mislykkedes — prøv igen'));
+                    }).catch(function () { toast(daText('Upload failed — try again', 'Upload mislykkedes — prøv igen')); })
+                    .then(function () { add.disabled = false; setIconText(add, 'paperclip', daText('Add file (timesheet, contract, Excel …)', 'Tilføj fil (timeseddel, kontrakt, Excel …)')); });
+            });
+        });
+        parent.appendChild(box);
+        fetch('/api/attachments.php?kind=' + encodeURIComponent(kind) + '&entry_id=' + encodeURIComponent(id), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); }).then(function (j) { if (j && j.ok) draw(j.items); }).catch(function () { /* the add button still works */ });
+    }
+
     function buildReceipt(wrap, card, onChange) {
         wrap.innerHTML = '';
         var confirmed = card.status === 'confirmed';
@@ -6651,6 +6712,8 @@
             img.addEventListener('click', function () { openLightbox(card.image_url); });
             wrap.appendChild(img);
         }
+
+        if (card.id) buildAttachments(wrap, 'expense', card.id);
 
         var fields = document.createElement('div');
         fields.className = 'receipt-fields';
@@ -7029,6 +7092,7 @@
                 });
             });
             wrap.appendChild(attach);
+            buildAttachments(wrap, 'income', card.id);   // extra files: the timesheet behind the invoice, a contract …
         }
 
         // Generated (private) invoice: a printable document link + the line items.
