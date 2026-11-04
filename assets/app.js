@@ -1656,7 +1656,8 @@
         ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack']],
         ['Assistant', 'Assistent', ['scheduled_tasks', 'feedback', 'dev_ideas', 'home']]
     ];
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'location', 'cycle', 'timer', 'books', 'moms', 'cash', 'pl', 'mileage', 'udlaeg', 'loan_pack', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'location', 'cycle', 'timer', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home'];
+    HOME_CARD_ORDER = HOME_CARD_ORDER.filter(function (k) { return HOME_CARDS[k]; });   // a key without a card can never break the pickers
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
 
