@@ -6513,6 +6513,19 @@
                 });
                 head.appendChild(sw.el);
             }
+            if (!isSystem) {
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'sched-del';
+                del.appendChild(iconEl('trash-2'));
+                del.title = daText('Delete', 'Slet');
+                del.setAttribute('aria-label', daText('Delete ', 'Slet ') + t.label);
+                del.addEventListener('click', function () {
+                    if (!window.confirm(daText('Delete “' + t.label + '”?', 'Slet “' + t.label + '”?'))) return;
+                    act({ id: t.id, action: 'delete' }, del, daText('Deleted.', 'Slettet.'));
+                });
+                head.appendChild(del);
+            }
             el.appendChild(head);
 
             var meta = document.createElement('div');
@@ -6535,14 +6548,21 @@
             }
             el.appendChild(meta);
 
+            el.appendChild(lastRun(t, isSystem));
+
+            // Everything beyond name, switch and last result sits behind one "Details" line, so the card stays short.
+            var more = document.createElement('details');
+            more.className = 'sched-more';
+            var moreSum = document.createElement('summary');
+            moreSum.textContent = daText('Details & actions', 'Detaljer og handlinger');
+            more.appendChild(moreSum);
             var info = isSystem ? t.description : t.instruction;
             if (info) {
                 var d = document.createElement('div');
                 d.className = 'sched-desc';
                 d.textContent = info;
-                el.appendChild(d);
+                more.appendChild(d);
             }
-            el.appendChild(lastRun(t, isSystem));
 
             if (!isSystem && t.status === 'draft') {
                 var da = document.createElement('div');
@@ -6568,7 +6588,7 @@
                 if (t.routine) {
                     ra.appendChild(actBtn(daText('Edit', 'Rediger'), '', function () { el.replaceWith(builderForm(t)); }));
                 }
-                el.appendChild(ra);
+                more.appendChild(ra);
             }
 
             if (!isSystem && t.conversation_id) {
@@ -6577,8 +6597,9 @@
                 open.className = 'sched-open' + (t.unseen ? ' unseen' : '');
                 setIconText(open, 'message-square', daText('Open the runs', 'Åbn kørslerne'));
                 open.addEventListener('click', function () { loadConversation(t.conversation_id).catch(function () { toast(daText('That conversation is gone.', 'Samtalen findes ikke mere.')); }); });
-                el.appendChild(open);
+                more.appendChild(open);
             }
+            if (more.children.length > 1) el.appendChild(more);
             return el;
         }
 

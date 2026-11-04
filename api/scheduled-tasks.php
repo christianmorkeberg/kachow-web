@@ -109,6 +109,12 @@ try {
             }
             out(200, ['ok' => true, 'card' => $tasks->cardForUser($userId, $places, $isAdmin && isset($sysTasks) ? SystemTasks::cardRows($sysTasks->listAll()) : null)]);
         }
+        if ($action === 'delete') {
+            if (!$tasks->remove($userId, (int) ($in['id'] ?? 0))) {
+                out(404, ['error' => 'No such task.']);
+            }
+            out(200, ['ok' => true, 'card' => $tasks->cardForUser($userId, new Places(), $isAdmin && isset($sysTasks) ? SystemTasks::cardRows($sysTasks->listAll()) : null)]);
+        }
         if ($action === 'undo' || $action === 'forget') {
             $id = (int) ($in['id'] ?? 0);
             if ($routines->getAny($userId, $id) === null) {

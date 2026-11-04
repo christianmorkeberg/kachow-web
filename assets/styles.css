@@ -3475,3 +3475,19 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .wk-monthlbl { font-weight: 600; min-width: 9ch; text-align: center; }
 .wk-navbtn { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: inherit; font-size: 1.15rem; cursor: pointer; }
 .wk-navbtn:disabled { opacity: .35; cursor: default; }
+
+/* Routines card: compact rows. Name + switch + delete on one line, last result on one line, the rest behind "Details & actions". */
+.sched-row { padding: 6px 2px; }
+.sched-del { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.sched-del:hover { color: var(--error, #f87171); }
+.sched-del:disabled { opacity: .5; cursor: default; }
+.sched-del .ic { width: 16px; height: 16px; }
+.sched-row .sched-last { margin-top: 3px; padding: 0; background: transparent; font-size: 12px; }
+.sched-row .sched-last-head { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.sched-more { margin-top: 3px; }
+.sched-more > summary { cursor: pointer; list-style: none; user-select: none; font-size: 12px; color: var(--muted); }
+.sched-more > summary::-webkit-details-marker { display: none; }
+.sched-more > summary::before { content: '▸ '; }
+.sched-more[open] > summary::before { content: '▾ '; }
+.sched-more > .sched-actions, .sched-more > .sched-open { margin-top: 6px; }
+.sched-new { margin-bottom: 4px; }
