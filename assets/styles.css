@@ -3469,3 +3469,9 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .att-list a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent); text-decoration: none; }
 .att-size { font-size: .75rem; opacity: .6; white-space: nowrap; }
 .att-x { border: 0; background: transparent; color: inherit; font-size: 1.15rem; cursor: pointer; opacity: .6; }
+
+/* Work hours: calendar-month navigation */
+.wk-monthnav { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 8px 0 2px; }
+.wk-monthlbl { font-weight: 600; min-width: 9ch; text-align: center; }
+.wk-navbtn { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: inherit; font-size: 1.15rem; cursor: pointer; }
+.wk-navbtn:disabled { opacity: .35; cursor: default; }

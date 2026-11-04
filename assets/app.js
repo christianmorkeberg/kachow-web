@@ -9676,7 +9676,7 @@
         en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
         da: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
     };
-    var WK_MODES = [['today', 'Today', 'I dag'], ['week', 'Week', 'Uge'], ['4w', '4 wks', '4 uger'], ['12w', '12 wks', '12 uger'], ['year', 'Year', 'År']];
+    var WK_MODES = [['today', 'Today', 'I dag'], ['week', 'Week', 'Uge'], ['month', 'Month', 'Måned'], ['4w', '4 wks', '4 uger'], ['12w', '12 wks', '12 uger'], ['year', 'Year', 'År']];
     var WK_WORDS = { day: ['day', 'days', 'dag', 'dage'], week: ['week', 'weeks', 'uge', 'uger'], month: ['month', 'months', 'måned', 'måneder'] };
 
     function wkIsoToDate(iso) {
@@ -9819,12 +9819,21 @@
     }
 
     // Switch the period (Today / Week / …): the same card, re-read in place.
-    function wkSwitchPeriod(wrap, card, key) {
+    // A calendar month (1st – last day of one month): the view behind the Month mode and its ‹ › arrows.
+    function wkMonthOf(card) {
+        var f = wkIsoToDate(card && card.from), t = wkIsoToDate(card && card.to);
+        if (!f || !t || f.getDate() !== 1 || f.getMonth() !== t.getMonth() || f.getFullYear() !== t.getFullYear()) return null;
+        var last = new Date(f.getFullYear(), f.getMonth() + 1, 0);
+        return t.getDate() === last.getDate() ? { y: f.getFullYear(), m: f.getMonth() } : null;
+    }
+    function wkMonthBody(y, m, place) {
+        var first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+        return { date: wkDateToIso(first), to: wkDateToIso(last), bucket: 'day', place: place || undefined };
+    }
+    function wkLoad(wrap, card, body) {
         wrap.classList.add('loading');
-        var q = card.query || {};
         fetch('/api/work-hours.php', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-            body: JSON.stringify({ period: key, place: q.place || undefined })
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body)
         }).then(function (r) { return r.ok ? r.json() : null; }).then(function (res) {
             wrap.classList.remove('loading');
             if (res && res.card) {
@@ -9838,6 +9847,15 @@
             wrap.classList.remove('loading');
             toast(daText('Could not load that period.', 'Kunne ikke hente den periode.'));
         });
+    }
+    function wkSwitchPeriod(wrap, card, key) {
+        var q = card.query || {};
+        if (key === 'month') {   // this calendar month (1st – last day)
+            var now = new Date();
+            wkLoad(wrap, card, wkMonthBody(now.getFullYear(), now.getMonth(), q.place));
+            return;
+        }
+        wkLoad(wrap, card, { period: key, place: q.place || undefined });
     }
 
     function renderWorkHours(card) {
@@ -9889,14 +9907,30 @@
         if (!shared && card.query) {
             var ctl = wkEl('div', 'prog-controls wk-modes');
             var seg = wkEl('div', 'prog-seg');
+            var calMonth = card.mode ? null : wkMonthOf(card);
+            var curMode = card.mode || (calMonth ? 'month' : null);
             WK_MODES.forEach(function (m) {
-                var btn = wkEl('button', 'prog-seg-btn' + (m[0] === card.mode ? ' on' : ''), daText(m[1], m[2]));
+                var btn = wkEl('button', 'prog-seg-btn' + (m[0] === curMode ? ' on' : ''), daText(m[1], m[2]));
                 btn.type = 'button';
-                btn.addEventListener('click', function () { if (m[0] !== card.mode) wkSwitchPeriod(wrap, card, m[0]); });
+                btn.addEventListener('click', function () { if (m[0] !== curMode) wkSwitchPeriod(wrap, card, m[0]); });
                 seg.appendChild(btn);
             });
             ctl.appendChild(seg);
             wrap.appendChild(ctl);
+            if (calMonth) {   // ‹ November 2026 › — page through calendar months (never into the future)
+                var nav = wkEl('div', 'wk-monthnav');
+                var cur = new Date();
+                var atNow = calMonth.y > cur.getFullYear() || (calMonth.y === cur.getFullYear() && calMonth.m >= cur.getMonth());
+                var go = function (dm) { var d = new Date(calMonth.y, calMonth.m + dm, 1); wkLoad(wrap, card, wkMonthBody(d.getFullYear(), d.getMonth(), (card.query || {}).place)); };
+                var prevB = wkEl('button', 'wk-navbtn', '‹'); prevB.type = 'button'; prevB.setAttribute('aria-label', daText('Previous month', 'Forrige måned'));
+                prevB.addEventListener('click', function () { go(-1); });
+                var nextB = wkEl('button', 'wk-navbtn', '›'); nextB.type = 'button'; nextB.setAttribute('aria-label', daText('Next month', 'Næste måned'));
+                nextB.disabled = atNow;
+                nextB.addEventListener('click', function () { go(1); });
+                var lbl = new Date(calMonth.y, calMonth.m, 1).toLocaleDateString(daText('en-GB', 'da-DK'), { month: 'long', year: 'numeric' });
+                nav.appendChild(prevB); nav.appendChild(wkEl('span', 'wk-monthlbl', lbl.charAt(0).toUpperCase() + lbl.slice(1))); nav.appendChild(nextB);
+                wrap.appendChild(nav);
+            }
         }
 
         // ---- summary tile ----
