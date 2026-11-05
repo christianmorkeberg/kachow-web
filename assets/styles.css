@@ -3491,3 +3491,5 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .sched-more[open] > summary::before { content: '▾ '; }
 .sched-more > .sched-actions, .sched-more > .sched-open { margin-top: 6px; }
 .sched-new { margin-bottom: 4px; }
+.sched-call-err { color: var(--error, #f87171); }
+.sched-call-foot { margin-top: 4px; font-size: 11.5px; color: var(--muted); }

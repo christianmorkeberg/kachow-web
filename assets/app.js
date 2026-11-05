@@ -6305,6 +6305,39 @@
                 det.appendChild(body);
                 box.appendChild(det);
             }
+            // What the run actually did (tools it called, whether each worked) — so a run that says "I sent a notification"
+            // can be checked against the tool list. Pure information: nothing here changes how a run behaves.
+            if (!isSystem && t.last_calls) {
+                var did = document.createElement('details');
+                did.className = 'sched-said';
+                var ds = document.createElement('summary');
+                ds.textContent = daText('What it did', 'Hvad den gjorde');
+                var db = document.createElement('div');
+                db.className = 'sched-said-body';
+                var lc = t.last_calls;
+                if (!lc.calls || !lc.calls.length) {
+                    db.textContent = daText('It called no tools — it only answered in text.', 'Den brugte ingen værktøjer — den svarede kun i tekst.');
+                } else {
+                    lc.calls.forEach(function (c) {
+                        var line = document.createElement('div');
+                        line.textContent = (c.ok ? '✓ ' : '✗ ') + c.name + (c.ms != null ? ' · ' + c.ms + ' ms' : '') + (c.error ? ' — ' + c.error : '');
+                        if (!c.ok) line.className = 'sched-call-err';
+                        db.appendChild(line);
+                    });
+                }
+                var foot = [];
+                if (lc.model) foot.push(lc.model);
+                if (lc.total_ms != null) foot.push((lc.total_ms >= 1000 ? (lc.total_ms / 1000).toFixed(1) + ' s' : lc.total_ms + ' ms') + ' ' + daText('in total', 'i alt'));
+                if (foot.length) {
+                    var ft = document.createElement('div');
+                    ft.className = 'sched-call-foot';
+                    ft.textContent = foot.join(' · ');
+                    db.appendChild(ft);
+                }
+                did.appendChild(ds);
+                did.appendChild(db);
+                box.appendChild(did);
+            }
             return box;
         }
 
