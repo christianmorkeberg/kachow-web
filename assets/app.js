@@ -6326,6 +6326,7 @@
                     });
                 }
                 var foot = [];
+                if (lc.routing) foot.push(/^LEARNED/.test(lc.routing) ? daText('learned tools: ', 'lærte værktøjer: ') + lc.routing.replace(/^LEARNED \(/, '').replace(/ tools\)$/, '') : daText('all tools', 'alle værktøjer'));
                 if (lc.model) foot.push(lc.model);
                 if (lc.total_ms != null) foot.push((lc.total_ms >= 1000 ? (lc.total_ms / 1000).toFixed(1) + ' s' : lc.total_ms + ' ms') + ' ' + daText('in total', 'i alt'));
                 if (foot.length) {
