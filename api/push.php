@@ -95,16 +95,18 @@ try {
             if (!WebPush::isConfigured()) {
                 out(200, ['ok' => false, 'error' => 'Push is not configured on the server yet.']);
             }
-            $sent = Notifier::fromEnv()->sendTest($userId);
-            out(200, ['ok' => $sent > 0, 'sent' => $sent]);
+            $notifier = Notifier::fromEnv();
+            $sent     = $notifier->sendTest($userId);
+            out(200, ['ok' => $sent > 0, 'sent' => $sent] + $notifier->lastDelivery());
 
             // no break (out() exits)
         case 'test_card':
             if (!WebPush::isConfigured()) {
                 out(200, ['ok' => false, 'error' => 'Push is not configured on the server yet.']);
             }
-            $sent = Notifier::fromEnv()->sendTestCard($userId, 'work_week');
-            out(200, ['ok' => $sent > 0, 'sent' => $sent]);
+            $notifier = Notifier::fromEnv();
+            $sent     = $notifier->sendTestCard($userId, 'work_week');
+            out(200, ['ok' => $sent > 0, 'sent' => $sent] + $notifier->lastDelivery());
 
         default:
             out(400, ['error' => 'Unknown action.']);

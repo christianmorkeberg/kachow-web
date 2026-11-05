@@ -11392,6 +11392,32 @@
         }
         function isiOS() { return /iP(hone|ad|od)/.test(navigator.userAgent); }
 
+        // Self-heal: the server deletes a subscription the push service reports as gone (iOS rotates them), but the phone still believes it is
+        // subscribed, so notifications stop with nothing to see. While permission is granted, make sure the phone has a subscription and the
+        // server knows it (idempotent upsert) — on every app open, at most once every 6 hours, and on demand from the test button.
+        function heal(force) {
+            if (!pushSupported || !('Notification' in window) || Notification.permission !== 'granted') return Promise.resolve(false);
+            try {
+                var last = Number(localStorage.getItem('kachow-push-healed') || 0);
+                if (!force && Date.now() - last < 6 * 3600 * 1000) return Promise.resolve(false);
+            } catch (e) { /* storage blocked: just heal */ }
+            return fetch('/api/push.php', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (cfg) {
+                if (!cfg || !cfg.public_key || cfg.supported === false) return false;
+                return navigator.serviceWorker.ready.then(function (reg) {
+                    return reg.pushManager.getSubscription().then(function (sub) {
+                        return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.public_key) });
+                    });
+                }).then(function (sub) {
+                    return api({ action: 'subscribe', subscription: sub.toJSON() });
+                }).then(function () {
+                    try { localStorage.setItem('kachow-push-healed', String(Date.now())); } catch (e) { /* ignore */ }
+                    return true;
+                });
+            }).catch(function () { return false; });
+        }
+        heal(false);
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') heal(false); });
+
         btn.hidden = false;
         btn.addEventListener('click', openModal);
         if (closeBtn) closeBtn.addEventListener('click', closeModal);
@@ -11491,9 +11517,26 @@
             testBtn.addEventListener('click', function () {
                 testBtn.disabled = true;
                 testBtn.textContent = 'Sending…';
+                // A test that reaches nobody says why, re-registers this phone with the server, and tries once more.
+                function why(r) {
+                    if (!r || !r.devices) return 'The server had no device registered for you';
+                    var bad = (r.results || []).filter(function (x) { return x.result !== 'ok'; })[0];
+                    return bad ? (bad.result === 'expired' ? 'The phone\'s registration had expired' : 'The push service refused it' + (bad.detail ? ' (' + bad.detail + ')' : '')) : 'Not delivered';
+                }
+                function show(text, ms) {
+                    testBtn.textContent = text;
+                    setTimeout(function () { testBtn.disabled = false; testBtn.textContent = 'Send a test notification'; }, ms);
+                }
                 api({ action: 'test' }).then(function (r) {
-                    testBtn.textContent = r && r.sent ? 'Sent ✓' : 'No device subscribed yet';
-                    setTimeout(function () { testBtn.disabled = false; testBtn.textContent = 'Send a test notification'; }, 2500);
+                    if (r && r.sent) { show('Sent ✓', 2500); return; }
+                    var first = why(r);
+                    testBtn.textContent = first + ' — registering this phone again…';
+                    return heal(true).then(function (healed) {
+                        if (!healed) { show(first + '. Could not register this phone — check the notification permission in iOS settings.', 9000); return; }
+                        return api({ action: 'test' }).then(function (r2) {
+                            show(r2 && r2.sent ? 'Fixed: registered again, and the test was sent ✓' : 'Registered again, but it still failed: ' + why(r2), r2 && r2.sent ? 5000 : 9000);
+                        });
+                    });
                 }).catch(function () { testBtn.disabled = false; testBtn.textContent = 'Send a test notification'; });
             });
             body.appendChild(testBtn);
