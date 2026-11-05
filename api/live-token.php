@@ -96,7 +96,7 @@ try {
         $res = $registry->dispatch('get_calendar_events', [
             'from' => $now->setTime(0, 0)->modify('-1 day')->format('Y-m-d\TH:i:s\Z'),
             'to'   => $now->modify('+7 days')->format('Y-m-d\TH:i:s\Z'),
-        ], $userId);
+        ], $userId, 'live');
         $agenda = VoiceSession::agenda((array) ($res['events'] ?? []));
     } catch (\Throwable $e) {
         error_log('live-token.php agenda: ' . $e->getMessage());   // no calendar connected / Google down: the session goes on without it
