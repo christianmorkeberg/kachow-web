@@ -3493,3 +3493,14 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .sched-new { margin-bottom: 4px; }
 .sched-call-err { color: var(--error, #f87171); }
 .sched-call-foot { margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+
+/* Home card on a phone: the room's climate tiles sit on top, the lights below in a grid of 2-3 across with shorter tiles, instead of one tall column
+   of 160px tiles next to a lonely thermostat. (Wider screens keep the side-by-side layout above.) */
+@media (max-width: 640px) {
+    .home-sections { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 12px; }
+    .home-section-climate, .home-section-lights { flex: 0 0 auto; width: 100%; min-width: 0; }
+    .home-section-lights .home-tiles { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+    .home-section-lights .home-tile { width: auto; height: 92px; }
+    .home-section-climate .home-tiles { grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); max-width: calc(var(--n, 1) * 190px + (var(--n, 1) - 1) * 8px); }
+    .home-section-climate .home-tile { width: auto; }
+}
