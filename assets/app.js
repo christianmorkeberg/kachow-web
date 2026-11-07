@@ -1261,7 +1261,9 @@
 
     function setPanelState(state) {
         if (!cardPanel) return;
+        var was = cardPanel.getAttribute('data-state');
         cardPanel.setAttribute('data-state', state);
+        if (state === 'open' && was === 'min') setTimeout(function () { liveNow(10000); }, 0);   // expanded from minimised: look at once (not twice in a row)
         var tgl = document.getElementById('cardPanelToggle');
         if (tgl) tgl.setAttribute('aria-label', state === 'min' ? 'Expand' : 'Minimise');
     }
@@ -1438,11 +1440,29 @@
 
     // Re-fetch the card now in the panel if it's one that goes stale (shopping list, books, work hours …),
     // e.g. right after restoring it from the rail. Other kinds keep their snapshot.
-    function freshenPanelCard() {
+    // The panel card as the server has it now. `live` = the automatic refresh: it leaves the card ALONE when nothing changed (no flicker, no scroll jump) and
+    // when the user is typing in it; an explicit refresh (the button, opening the card, a tap on the card itself) always redraws.
+    function cardSig(c) {
+        try { return JSON.stringify(c, function (k, v) { return (k === 'cached_at' || k === 'age_s' || k === 'generated_at') ? undefined : v; }); } catch (e) { return null; }
+    }
+    function userIsEditingInPanel() {
+        var a = document.activeElement;
+        return !!(a && cardPanelBody && cardPanelBody.contains(a) && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable));
+    }
+    function applyFresh(newCard, live) {
+        if (live) {
+            if (userIsEditingInPanel()) return;
+            var a = cardSig(newCard);
+            if (a !== null && a === cardSig(panelCard)) return;
+        }
+        refreshPanelCard(newCard);
+    }
+
+    function freshenPanelCard(live) {
         var card = panelCard;
         if (card && card.kind === 'location_day' && card.date === locToday()) {
             fetchLocationDay(card.date).then(function (j) {
-                if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+                if (j && j.card && panelCard === card) applyFresh(j.card, live);
             }).catch(function () { /* keep the snapshot */ });
             return;
         }
@@ -1462,7 +1482,7 @@
             fetch(booksUrl, { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (j) {
-                    if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+                    if (j && j.card && panelCard === card) applyFresh(j.card, live);
                 })
                 .catch(function () { /* keep the snapshot */ });
             return;
@@ -1473,7 +1493,7 @@
             fetch('/api/feedback.php?status=' + encodeURIComponent(card.status || 'new') + (card.limit ? '&limit=' + encodeURIComponent(card.limit) : ''), { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (j) {
-                    if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+                    if (j && j.card && panelCard === card) applyFresh(j.card, live);
                     else if (!j) toast(daText('Could not refresh the reports.', 'Kunne ikke opdatere rapporterne.'));
                 })
                 .catch(function () { toast(daText('Could not refresh the reports.', 'Kunne ikke opdatere rapporterne.')); });
@@ -1484,7 +1504,7 @@
         if (card && card.kind === 'scheduled_tasks') {
             fetch('/api/scheduled-tasks.php', { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (j) { if (j && j.card && panelCard === card) refreshPanelCard(j.card); })
+                .then(function (j) { if (j && j.card && panelCard === card) applyFresh(j.card, live); })
                 .catch(function () { /* keep the snapshot */ });
             return;
         }
@@ -1493,7 +1513,7 @@
         if (card && card.kind === 'dev_ideas') {
             fetch('/api/dev-ideas.php?filter=' + encodeURIComponent(card.filter || 'open'), { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (j) { if (j && j.card && panelCard === card) refreshPanelCard(j.card); })
+                .then(function (j) { if (j && j.card && panelCard === card) applyFresh(j.card, live); })
                 .catch(function () { /* keep the snapshot */ });
             return;
         }
@@ -1502,35 +1522,50 @@
         if (viewUrl) {
             fetch(viewUrl, { credentials: 'same-origin', cache: 'no-store' })
                 .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (j) { if (j && j.card && panelCard === card) refreshPanelCard(j.card); })
+                .then(function (j) { if (j && j.card && panelCard === card) applyFresh(j.card, live); })
                 .catch(function () { /* keep the snapshot */ });
             return;
         }
 
         if (!card || card.person || (card.kind !== 'work_hours' && card.kind !== 'work_chart')) return;
         refetchWorkCard(card).then(function (j) {
-            if (j && j.card && panelCard === card) refreshPanelCard(j.card);
+            if (j && j.card && panelCard === card) applyFresh(j.card, live);
         }).catch(function () { /* keep the snapshot */ });
     }
 
-    var lastFreshenAt = 0;
-    document.addEventListener('visibilitychange', function () {
+    // ---- Every card that can be re-read keeps itself current ----------------------------------------------------------------------------------------
+    // While the app is in front, the card in the panel (also when it is minimised) is re-read in the background: every 30 s, less often for the heavier ones
+    // (Google calendar, the accounts) — and at once when the app returns to the foreground or the panel is expanded. A re-read that found nothing new changes
+    // nothing on screen; one that did redraws the card in the same scroll place. It waits while you are using the card (typing, or touched it in the last
+    // 8 s), so it never takes a field or a tap away. Only cards with a re-read (canFreshen) take part; chat snapshots (weather, a one-off answer) stay as they are.
+    var lastFreshenAt = 0, lastLiveAt = 0, lastPanelTouch = 0;
+    function liveIntervalMs(card) {
+        switch (card && card.kind) {
+            case 'calendar_month': return 120000;                                     // Google
+            case 'pl': case 'moms': case 'mileage': case 'bookkeeping': case 'loan_pack': return 90000;   // heavier sums
+            case 'location_day': case 'feedback': return 60000;
+            case 'work_hours': case 'work_chart': return workCardIsLive(card) ? 30000 : 60000;
+        }
+        return 30000;
+    }
+    function liveNow(minGapMs) {
         if (document.visibilityState !== 'visible' || !cardPanel || cardPanel.hidden || !canFreshen(panelCard)) return;
-        if (Date.now() - lastFreshenAt < 15000) return;
-        lastFreshenAt = Date.now();
-        freshenPanelCard();
-    });
-
+        if (Date.now() - lastFreshenAt < (minGapMs || 0)) return;
+        lastFreshenAt = lastLiveAt = Date.now();
+        freshenPanelCard(true);
+    }
+    if (cardPanelBody) {
+        ['pointerdown', 'keydown', 'focusin', 'input', 'wheel', 'touchstart'].forEach(function (ev) {
+            cardPanelBody.addEventListener(ev, function () { lastPanelTouch = Date.now(); }, { passive: true, capture: true });
+        });
+    }
+    document.addEventListener('visibilitychange', function () { liveNow(15000); });
     setInterval(function () {
-        var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
-        if (!desktop || document.visibilityState !== 'visible' || !cardPanel || cardPanel.hidden) return;
         var card = panelCard;
-        if (!workCardIsLive(card)) return;
-        refetchWorkCard(card).then(function (j) {
-            // Still the same card on screen? (the user may have switched meanwhile)
-            if (j && j.card && panelCard === card) refreshPanelCard(j.card);
-        }).catch(function () { /* next minute */ });
-    }, LIVE_REFRESH_MS);
+        if (!card || Date.now() - lastLiveAt < liveIntervalMs(card)) return;
+        if (Date.now() - lastPanelTouch < 8000) return;
+        liveNow(0);
+    }, 5000);
 
     (function wireCardPanel() {
         if (!cardPanel) return;
