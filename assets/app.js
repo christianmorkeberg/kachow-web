@@ -3399,7 +3399,21 @@
 
             return Math.max(232, 32 + c + (c && l ? 20 : 0) + l);
         }
+        // Rebuilds the card from what is known. Keeps the scroll place: whatever scrolls (the card panel, the chat, the page) is put back where it was.
+        function scrollHost() {
+            for (var n = wrap.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+                var oy = getComputedStyle(n).overflowY;
+                if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+            }
+            var page = document.scrollingElement;   // no inner scroller: the page itself scrolls
+            return page && page.scrollHeight > page.clientHeight ? page : null;
+        }
         function draw() {
+            var host = wrap.isConnected ? scrollHost() : null, y = host ? host.scrollTop : 0;
+            drawNow();
+            if (host) host.scrollTop = y;
+        }
+        function drawNow() {
             body.innerHTML = '';
             var used = {};
             var thermos = st.thermos || (st.known || []).map(function (k) { return { name: k.name, id: k.id, room: k.room, placeholder: true }; });
@@ -3477,8 +3491,8 @@
                     st.lightsErr = null;
                     st.fresh.lights = true;
                 } else st.lightsErr = r.j.error || daText('could not load', 'kunne ikke hentes');
-                redraw();
-            }).catch(function () { st.lightsErr = daText('network error', 'netværksfejl'); redraw(); });
+                redrawIfChanged('lights', [st.lights, st.lightsErr, st.fresh.lights]);
+            }).catch(function () { st.lightsErr = daText('network error', 'netværksfejl'); redrawIfChanged('lights', [st.lights, st.lightsErr, st.fresh.lights]); });
         }
         function loadThermos() {
             getPart('thermostats').then(function (r) {
@@ -3493,10 +3507,31 @@
                         later('thermoPoll', function () { if (wrap.isConnected) loadThermos(); }, 15000);
                     }
                 } else st.thermoErr = r.j.error || daText('could not load', 'kunne ikke hentes');
-                redraw();
-            }).catch(function () { st.thermoErr = daText('network error', 'netværksfejl'); redraw(); });
+                redrawIfChanged('thermos', [st.thermos, st.thermoErr, st.fresh.thermos]);
+            }).catch(function () { st.thermoErr = daText('network error', 'netværksfejl'); redrawIfChanged('thermos', [st.thermos, st.thermoErr, st.fresh.thermos]); });
         }
-        refresh.addEventListener('click', function () { st.fresh.lights = false; st.fresh.thermos = false; draw(); loadLights(); loadThermos(); });
+        // A re-read that found nothing new does not rebuild the card (no flicker, nothing lost under the finger); one that did, does — in the same scroll place.
+        var sigs = {};
+        function redrawIfChanged(part, what) {
+            var sig = JSON.stringify(what, function (k, v) { return k === 'set_age_s' ? undefined : v; });   // the age of a status ticks every read: not a change
+            if (sig === sigs[part]) return;
+            sigs[part] = sig;
+            redraw();
+        }
+        refresh.addEventListener('click', function () { st.fresh.lights = false; st.fresh.thermos = false; sigs = {}; draw(); loadLights(); loadThermos(); });
+
+        // The card keeps itself current while it is on screen: every 20 s (every 8 s while a radiator target is on its way), and at once when the app comes back to
+        // the foreground. It stops by itself when the card is gone. The server answers from its cache (refreshed every 5 minutes, and by every change), so this is cheap.
+        function autoTick() {
+            if (!wrap.isConnected) return;
+            if (document.visibilityState === 'visible' && wrap.offsetParent !== null && !st.dragging) { loadThermos(); loadLights(); }
+            setTimeout(autoTick, (st.thermos || []).some(function (x) { return x.set_state === 'sending'; }) ? 8000 : 20000);
+        }
+        setTimeout(autoTick, 20000);
+        document.addEventListener('visibilitychange', function onVis() {
+            if (!wrap.isConnected) { document.removeEventListener('visibilitychange', onVis); return; }
+            if (document.visibilityState === 'visible' && wrap.offsetParent !== null) { loadThermos(); loadLights(); }
+        });
 
         draw();
         loadLights();
