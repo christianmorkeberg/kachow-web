@@ -3290,9 +3290,12 @@
                 t._statusEl.textContent = t.status;
                 later('t' + t.id, function () {
                     send({ action: 'thermostat', id: String(t.id), target: t.target_c }, function (j) {
-                        // kept on the thermostat itself: a redraw (a light changed) must not wipe it
-                        t.status = j.set === 'sent' ? daText('sent — valve confirms soon', 'sendt — ventilen bekræfter snart') : daText('set', 'sat');
-                        t._statusEl.textContent = t.status;
+                        // The server now follows the target up (sending → confirmed / failed) and the card shows that; poll until it is settled.
+                        t.status = '';
+                        t.set_state = j.set === 'sent' ? 'sending' : 'confirmed';
+                        t.set_target = t.target_c;
+                        if (t._draw) t._draw();
+                        if (j.set === 'sent') later('thermoPoll', function () { if (wrap.isConnected) loadThermos(); }, 8000);
                     });
                 }, 900);
             }
@@ -3304,7 +3307,39 @@
             if (t.valve_open_pct != null) meta.push(t.valve_open_pct + daText('% open', '% åben'));
             if (t.last_heard_minutes_ago != null) meta.push(t.last_heard_minutes_ago + ' min');
             if (t.battery_pct != null && t.battery_pct < 25) meta.push(daText('battery ', 'batteri ') + t.battery_pct + '%');
-            status.textContent = t.status || meta.join(' · ');
+            // What became of the last target sent to this valve: sending → confirmed, or "unconfirmed" with a retry (the server tracks it: ValveSets).
+            function drawStatus() {
+                status.className = 'home-tile-sub';
+                status.textContent = '';
+                if (t.status) { status.textContent = t.status; return; }       // the moment right after a tap
+                var tgt = t.set_target != null ? Number(t.set_target).toFixed(1) + '°' : '';
+                if (t.set_state === 'sending') {
+                    status.classList.add('is-sending');
+                    status.textContent = daText('sending ', 'sender ') + tgt + '…';
+                } else if (t.set_state === 'confirmed') {
+                    status.classList.add('is-ok');
+                    status.textContent = '✓ ' + daText('confirmed', 'bekræftet');
+                } else if (t.set_state === 'failed') {
+                    status.classList.add('is-failed');
+                    status.title = daText('The valve has not confirmed ', 'Ventilen har ikke bekræftet ') + tgt + daText(' — it may be out of reach.', ' — den kan være uden for rækkevidde.');
+                    status.appendChild(document.createTextNode('⚠ ' + daText('unconfirmed', 'ubekræftet') + ' '));
+                    var retry = el('button', 'home-retry', daText('Retry', 'Igen'));
+                    retry.type = 'button';
+                    retry.addEventListener('click', function () {
+                        retry.disabled = true;
+                        t.target_c = t.set_target;
+                        showTarget();
+                        t.set_state = 'sending';
+                        drawStatus();
+                        send({ action: 'thermostat', id: String(t.id), target: t.set_target }, function () {
+                            later('thermoPoll', function () { if (wrap.isConnected) loadThermos(); }, 8000);
+                        });
+                    });
+                    status.appendChild(retry);
+                } else status.textContent = meta.join(' · ');
+            }
+            t._draw = drawStatus;
+            drawStatus();
             box.appendChild(status);
             showTarget();
 
@@ -3448,10 +3483,15 @@
         function loadThermos() {
             getPart('thermostats').then(function (r) {
                 if (r.ok) {
-                    homeCacheWrite('thermos', r.j.thermostats || []);
+                    // the browser cache keeps the readings only: a "sending" / "unconfirmed" from last time must not flash up before the fresh answer
+                    homeCacheWrite('thermos', (r.j.thermostats || []).map(function (x) { var c = {}; Object.keys(x).forEach(function (k) { if (k.indexOf('set_') !== 0) c[k] = x[k]; }); return c; }));
                     st.thermos = r.j.thermostats || [];
                     st.thermoErr = null;
                     st.fresh.thermos = true;
+                    // a target is on its way: look again until the valve has confirmed it (or the server gave up on it)
+                    if (st.thermos.some(function (x) { return x.set_state === 'sending'; })) {
+                        later('thermoPoll', function () { if (wrap.isConnected) loadThermos(); }, 15000);
+                    }
                 } else st.thermoErr = r.j.error || daText('could not load', 'kunne ikke hentes');
                 redraw();
             }).catch(function () { st.thermoErr = daText('network error', 'netværksfejl'); redraw(); });

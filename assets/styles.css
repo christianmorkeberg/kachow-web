@@ -3504,3 +3504,13 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
     .home-section-climate .home-tiles { grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); max-width: calc(var(--n, 1) * 190px + (var(--n, 1) - 1) * 8px); }
     .home-section-climate .home-tile { width: auto; }
 }
+
+/* Radiator tile: what became of the last target sent (sending → confirmed / unconfirmed + retry). The tile may grow a little when a status wraps. */
+.home-tile-heat { height: auto; min-height: 148px; }
+.home-tile-sub.is-sending { color: var(--amber); }
+.home-tile-sub.is-ok { color: var(--success, #2f9e6b); }
+.home-tile-sub.is-failed { color: var(--error, #d9534f); font-weight: 600; }
+.home-retry { margin-left: 4px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; line-height: 1.4; padding: 0 8px; cursor: pointer; }
+.home-retry:disabled { opacity: .5; cursor: default; }
+.home-thermo-target { white-space: nowrap; }
+@media (max-width: 640px) { .home-thermo-ctl { gap: 4px; } .home-thermo-target { font-size: 12px; } .home-section-climate .home-tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
