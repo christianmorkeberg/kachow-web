@@ -3295,7 +3295,7 @@
                         t.set_state = j.set === 'sent' ? 'sending' : 'confirmed';
                         t.set_target = t.target_c;
                         if (t._draw) t._draw();
-                        if (j.set === 'sent') later('thermoPoll', function () { if (wrap.isConnected) loadThermos(); }, 8000);
+                        if (j.set === 'sent') later('thermoPoll', loadStatus, 4000);
                     });
                 }, 900);
             }
@@ -3332,7 +3332,7 @@
                         t.set_state = 'sending';
                         drawStatus();
                         send({ action: 'thermostat', id: String(t.id), target: t.set_target }, function () {
-                            later('thermoPoll', function () { if (wrap.isConnected) loadThermos(); }, 8000);
+                            later('thermoPoll', loadStatus, 4000);
                         });
                     });
                     status.appendChild(retry);
@@ -3502,10 +3502,7 @@
                     st.thermos = r.j.thermostats || [];
                     st.thermoErr = null;
                     st.fresh.thermos = true;
-                    // a target is on its way: look again until the valve has confirmed it (or the server gave up on it)
-                    if (st.thermos.some(function (x) { return x.set_state === 'sending'; })) {
-                        later('thermoPoll', function () { if (wrap.isConnected) loadThermos(); }, 15000);
-                    }
+
                 } else st.thermoErr = r.j.error || daText('could not load', 'kunne ikke hentes');
                 redrawIfChanged('thermos', [st.thermos, st.thermoErr, st.fresh.thermos]);
             }).catch(function () { st.thermoErr = daText('network error', 'netværksfejl'); redrawIfChanged('thermos', [st.thermos, st.thermoErr, st.fresh.thermos]); });
@@ -3520,18 +3517,38 @@
         }
         refresh.addEventListener('click', function () { st.fresh.lights = false; st.fresh.thermos = false; sigs = {}; draw(); loadLights(); loadThermos(); });
 
-        // The card keeps itself current while it is on screen: every 20 s (every 8 s while a radiator target is on its way), and at once when the app comes back to
-        // the foreground. It stops by itself when the card is gone. The server answers from its cache (refreshed every 5 minutes, and by every change), so this is cheap.
-        function autoTick() {
-            if (!wrap.isConnected) return;
-            if (document.visibilityState === 'visible' && wrap.offsetParent !== null && !st.dragging) { loadThermos(); loadLights(); }
-            setTimeout(autoTick, (st.thermos || []).some(function (x) { return x.set_state === 'sending'; }) ? 8000 : 20000);
+        // The radiator STATUS (sending / confirmed / unconfirmed) keeps itself current — also while the card is minimised, so opening it never shows an old state.
+        // It asks only for the status (a few bytes from the server's own records, never the Pico) and updates the status lines in place: no redraw, no scroll jump.
+        // Every 30 s, every 8 s while a target is on its way, at once when a chat reply ends (a target may have been sent), when the app comes back to the
+        // foreground, and when the card is opened/expanded. It stops by itself when the card is gone. Temperatures and lights are NOT polled — Refresh does those.
+        function applyStatus(sets) {
+            (st.thermos || []).forEach(function (t) {
+                var s = sets[String(t.id)] || null;
+                var ns = s ? s.state : undefined, nt = s ? s.target : undefined;
+                if (t.set_state === ns && t.set_target === nt) return;
+                t.set_state = ns;
+                t.set_target = nt;
+                if (t._draw) t._draw();
+            });
         }
-        setTimeout(autoTick, 20000);
-        document.addEventListener('visibilitychange', function onVis() {
-            if (!wrap.isConnected) { document.removeEventListener('visibilitychange', onVis); return; }
-            if (document.visibilityState === 'visible' && wrap.offsetParent !== null) { loadThermos(); loadLights(); }
-        });
+        function loadStatus() {
+            if (!wrap.isConnected || document.visibilityState !== 'visible') return;
+            getPart('valvestatus').then(function (r) { if (r.ok) applyStatus(r.j.sets || {}); }).catch(function () { /* the next tick tries again */ });
+        }
+        function statusTick() {
+            if (!wrap.isConnected) return;
+            loadStatus();
+            setTimeout(statusTick, (st.thermos || []).some(function (x) { return x.set_state === 'sending'; }) ? 8000 : 30000);
+        }
+        setTimeout(statusTick, 8000);
+        function onVisible() { if (document.visibilityState === 'visible') loadStatus(); }
+        function onReply() { if (wrap.isConnected) loadStatus(); }
+        document.addEventListener('visibilitychange', function onVis() { if (!wrap.isConnected) { document.removeEventListener('visibilitychange', onVis); return; } onVisible(); });
+        document.addEventListener('kachow-reply', function onRep() { if (!wrap.isConnected) { document.removeEventListener('kachow-reply', onRep); return; } onReply(); });
+        if (window.IntersectionObserver) {   // minimised → expanded: look at once
+            var io = new IntersectionObserver(function (es) { if (es[0] && es[0].isIntersecting) loadStatus(); });
+            io.observe(wrap);
+        }
 
         draw();
         loadLights();
@@ -10665,6 +10682,7 @@
             sendController = null;
             setSendStopMode(false);
             input.focus();
+            document.dispatchEvent(new Event('kachow-reply'));   // cards that show something the reply may have changed (the Home card's radiator status) look again
         }
     }
 
