@@ -103,19 +103,19 @@
         if (!chips) return;
         chips.innerHTML = '';
         var fit = cfg.role ? t('fitRole').replace('{role}', cfg.role) : t('fitGeneric');
-        t('themes').forEach(function (th) {
-            var box = document.createElement('div'); box.className = 'meet-theme';
-            var h = document.createElement('div'); h.className = 'meet-theme-title'; h.textContent = th.title;
-            box.appendChild(h);
-            var row = document.createElement('div'); row.className = 'meet-chiprow';
-            th.q.forEach(function (q) {
-                var text = who(q.replace('{fit}', fit));
-                var b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.addEventListener('click', function () { ask(text); });
-                row.appendChild(b);
-            });
-            box.appendChild(row);
-            chips.appendChild(box);
-        });
+        // Few choices first: one question per theme; the rest sit behind "More questions".
+        var first = document.createElement('div'); first.className = 'meet-chiprow';
+        var rest = document.createElement('div'); rest.className = 'meet-chiprow meet-morerow'; rest.style.display = 'none';
+        function chip(q, into) {
+            var text = who(q.replace('{fit}', fit));
+            var b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.addEventListener('click', function () { ask(text); });
+            into.appendChild(b);
+        }
+        t('themes').forEach(function (th) { th.q.forEach(function (q, i) { chip(q, i === 0 ? first : rest); }); });
+        chips.appendChild(first);
+        var more = document.createElement('button'); more.type = 'button'; more.className = 'meet-more'; more.textContent = t('more') + ' ▾';
+        more.addEventListener('click', function () { var open = rest.style.display === 'none'; rest.style.display = open ? '' : 'none'; more.textContent = t('more') + (open ? ' ▴' : ' ▾'); });
+        chips.appendChild(more); chips.appendChild(rest);
         var l = document.createElement('button'); l.type = 'button'; l.className = 'meet-leave'; l.textContent = t('leaveChip');
         l.addEventListener('click', function () { var d = $('leave'); d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { $('leadName').focus(); }, 300); });
         chips.appendChild(l);
