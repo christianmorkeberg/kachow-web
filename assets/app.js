@@ -1040,7 +1040,7 @@
         email:         ['mail', 'Email'],
         email_draft:   ['pencil-line', 'Draft'],
         feedback:      ['wrench', 'Feedback'],
-        recruiter:     ['link', 'Recruiter'],
+        recruiter:     ['briefcase', 'Recruiter'],
         dev_ideas:     ['lightbulb', 'Dev ideas'],
         scheduled_tasks: ['repeat', 'Routines'],
         personality:   ['drama', 'Personality'],
@@ -1682,7 +1682,7 @@
         scheduled_tasks: { kind: 'scheduled_tasks', icon: 'repeat',        en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
         feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
         home:            { kind: 'home',            icon: 'house',         en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
-        recruiter:       { kind: 'recruiter',       icon: 'link',          en: 'Recruiter',       da: 'Rekruttering',   load: cardFromUrl('/api/recruiter.php') },
+        recruiter:       { kind: 'recruiter',       icon: 'briefcase',          en: 'Recruiter',       da: 'Rekruttering',   load: cardFromUrl('/api/recruiter.php') },
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') },
         timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } },
         loan_pack:       { kind: 'loan_pack',       icon: 'book-open',     en: 'Regnskabspakke',  da: 'Regnskabspakke', load: cardFromUrl('/api/loanpack.php') }
