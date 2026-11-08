@@ -11,6 +11,15 @@ declare(strict_types=1);
  * ?code=NNN can be used to preview a page directly.
  */
 
+// /meet/<token> is the recruiter page: Apache has no such file and ends up here as a 404, so hand it to meet.php (which answers 200 itself).
+$meetPath = (string) parse_url((string) ($_SERVER['REDIRECT_URL'] ?? $_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+if (preg_match('#^/meet/([a-f0-9]{40})/?$#', $meetPath, $meetMatch) === 1) {
+    $_GET['t'] = $meetMatch[1];
+    http_response_code(200);
+    require __DIR__ . '/meet.php';
+    exit;
+}
+
 $code = (int) ($_SERVER['REDIRECT_STATUS'] ?? 0);
 if ($code < 400 && isset($_GET['code'])) {
     $code = (int) $_GET['code'];
