@@ -17,7 +17,7 @@
             from: ' You must be from {company}?',
             helloRole: "I can see you're looking at the {role} role — ask me how {owner} fits, and where not.",
             themes: [
-                { title: 'How I was built', q: ['How were you built?', 'What can you do?', 'Show me Kachow in action'] },
+                { title: 'How I was built', q: ['How were you built?', 'What can you do?', 'How does the location tracking work?', 'Show me Kachow in action'] },
                 { title: 'Experience', q: ['What has {owner} worked on?', "Tell me about {owner}'s research", "What are {owner}'s strongest skills?"] },
                 { title: 'As a colleague', q: ['What is {owner} like to work with?', "What are {owner}'s weaknesses?", 'What kind of team does {owner} want?'] },
                 { title: 'Fit', q: ['{fit}', 'What is {owner} looking for?'] }
@@ -40,7 +40,7 @@
             from: ' Du er vel fra {company}?',
             helloRole: 'Jeg kan se, at du kigger på stillingen {role} — spørg mig, hvordan {owner} passer, og hvor ikke.',
             themes: [
-                { title: 'Hvordan jeg er bygget', q: ['Hvordan er du bygget?', 'Hvad kan du?', 'Vis mig Kachow i aktion'] },
+                { title: 'Hvordan jeg er bygget', q: ['Hvordan er du bygget?', 'Hvad kan du?', 'Hvordan virker lokationssporingen?', 'Vis mig Kachow i aktion'] },
                 { title: 'Erfaring', q: ['Hvad har {owner} arbejdet med?', 'Fortæl om {owner}s forskning', 'Hvad er {owner}s stærkeste kompetencer?'] },
                 { title: 'Som kollega', q: ['Hvordan er {owner} at arbejde sammen med?', 'Hvad er {owner}s svagheder?', 'Hvilken slags team ønsker {owner}?'] },
                 { title: 'Match', q: ['{fit}', 'Hvad leder {owner} efter?'] }
