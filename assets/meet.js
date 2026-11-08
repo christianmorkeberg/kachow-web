@@ -9,11 +9,20 @@
     var S = {
         en: {
             sub: "{owner}'s assistant",
-            note: 'You are chatting with <strong>Kachow, an AI assistant</strong> that {owner} built. It only knows what {owner} has told it, so it may not have every answer — and it can pass on a message. Conversations are stored for 14 days.',
+            note: 'You are chatting with <strong>Kachow, an AI assistant</strong> that {owner} built.',
+            aboutSummary: 'About this assistant',
+            aboutBody: "I'm an AI assistant that {owner} built, and I only know what {owner} has chosen to tell me. When I don't know something I'll say so, and you can leave {owner} a message. I don't discuss salary, availability details or contact information — {owner} will do that personally. Questions I couldn't answer are noted for {owner}. This chat is stored for 14 days.",
             placeholder: 'Ask about {owner}…',
-            hello: "Hi! I'm Kachow, {owner}'s AI assistant. Ask me about {owner}'s background, projects and research — or how I was built.",
-            helloRole: "I can see you're looking at the {role}{at}. Ask me how {owner} fits — and where not.",
-            chips: ['Why could {owner} be a good fit?', 'What has {owner} worked on?', "Tell me about {owner}'s research", 'How is Kachow built?'],
+            hello: "Hi there, I'm Kachow, {owner}'s AI assistant.{from} What would you like to know about {owner}? I can tell you about how {owner} built me, {owner}'s experience, or what {owner} is like as a colleague.",
+            from: ' You must be from {company}?',
+            helloRole: "I can see you're looking at the {role} role — ask me how {owner} fits, and where not.",
+            themes: [
+                { title: 'How I was built', q: ['How were you built?', 'What can you do?', 'Show me Kachow in action'] },
+                { title: 'Experience', q: ['What has {owner} worked on?', "Tell me about {owner}'s research", "What are {owner}'s strongest skills?"] },
+                { title: 'As a colleague', q: ['What is {owner} like to work with?', "What are {owner}'s weaknesses?", 'What kind of team does {owner} want?'] },
+                { title: 'Fit', q: ['{fit}', 'What is {owner} looking for?'] }
+            ],
+            fitRole: 'Why could {owner} fit the {role} role?', fitGeneric: 'Why could {owner} be a good fit?', more: 'More questions', demoPrev: 'Previous', demoNext: 'Next', demoNote: 'Fictional demo data',
             leaveChip: 'Leave a message',
             leaveSummary: 'Leave a message for {owner}', leadName: 'Your name', leadContact: 'Email or phone', leadMessage: 'Your message', leadSend: 'Send', leadSending: 'Sending…',
             leadOk: 'Saved and passed on to {owner} — thank you!', leadErr: 'That did not go through. Please check the fields and try again.', leadMany: 'Several messages were already left today — {owner} has them and will be in touch.',
@@ -23,11 +32,20 @@
         },
         da: {
             sub: '{owner}s assistent',
-            note: 'Du chatter med <strong>Kachow, en AI-assistent</strong> som {owner} har bygget. Den kender kun det, {owner} har fortalt den, så den har ikke altid svaret — men den kan give en besked videre. Samtaler gemmes i 14 dage.',
+            note: 'Du chatter med <strong>Kachow, en AI-assistent</strong> som {owner} har bygget.',
+            aboutSummary: 'Om denne assistent',
+            aboutBody: 'Jeg er en AI-assistent, som {owner} har bygget, og jeg ved kun det, {owner} har valgt at fortælle mig. Når jeg ikke ved noget, siger jeg det, og du kan efterlade en besked til {owner}. Jeg diskuterer ikke løn, detaljer om tiltrædelse eller kontaktoplysninger — det gør {owner} personligt. Spørgsmål, jeg ikke kunne svare på, noteres til {owner}. Denne chat gemmes i 14 dage.',
             placeholder: 'Spørg om {owner}…',
-            hello: 'Hej! Jeg er Kachow, {owner}s AI-assistent. Spørg mig om {owner}s baggrund, projekter og forskning — eller om hvordan jeg er bygget.',
-            helloRole: 'Jeg kan se, at du kigger på stillingen {role}{at}. Spørg mig, hvordan {owner} passer — og hvor ikke.',
-            chips: ['Hvorfor kunne {owner} passe til stillingen?', 'Hvad har {owner} arbejdet med?', 'Fortæl om {owner}s forskning', 'Hvordan er Kachow bygget?'],
+            hello: 'Hej, jeg er Kachow, {owner}s AI-assistent.{from} Hvad vil du gerne vide om {owner}? Jeg kan fortælle om, hvordan {owner} har bygget mig, om {owner}s erfaring, eller om, hvordan {owner} er som kollega.',
+            from: ' Du er vel fra {company}?',
+            helloRole: 'Jeg kan se, at du kigger på stillingen {role} — spørg mig, hvordan {owner} passer, og hvor ikke.',
+            themes: [
+                { title: 'Hvordan jeg er bygget', q: ['Hvordan er du bygget?', 'Hvad kan du?', 'Vis mig Kachow i aktion'] },
+                { title: 'Erfaring', q: ['Hvad har {owner} arbejdet med?', 'Fortæl om {owner}s forskning', 'Hvad er {owner}s stærkeste kompetencer?'] },
+                { title: 'Som kollega', q: ['Hvordan er {owner} at arbejde sammen med?', 'Hvad er {owner}s svagheder?', 'Hvilken slags team ønsker {owner}?'] },
+                { title: 'Match', q: ['{fit}', 'Hvad leder {owner} efter?'] }
+            ],
+            fitRole: 'Hvorfor kunne {owner} passe til stillingen {role}?', fitGeneric: 'Hvorfor kunne {owner} være et godt match?', more: 'Flere spørgsmål', demoPrev: 'Forrige', demoNext: 'Næste', demoNote: 'Fiktive demodata',
             leaveChip: 'Skriv en besked',
             leaveSummary: 'Skriv en besked til {owner}', leadName: 'Dit navn', leadContact: 'E-mail eller telefon', leadMessage: 'Din besked', leadSend: 'Send', leadSending: 'Sender…',
             leadOk: 'Gemt og givet videre til {owner} — tak!', leadErr: 'Det lykkedes ikke. Tjek felterne og prøv igen.', leadMany: 'Der er allerede lagt flere beskeder i dag — {owner} har dem og vender tilbage.',
@@ -39,7 +57,7 @@
     var lang = 'en';
     try { lang = sessionStorage.getItem('meet-lang') || ((navigator.language || '').toLowerCase().indexOf('da') === 0 ? 'da' : 'en'); } catch (e) { /* default */ }
     function who(str) { return String(str).split('{owner}').join(cfg.owner || (lang === 'da' ? 'ejeren' : 'the owner')); }
-    function t(k) { var v = S[lang][k]; return Array.isArray(v) ? v.map(who) : who(v); }
+    function t(k) { var v = S[lang][k]; return Array.isArray(v) ? v.map(function (x) { return typeof x === 'string' ? who(x) : x; }) : who(v); }
     function $(id) { return document.getElementById(id); }
 
     // ---- text → safe HTML (paragraphs, bullet lists, **bold**); everything is escaped first ----
@@ -71,6 +89,7 @@
         $('sub').textContent = t('sub');
         $('lang').textContent = lang === 'en' ? 'DA' : 'EN';
         var note = $('note'); if (note) note.innerHTML = t('note');
+        var as = $('aboutSummary'); if (as) { as.textContent = t('aboutSummary'); $('aboutBody').textContent = t('aboutBody'); }
         if (input) input.placeholder = t('placeholder');
         var ls = $('leaveSummary'); if (ls) ls.textContent = t('leaveSummary');
         if ($('leadName')) { $('leadName').placeholder = t('leadName'); $('leadContact').placeholder = t('leadContact'); $('leadMessage').placeholder = t('leadMessage'); $('leadSend').textContent = t('leadSend'); }
@@ -79,11 +98,25 @@
         if (gx) gx.textContent = t('goneText');
         drawChips(); drawLeft();
     }
+    // The suggested questions, in four themes (how I was built / experience / as a colleague / fit): one tap asks the question.
     function drawChips() {
         if (!chips) return;
         chips.innerHTML = '';
-        t('chips').forEach(function (q) { var b = document.createElement('button'); b.type = 'button'; b.textContent = q; b.addEventListener('click', function () { ask(q); }); chips.appendChild(b); });
-        var l = document.createElement('button'); l.type = 'button'; l.textContent = t('leaveChip');
+        var fit = cfg.role ? t('fitRole').replace('{role}', cfg.role) : t('fitGeneric');
+        t('themes').forEach(function (th) {
+            var box = document.createElement('div'); box.className = 'meet-theme';
+            var h = document.createElement('div'); h.className = 'meet-theme-title'; h.textContent = th.title;
+            box.appendChild(h);
+            var row = document.createElement('div'); row.className = 'meet-chiprow';
+            th.q.forEach(function (q) {
+                var text = who(q.replace('{fit}', fit));
+                var b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.addEventListener('click', function () { ask(text); });
+                row.appendChild(b);
+            });
+            box.appendChild(row);
+            chips.appendChild(box);
+        });
+        var l = document.createElement('button'); l.type = 'button'; l.className = 'meet-leave'; l.textContent = t('leaveChip');
         l.addEventListener('click', function () { var d = $('leave'); d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { $('leadName').focus(); }, 300); });
         chips.appendChild(l);
     }
@@ -92,7 +125,15 @@
         left.textContent = remaining > 0 ? t('left').replace('{n}', String(remaining)) : t('full');
         if (input) { input.disabled = remaining <= 0; send.disabled = remaining <= 0 || busy; }
     }
-    $('lang').addEventListener('click', function () { lang = lang === 'en' ? 'da' : 'en'; try { sessionStorage.setItem('meet-lang', lang); } catch (e) { /* ignore */ } applyStrings(); if (chat && !chat.getAttribute('data-has-history')) intro(); });
+    var asked = false, demoRedraws = [];
+    // Switching language redraws the texts around the chat and in the gallery; the conversation itself is never touched once it has started.
+    $('lang').addEventListener('click', function () {
+        lang = lang === 'en' ? 'da' : 'en';
+        try { sessionStorage.setItem('meet-lang', lang); } catch (e) { /* ignore */ }
+        applyStrings();
+        demoRedraws.forEach(function (f) { f(); });
+        if (chat && !asked && !chat.getAttribute('data-has-history')) intro();
+    });
 
     function bubble(kind, html) {
         var d = document.createElement('div');
@@ -105,9 +146,42 @@
     function intro() {
         if (!chat) return;
         chat.innerHTML = '';
-        var hello = t('hello');
-        if (cfg.role) hello += ' ' + t('helloRole').replace('{role}', cfg.role).replace('{at}', cfg.company ? (lang === 'da' ? ' hos ' : ' at ') + cfg.company : '');
-        bubble('bot', fmt(hello));
+        var from = cfg.company ? t('from').replace('{company}', cfg.company) : '';
+        var hello = t('hello').replace('{from}', from);
+        bubble('bot', fmt(hello + (cfg.role ? '\n\n' + t('helloRole').replace('{role}', cfg.role) : '')));
+        if (chips) chips.style.display = '';
+    }
+
+    // "Kachow in action": the screenshots the assistant chose to show (real cards, fictional data), as a small gallery with previous / next.
+    function showDemo(slides) {
+        if (!slides || !slides.length) return;
+        var box = bubble('bot demo', '');
+        var i = 0;
+        var fig = document.createElement('figure'); fig.className = 'demo-fig';
+        var img = document.createElement('img'); img.loading = 'lazy'; img.className = 'demo-img';
+        var title = document.createElement('div'); title.className = 'demo-title';
+        var cap = document.createElement('div'); cap.className = 'demo-cap';
+        var nav = document.createElement('div'); nav.className = 'demo-nav';
+        var prev = document.createElement('button'); prev.type = 'button';
+        var next = document.createElement('button'); next.type = 'button';
+        var pos = document.createElement('span'); pos.className = 'demo-pos';
+        var note = document.createElement('div'); note.className = 'demo-note';
+        function draw() {
+            var s = slides[i];
+            img.src = s.image; img.alt = s.title[lang] || s.title.en;
+            title.textContent = s.title[lang] || s.title.en; cap.textContent = s.caption[lang] || s.caption.en;
+            pos.textContent = (i + 1) + ' / ' + slides.length; prev.textContent = '‹ ' + t('demoPrev'); next.textContent = t('demoNext') + ' ›';
+            prev.disabled = i === 0; next.disabled = i === slides.length - 1; note.textContent = t('demoNote');
+        }
+        prev.addEventListener('click', function () { if (i > 0) { i--; draw(); } });
+        next.addEventListener('click', function () { if (i < slides.length - 1) { i++; draw(); } });
+        img.addEventListener('click', function () { window.open(slides[i].image, '_blank', 'noopener'); });
+        fig.appendChild(img); fig.appendChild(title); fig.appendChild(cap);
+        if (slides.length > 1) { nav.appendChild(prev); nav.appendChild(pos); nav.appendChild(next); fig.appendChild(nav); }
+        fig.appendChild(note);
+        box.appendChild(fig);
+        draw();
+        demoRedraws.push(draw);
     }
 
     function api(url, body) {
@@ -117,6 +191,7 @@
     function ask(text) {
         text = (text || '').trim();
         if (!text || busy || remaining <= 0) return;
+        asked = true;
         busy = true; drawLeft();
         bubble('me', '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>');
         if (chips) chips.style.display = 'none';
@@ -125,6 +200,7 @@
             typing.remove();
             if (r.status === 200 && r.j.ok) {
                 bubble('bot', fmt(r.j.reply));
+                if (r.j.demo) showDemo(r.j.demo);
                 if (typeof r.j.remaining === 'number') remaining = r.j.remaining;
             } else if (r.status === 429 && r.j.error === 'full') { remaining = 0; bubble('err', esc(t('full'))); }
             else if (r.status === 429) { bubble('err', esc(t('errBusy'))); }

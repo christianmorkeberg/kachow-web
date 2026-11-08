@@ -74,7 +74,11 @@ try {
         out(503, ['ok' => false, 'error' => $res['error']]);
     }
     $fresh = $links->byId((int) $link['id']) ?? $link;
-    out(200, ['ok' => true, 'reply' => $res['reply'], 'remaining' => max(0, (int) $fresh['message_cap'] - (int) $fresh['messages_used'])]);
+    $body = ['ok' => true, 'reply' => $res['reply'], 'remaining' => max(0, (int) $fresh['message_cap'] - (int) $fresh['messages_used'])];
+    if ($res['demo'] !== []) {
+        $body['demo'] = \App\Recruiter\RecruiterDemo::resolve($res['demo']);   // the screenshots the assistant chose to show
+    }
+    out(200, $body);
 } catch (\Throwable $e) {
     error_log('meet-chat.php: ' . $e->getMessage());
     out(500, ['ok' => false, 'error' => 'server']);

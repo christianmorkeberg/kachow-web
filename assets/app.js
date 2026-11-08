@@ -6881,6 +6881,30 @@
         });
         if (unread) { var ma = h('div', 'sched-actions'); ma.appendChild(btn(daText('Mark all read', 'Markér alle læst'), '', function (b) { call({ action: 'mark_read' }, b); })); wrap.appendChild(ma); }
 
+        // ---- questions the facts could not answer: what to add next ----
+        var gaps = card.gaps || [];
+        wrap.appendChild(h('div', 'sched-section', daText('Questions it could not answer', 'Spørgsmål den ikke kunne svare på') + (gaps.length ? ' · ' + gaps.length : '')));
+        if (!gaps.length) wrap.appendChild(h('div', 'prog-empty', daText('None yet. When a recruiter asks something the facts do not cover, it shows up here — that is what to add next.', 'Ingen endnu. Når en rekrutterer spørger om noget, fakta ikke dækker, dukker det op her — det er det, du skal tilføje næste gang.')));
+        gaps.forEach(function (g) {
+            var row = h('div', 'rec-row');
+            var top = h('div', 'rec-top');
+            top.appendChild(h('span', 'rec-name', g.question));
+            top.appendChild(btn(daText('Done', 'Færdig'), '', function (b) { call({ action: 'dismiss_gap', id: g.id }, b); }));
+            row.appendChild(top);
+            row.appendChild(h('div', 'sched-meta', [g.topic ? daText('looked up: ', 'slået op: ') + g.topic : '', g.link, when(g.at)].filter(Boolean).join(' · ')));
+            wrap.appendChild(row);
+        });
+        if (gaps.length) {
+            var ga = h('div', 'sched-actions');
+            ga.appendChild(btn(daText('Copy the list', 'Kopiér listen'), '', function () {
+                var text = gaps.map(function (g) { return '- ' + g.question; }).join('\n');
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { toast(daText('Copied — paste it to Claude to write the answers.', 'Kopieret — indsæt den hos Claude for at skrive svarene.')); }, function () { window.prompt(daText('Copy the list:', 'Kopiér listen:'), text); });
+                else window.prompt(daText('Copy the list:', 'Kopiér listen:'), text);
+            }));
+            ga.appendChild(btn(daText('Done with all', 'Færdig med alle'), '', function (b) { call({ action: 'dismiss_gap' }, b); }));
+            wrap.appendChild(ga);
+        }
+
         // ---- the facts ----
         wrap.appendChild(h('div', 'sched-section', daText('What the assistant may say', 'Hvad assistenten må sige')));
         var f = card.facts;

@@ -10,6 +10,7 @@ declare(strict_types=1);
  *   POST { action:'revoke'|'reactivate', id }           → { ok, card }
  *   POST { action:'set_visibility', id, visibility }    → { ok, card }   public | summary | private
  *   POST { action:'mark_read' }                         → { ok, card }   all left messages read
+ *   POST { action:'dismiss_gap', id? }                  → { ok, card }   one (or, without id, all) unanswered questions dealt with
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -102,6 +103,10 @@ try {
 
         case 'mark_read':
             $links->markLeadsRead($userId);
+            out(200, ['ok' => true, 'card' => $card()]);
+
+        case 'dismiss_gap':
+            $links->dismissGap($userId, isset($in['id']) ? (int) $in['id'] : null);
             out(200, ['ok' => true, 'card' => $card()]);
     }
     out(400, ['error' => 'Unknown action.']);

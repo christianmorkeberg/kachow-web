@@ -90,9 +90,12 @@ if ($state !== 'ok' && $state !== 'full') {
     </section>
 <?php else: ?>
     <section class="meet-note" id="note">
-        You are chatting with <strong>Kachow, an AI assistant</strong> that <?= $e($owner) ?> built. It only knows what <?= $e($owner) ?> has told it, so it may not have every answer — and it can pass on a message.
-        Conversations are stored for 14 days.
+        You are chatting with <strong>Kachow, an AI assistant</strong> that <?= $e($owner) ?> built.
     </section>
+    <details class="meet-about">
+        <summary id="aboutSummary">About this assistant</summary>
+        <p id="aboutBody">I'm an AI assistant that <?= $e($owner) ?> built, and I only know what <?= $e($owner) ?> has chosen to tell me. This chat is stored for 14 days.</p>
+    </details>
 
     <section class="meet-chat" id="chat" aria-live="polite"></section>
 

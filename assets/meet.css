@@ -39,3 +39,20 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.
 #leadStatus { font-size: 14px; } #leadStatus.ok { color: var(--ok); } #leadStatus.err { color: var(--err); }
 .meet-gone { margin-top: 24px; } .meet-gone h1 { font-size: 20px; margin: 0 0 6px; } .meet-gone p { margin: 0; color: var(--muted); }
 @media (max-width: 480px) { .msg { max-width: 94%; } }
+
+/* Suggested questions, in themes */
+.meet-chips { flex-direction: column; gap: 10px; }
+.meet-theme-title { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.meet-chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
+.meet-chips button.meet-leave { align-self: flex-start; border-style: dashed; }
+.meet-about { color: var(--muted); font-size: 13.5px; }
+.meet-about summary { cursor: pointer; } .meet-about p { margin: 6px 0 0; padding: 8px 12px; background: var(--panel-2); border-left: 3px solid var(--accent); }
+/* "Kachow in action" gallery */
+.msg.demo { align-self: stretch; max-width: 100%; padding: 10px; }
+.demo-fig { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.demo-img { width: 100%; max-height: 520px; object-fit: contain; object-position: top; background: #0f1218; border: 1px solid var(--border); cursor: zoom-in; }
+.demo-title { font-weight: 600; } .demo-cap { color: var(--muted); font-size: 14px; }
+.demo-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.demo-nav button { background: transparent; color: var(--accent); border: 1px solid var(--border); padding: 4px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+.demo-nav button:disabled { opacity: .35; cursor: default; } .demo-pos { color: var(--muted); font-size: 13px; }
+.demo-note { color: var(--muted); font-size: 12px; font-style: italic; }
