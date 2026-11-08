@@ -58,3 +58,4 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.
 .demo-note { color: var(--muted); font-size: 12px; font-style: italic; }
 .meet-chips button.meet-more { align-self: flex-start; background: none; border: none; color: var(--muted); text-decoration: underline; padding: 4px 2px; cursor: pointer; }
 .meet-morerow { margin-top: 2px; }
+.demo-frame { width: 100%; border: 1px solid var(--border); border-radius: 10px; background: #0f1218; display: block; }

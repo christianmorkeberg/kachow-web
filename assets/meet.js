@@ -22,7 +22,7 @@
                 { title: 'As a colleague', q: ['What is {owner} like to work with?', "What are {owner}'s weaknesses?", 'What kind of team does {owner} want?'] },
                 { title: 'Fit', q: ['{fit}', 'What is {owner} looking for?'] }
             ],
-            fitRole: 'Why could {owner} fit the {role} role?', fitGeneric: 'Why could {owner} be a good fit?', more: 'More questions', demoPrev: 'Previous', demoNext: 'Next', demoNote: 'Fictional demo data',
+            fitRole: 'Why could {owner} fit the {role} role?', fitGeneric: 'Why could {owner} be a good fit?', more: 'More questions', demoPrev: 'Previous', demoNext: 'Next', demoNote: 'Fictional demo data — try it, nothing is saved',
             leaveChip: 'Leave a message',
             leaveSummary: 'Leave a message for {owner}', leadName: 'Your name', leadContact: 'Email or phone', leadMessage: 'Your message', leadSend: 'Send', leadSending: 'Sending…',
             leadOk: 'Saved and passed on to {owner} — thank you!', leadErr: 'That did not go through. Please check the fields and try again.', leadMany: 'Several messages were already left today — {owner} has them and will be in touch.',
@@ -45,7 +45,7 @@
                 { title: 'Som kollega', q: ['Hvordan er {owner} at arbejde sammen med?', 'Hvad er {owner}s svagheder?', 'Hvilken slags team ønsker {owner}?'] },
                 { title: 'Match', q: ['{fit}', 'Hvad leder {owner} efter?'] }
             ],
-            fitRole: 'Hvorfor kunne {owner} passe til stillingen {role}?', fitGeneric: 'Hvorfor kunne {owner} være et godt match?', more: 'Flere spørgsmål', demoPrev: 'Forrige', demoNext: 'Næste', demoNote: 'Fiktive demodata',
+            fitRole: 'Hvorfor kunne {owner} passe til stillingen {role}?', fitGeneric: 'Hvorfor kunne {owner} være et godt match?', more: 'Flere spørgsmål', demoPrev: 'Forrige', demoNext: 'Næste', demoNote: 'Fiktive demodata — prøv selv, intet gemmes',
             leaveChip: 'Skriv en besked',
             leaveSummary: 'Skriv en besked til {owner}', leadName: 'Dit navn', leadContact: 'E-mail eller telefon', leadMessage: 'Din besked', leadSend: 'Send', leadSending: 'Sender…',
             leadOk: 'Gemt og givet videre til {owner} — tak!', leadErr: 'Det lykkedes ikke. Tjek felterne og prøv igen.', leadMany: 'Der er allerede lagt flere beskeder i dag — {owner} har dem og vender tilbage.',
@@ -159,6 +159,11 @@
         var i = 0;
         var fig = document.createElement('figure'); fig.className = 'demo-fig';
         var img = document.createElement('img'); img.loading = 'lazy'; img.className = 'demo-img';
+        // The real card, live (the real app script with fictional data, see demo.php); the screenshot is only the fallback when a slide has no live page.
+        var frame = document.createElement('iframe'); frame.className = 'demo-frame'; frame.setAttribute('loading', 'lazy'); frame.setAttribute('sandbox', 'allow-scripts allow-same-origin'); frame.style.height = '420px';
+        window.addEventListener('message', function (ev) {
+            if (ev.source === frame.contentWindow && ev.data && typeof ev.data.kachowDemoHeight === 'number') frame.style.height = Math.min(900, Math.max(200, ev.data.kachowDemoHeight)) + 'px';
+        });
         var title = document.createElement('div'); title.className = 'demo-title';
         var cap = document.createElement('div'); cap.className = 'demo-cap';
         var nav = document.createElement('div'); nav.className = 'demo-nav';
@@ -168,7 +173,9 @@
         var note = document.createElement('div'); note.className = 'demo-note';
         function draw() {
             var s = slides[i];
-            img.src = s.image; img.alt = s.title[lang] || s.title.en;
+            var live = !!s.live;
+            frame.style.display = live ? '' : 'none'; img.style.display = live ? 'none' : '';
+            if (live) { if (frame.getAttribute('data-src') !== s.live) { frame.setAttribute('data-src', s.live); frame.style.height = '420px'; frame.src = s.live; } } else { img.src = s.image; img.alt = s.title[lang] || s.title.en; }
             title.textContent = s.title[lang] || s.title.en; cap.textContent = s.caption[lang] || s.caption.en;
             pos.textContent = (i + 1) + ' / ' + slides.length; prev.textContent = '‹ ' + t('demoPrev'); next.textContent = t('demoNext') + ' ›';
             prev.disabled = i === 0; next.disabled = i === slides.length - 1; note.textContent = t('demoNote');
@@ -176,7 +183,7 @@
         prev.addEventListener('click', function () { if (i > 0) { i--; draw(); } });
         next.addEventListener('click', function () { if (i < slides.length - 1) { i++; draw(); } });
         img.addEventListener('click', function () { window.open(slides[i].image, '_blank', 'noopener'); });
-        fig.appendChild(img); fig.appendChild(title); fig.appendChild(cap);
+        fig.appendChild(frame); fig.appendChild(img); fig.appendChild(title); fig.appendChild(cap);
         if (slides.length > 1) { nav.appendChild(prev); nav.appendChild(pos); nav.appendChild(next); fig.appendChild(nav); }
         fig.appendChild(note);
         box.appendChild(fig);

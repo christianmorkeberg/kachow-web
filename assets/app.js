@@ -12663,4 +12663,5 @@
     renderOwnerDraws = withBookHelpLast(renderOwnerDraws, 'draws');
     renderExpenses = withBookHelpLast(renderExpenses, 'expenses');
     })();
+if (document.documentElement.hasAttribute('data-demo')) { window.kachowDemo = { renderCard: renderCard }; }
 })();
