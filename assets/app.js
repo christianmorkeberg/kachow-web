@@ -10783,6 +10783,33 @@
         }
     }
 
+    /**
+     * "Try again" after a network error. The error can strike after the server already got the message (the answer was lost on the way), so it first looks at the
+     * conversation: if the message is stored it waits for that answer instead of sending the message a second time (a second send could do things twice).
+     */
+    async function retryFailedSend(text, errRow, userRow) {
+        if (busy) return;
+        let stored = null;
+        if (conversationId) {
+            try {
+                const r = await fetch('/api/conversations.php?id=' + encodeURIComponent(conversationId), { credentials: 'same-origin', cache: 'no-store' });
+                const data = r.ok ? await r.json() : null;
+                const last = ((data && data.messages) || []).slice(-3);
+                for (let i = last.length - 1; i >= 0; i--) {
+                    if (last[i].role === 'user' && String(last[i].content || '').trim() === text.trim()) { stored = last[i]; break; }
+                }
+            } catch (e) { /* cannot tell: send it again */ }
+        }
+        errRow.remove();
+        if (stored) {
+            busy = true;
+            try { await waitForLateReply(conversationId, stored.id, undefined); } finally { busy = false; }
+            return;
+        }
+        if (userRow && userRow.isConnected) userRow.remove();
+        send(text);
+    }
+
     async function send(text) {
         if (busy || !text.trim()) return;
         busy = true;
@@ -10887,7 +10914,13 @@
                 // User hit Stop — acknowledge quietly, no error styling.
                 addMessage('Stopped.', 'assistant');
             } else {
-                addMessage('Network error. Please try again.', 'error');
+                const errRow = addMessage(daText('Network error — the message may not have been sent.', 'Netværksfejl — beskeden er måske ikke sendt.'), 'error');
+                const again = document.createElement('button');
+                again.type = 'button';
+                again.className = 'sched-btn';
+                again.textContent = daText('Try again', 'Prøv igen');
+                again.addEventListener('click', function () { retryFailedSend(text, errRow, userRow); });
+                errRow.appendChild(again);
             }
         } finally {
             busy = false;
