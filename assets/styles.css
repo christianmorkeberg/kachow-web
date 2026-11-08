@@ -3514,3 +3514,25 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .home-retry:disabled { opacity: .5; cursor: default; }
 .home-thermo-target { white-space: nowrap; }
 @media (max-width: 640px) { .home-thermo-ctl { gap: 4px; } .home-thermo-target { font-size: 12px; } .home-section-climate .home-tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+
+/* Recruiter card */
+.rec-row { padding: 8px 2px; border-top: 1px solid var(--line); }
+.rec-row.unread { background: var(--accent-soft); padding-left: 8px; }
+.rec-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rec-name { font-weight: 600; flex: 1; min-width: 0; word-break: break-word; }
+.rec-state-ok { color: var(--success, #2f9e6b); } .rec-state-expired, .rec-state-revoked { color: var(--muted); } .rec-state-full { color: var(--warn, #d9822b); }
+.rec-contact { font-size: 13px; } .rec-contact a { color: var(--accent); }
+.rec-msg { white-space: pre-wrap; margin-top: 2px; word-break: break-word; }
+.rec-warn { color: var(--warn, #d9822b); font-size: 12.5px; margin-top: 2px; }
+.rec-import { border: 1px solid var(--accent-line); padding: 10px; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
+.rec-import[hidden] { display: none; }
+.rec-json { width: 100%; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); color: var(--text); border: 1px solid transparent; padding: 6px 8px; resize: vertical; }
+.rec-mode { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.rec-result { font-size: 13px; } .rec-result.ok { color: var(--success, #2f9e6b); } .rec-result.err { color: var(--error, #d9534f); }
+.rec-facts { margin-top: 8px; } .rec-facts > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.rec-cat { margin: 8px 0 2px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rec-fact { display: flex; align-items: center; gap: 8px; padding: 3px 0; flex-wrap: wrap; }
+.rec-fact-title { flex: 1; min-width: 0; font-size: 13.5px; word-break: break-word; }
+.rec-vis { font: inherit; font-size: 12.5px; background: var(--panel-2); color: var(--text); border: 1px solid transparent; padding: 2px 4px; }
+.rec-vis-private { color: var(--muted); }
+a.sched-btn { display: inline-block; text-decoration: none; }

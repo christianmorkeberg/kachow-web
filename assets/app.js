@@ -1040,6 +1040,7 @@
         email:         ['mail', 'Email'],
         email_draft:   ['pencil-line', 'Draft'],
         feedback:      ['wrench', 'Feedback'],
+        recruiter:     ['link', 'Recruiter'],
         dev_ideas:     ['lightbulb', 'Dev ideas'],
         scheduled_tasks: ['repeat', 'Routines'],
         personality:   ['drama', 'Personality'],
@@ -1423,6 +1424,7 @@
             case 'pl':              return '/api/pl.php?granularity=' + enc(card.granularity || 'year') + '&offset=' + enc(card.offset || 0);
             case 'cash':            return '/api/cash.php';
             case 'reminders':       return '/api/reminders.php';
+            case 'recruiter':       return '/api/recruiter.php';
             case 'loan_pack':       return '/api/loanpack.php?year=' + enc(card.year || '');
             case 'calendar_month':  return card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null;
         }
@@ -1680,6 +1682,7 @@
         scheduled_tasks: { kind: 'scheduled_tasks', icon: 'repeat',        en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
         feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
         home:            { kind: 'home',            icon: 'house',         en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
+        recruiter:       { kind: 'recruiter',       icon: 'link',          en: 'Recruiter',       da: 'Rekruttering',   load: cardFromUrl('/api/recruiter.php') },
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') },
         timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } },
         loan_pack:       { kind: 'loan_pack',       icon: 'book-open',     en: 'Regnskabspakke',  da: 'Regnskabspakke', load: cardFromUrl('/api/loanpack.php') }
@@ -1689,9 +1692,9 @@
         ['Work', 'Arbejde', ['work_hours', 'work_week', 'work_log']],
         ['Day', 'Dagen', ['calendar', 'location', 'cycle', 'timer']],
         ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack']],
-        ['Assistant', 'Assistent', ['scheduled_tasks', 'feedback', 'dev_ideas', 'home']]
+        ['Assistant', 'Assistent', ['scheduled_tasks', 'feedback', 'recruiter', 'dev_ideas', 'home']]
     ];
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'location', 'cycle', 'timer', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'feedback', 'dev_ideas', 'home'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'location', 'cycle', 'timer', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'feedback', 'recruiter', 'dev_ideas', 'home'];
     HOME_CARD_ORDER = HOME_CARD_ORDER.filter(function (k) { return HOME_CARDS[k]; });   // a key without a card can never break the pickers
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
@@ -1900,6 +1903,7 @@
 
         // Calendar agenda is display-only (read from Google), so it has its own renderer.
         if (card.kind === 'agenda') { renderAgenda(card); return; }
+        if (card.kind === 'recruiter') { renderRecruiter(card); return; }
         if (card.kind === 'calendar_month') { renderCalendarMonth(card); return; }
         if (card.kind === 'weather') { renderWeather(card); return; }
         if (card.kind === 'work_hours') { renderWorkHours(card); return; }
@@ -6802,6 +6806,155 @@
             wrap.appendChild(h);
             card.system.forEach(function (t) { wrap.appendChild(row(t, true)); });
         }
+
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Recruiter card (owner): the links to the recruiter chat with their state, the messages recruiters left, and the facts the assistant may use — with a dropdown
+    // for each fact's visibility, an export (the backup) and an import (paste or upload the JSON). Everything goes through /api/recruiter.php.
+    function renderRecruiter(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card rec-card';
+        function h(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+        function call(body, btn, doneMsg) {
+            if (btn) btn.disabled = true;
+            return fetch('/api/recruiter.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
+                .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok && j && j.ok, j: j || {} }; }); })
+                .then(function (res) {
+                    if (res.ok && res.j.card) { if (doneMsg) toast(doneMsg); if (panelCard === card) refreshPanelCard(res.j.card); return res; }
+                    if (btn) btn.disabled = false;
+                    return res;
+                }).catch(function () { if (btn) btn.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); return { ok: false, j: {} }; });
+        }
+        function when(utc) { if (!utc) return ''; var d = new Date(String(utc).replace(' ', 'T') + 'Z'); return isNaN(d) ? '' : d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+        function btn(label, cls, fn) { var b = h('button', 'sched-btn' + (cls ? ' ' + cls : ''), label); b.type = 'button'; b.addEventListener('click', function () { fn(b); }); return b; }
+
+        // ---- the links ----
+        wrap.appendChild(h('div', 'sched-section', daText('Links', 'Links')));
+        if (!card.links.length) {
+            wrap.appendChild(h('div', 'prog-empty', daText('No links yet. Ask me: “make a recruiter link for Acme – energy data engineer” and paste the job posting.', 'Ingen links endnu. Spørg mig: “lav et rekrutteringslink til Acme – energidataingeniør” og indsæt jobopslaget.')));
+        }
+        card.links.forEach(function (l) {
+            var row = h('div', 'rec-row');
+            var top = h('div', 'rec-top');
+            top.appendChild(h('span', 'rec-name', l.label));
+            var pill = h('span', 'sched-pill rec-state-' + l.state, { ok: daText('active', 'aktiv'), expired: daText('expired', 'udløbet'), revoked: daText('revoked', 'trukket tilbage'), full: daText('full', 'fuld') }[l.state] || l.state);
+            top.appendChild(pill);
+            row.appendChild(top);
+            var meta = [];
+            if (l.company || l.role) meta.push([l.role, l.company].filter(Boolean).join(' · '));
+            meta.push(l.opens ? daText('opened ', 'åbnet ') + l.opens + '×' + (l.last_opened_at ? ' (' + when(l.last_opened_at) + ')' : '') : daText('not opened yet', 'ikke åbnet endnu'));
+            meta.push(l.messages + '/' + l.message_cap + daText(' messages', ' beskeder'));
+            row.appendChild(h('div', 'sched-meta', meta.join(' · ')));
+            var act = h('div', 'sched-actions');
+            act.appendChild(btn(daText('Copy link', 'Kopiér link'), 'primary', function () {
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l.url).then(function () { toast(daText('Link copied.', 'Link kopieret.')); }, function () { window.prompt(daText('Copy the link:', 'Kopiér linket:'), l.url); });
+                else window.prompt(daText('Copy the link:', 'Kopiér linket:'), l.url);
+            }));
+            if (l.state === 'revoked') act.appendChild(btn(daText('Reactivate', 'Genaktivér'), '', function (b) { call({ action: 'reactivate', id: l.id }, b, daText('Reactivated.', 'Genaktiveret.')); }));
+            else act.appendChild(btn(daText('Revoke', 'Træk tilbage'), '', function (b) {
+                if (window.confirm(daText('Revoke “' + l.label + '”? The link stops working at once.', 'Træk “' + l.label + '” tilbage? Linket virker ikke længere med det samme.'))) call({ action: 'revoke', id: l.id }, b, daText('Revoked.', 'Trukket tilbage.'));
+            }));
+            row.appendChild(act);
+            wrap.appendChild(row);
+        });
+
+        // ---- messages left ----
+        var unread = card.leads.filter(function (m) { return m.unread; }).length;
+        var mh = h('div', 'sched-section', daText('Messages from recruiters', 'Beskeder fra rekrutterere') + (unread ? ' · ' + unread + daText(' new', ' nye') : ''));
+        wrap.appendChild(mh);
+        if (!card.leads.length) wrap.appendChild(h('div', 'prog-empty', daText('Nobody has left a message yet.', 'Ingen har efterladt en besked endnu.')));
+        card.leads.slice(0, 10).forEach(function (m) {
+            var row = h('div', 'rec-row' + (m.unread ? ' unread' : ''));
+            var top = h('div', 'rec-top');
+            top.appendChild(h('span', 'rec-name', m.name));
+            top.appendChild(h('span', 'sched-meta', when(m.at) + (m.link ? ' · ' + m.link : '')));
+            row.appendChild(top);
+            var c = h('div', 'rec-contact');
+            if (/@/.test(m.contact)) { var a = h('a', null, m.contact); a.href = 'mailto:' + m.contact; c.appendChild(a); } else c.textContent = m.contact;
+            row.appendChild(c);
+            row.appendChild(h('div', 'rec-msg', m.message));
+            if (!m.delivered) row.appendChild(h('div', 'rec-warn', daText('⚠ The push and email have not reached you yet — it is retried automatically.', '⚠ Push og mail er ikke nået frem endnu — det forsøges automatisk igen.')));
+            wrap.appendChild(row);
+        });
+        if (unread) { var ma = h('div', 'sched-actions'); ma.appendChild(btn(daText('Mark all read', 'Markér alle læst'), '', function (b) { call({ action: 'mark_read' }, b); })); wrap.appendChild(ma); }
+
+        // ---- the facts ----
+        wrap.appendChild(h('div', 'sched-section', daText('What the assistant may say', 'Hvad assistenten må sige')));
+        var f = card.facts;
+        wrap.appendChild(h('div', 'sched-meta', f.total + daText(' facts: ', ' fakta: ') + f['public'] + daText(' public', ' offentlige') + ' · ' + f.summary + daText(' summary-only', ' kun resumé') + ' · ' + f['private'] + daText(' private', ' private')));
+        var fa = h('div', 'sched-actions');
+        var exp = h('a', 'sched-btn', daText('Export (backup)', 'Eksportér (backup)'));
+        exp.href = '/api/recruiter.php?export=1';
+        exp.setAttribute('download', '');
+        fa.appendChild(exp);
+        var impBox = h('div', 'rec-import');
+        impBox.hidden = true;
+        fa.appendChild(btn(daText('Import…', 'Importér…'), '', function () { impBox.hidden = !impBox.hidden; }));
+        wrap.appendChild(fa);
+
+        var ta = h('textarea', 'rec-json');
+        ta.rows = 6;
+        ta.placeholder = daText('Paste the JSON here, or choose the file …', 'Indsæt JSON her, eller vælg filen …');
+        var file = h('input');
+        file.type = 'file';
+        file.accept = '.json,application/json';
+        file.addEventListener('change', function () { var fl = file.files && file.files[0]; if (!fl) return; var r = new FileReader(); r.onload = function () { ta.value = String(r.result || ''); check(); }; r.readAsText(fl); });
+        var mode = h('div', 'rec-mode');
+        function radio(val, label, checked) { var l = h('label'); var i = h('input'); i.type = 'radio'; i.name = 'recmode'; i.value = val; i.checked = checked; l.appendChild(i); l.appendChild(document.createTextNode(' ' + label)); mode.appendChild(l); return i; }
+        var rReplace = radio('replace', daText('Replace all current facts', 'Erstat alle nuværende fakta'), true);
+        radio('add', daText('Add to the current facts', 'Føj til de nuværende fakta'), false);
+        var result = h('div', 'rec-result');
+        var go = btn(daText('Import', 'Importér'), 'primary', function (b) {
+            var replace = rReplace.checked;
+            var msg = replace ? daText('Replace ALL ' + card.facts.total + ' current facts with this file?', 'Erstat ALLE ' + card.facts.total + ' nuværende fakta med denne fil?') : daText('Add these facts to the current ones?', 'Føj disse fakta til de nuværende?');
+            if (!window.confirm(msg)) return;
+            call({ action: 'import', json: ta.value, mode: replace ? 'replace' : 'add' }, b).then(function (res) {
+                if (res.ok) toast(daText('Imported ', 'Importeret ') + res.j.imported + daText(' facts.', ' fakta.'));
+                else { result.className = 'rec-result err'; result.textContent = (res.j.errors || [res.j.error || daText('Could not import.', 'Kunne ikke importere.')]).join(' '); }
+            });
+        });
+        go.disabled = true;
+        function check() {
+            go.disabled = true;
+            if (!ta.value.trim()) { result.textContent = ''; return; }
+            call({ action: 'import', json: ta.value, dry: true }, null).then(function (res) {
+                if (res.ok) {
+                    result.className = 'rec-result ok';
+                    result.textContent = res.j.total + daText(' facts found: ', ' fakta fundet: ') + res.j.counts['public'] + daText(' public', ' offentlige') + ', ' + res.j.counts.summary + daText(' summary-only', ' kun resumé') + ', ' + res.j.counts['private'] + daText(' private. ', ' private. ') + (res.j.errors && res.j.errors.length ? '⚠ ' + res.j.errors.join(' ') : '');
+                    go.disabled = false;
+                } else { result.className = 'rec-result err'; result.textContent = (res.j.errors || [res.j.error || '']).join(' '); }
+            });
+        }
+        var checkBtn = btn(daText('Check', 'Tjek'), '', function () { check(); });
+        impBox.appendChild(file);
+        impBox.appendChild(ta);
+        impBox.appendChild(mode);
+        var ia = h('div', 'sched-actions');
+        ia.appendChild(checkBtn);
+        ia.appendChild(go);
+        impBox.appendChild(ia);
+        impBox.appendChild(result);
+        wrap.appendChild(impBox);
+
+        // each fact with its visibility
+        var det = h('details', 'rec-facts');
+        det.appendChild(h('summary', null, daText('The facts and who may see them', 'Fakta og hvem der må se dem')));
+        var lastCat = null;
+        card.entries.forEach(function (e) {
+            if (e.category !== lastCat) { det.appendChild(h('div', 'rec-cat', e.category)); lastCat = e.category; }
+            var row = h('div', 'rec-fact');
+            row.appendChild(h('span', 'rec-fact-title', e.title));
+            var sel = h('select', 'rec-vis rec-vis-' + e.visibility);
+            [['public', daText('public', 'offentlig')], ['summary', daText('summary only', 'kun resumé')], ['private', daText('private', 'privat')]].forEach(function (o) { var op = h('option', null, o[1]); op.value = o[0]; if (o[0] === e.visibility) op.selected = true; sel.appendChild(op); });
+            sel.addEventListener('change', function () { sel.disabled = true; call({ action: 'set_visibility', id: e.id, visibility: sel.value }, null).then(function (res) { sel.disabled = false; if (!res.ok) { sel.value = e.visibility; toast(res.j.error || daText('Could not change it.', 'Kunne ikke ændre det.')); } }); });
+            row.appendChild(sel);
+            if (e.visibility === 'summary' && !e.has_summary) row.appendChild(h('span', 'rec-warn', daText('⚠ no summary text — the assistant will say nothing', '⚠ ingen resumétekst — assistenten siger intet')));
+            det.appendChild(row);
+        });
+        wrap.appendChild(det);
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
