@@ -53,6 +53,7 @@ if (!$session->isLoggedIn()) {
     out(401, ['error' => 'Not authenticated.']);
 }
 $userId = (int) $session->userId();
+App\Support\CallOrigin::set('voice');   // radiators asked by voice are confirmed by voice, not announced again by push
 
 $in        = json_decode((string) file_get_contents('php://input'), true);
 $in        = is_array($in) ? $in : [];

@@ -50,6 +50,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     out(405, ['error' => 'POST only.']);
 }
 $userId = $who['user_id'];
+App\Support\CallOrigin::set('voice');
 if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
