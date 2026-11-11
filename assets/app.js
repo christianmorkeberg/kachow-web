@@ -3594,15 +3594,10 @@
         var title = document.createElement('div');
         title.className = 'home-title';
         title.textContent = daText('Home', 'Hjem');
-        var refresh = document.createElement('button');
-        refresh.type = 'button';
-        refresh.className = 'sched-btn';
-        refresh.textContent = daText('Refresh', 'Opdatér');
         var sync = document.createElement('span');
         sync.className = 'home-sync';
         head.appendChild(title);
         head.appendChild(sync);
-        head.appendChild(refresh);
         wrap.appendChild(head);
         var body = document.createElement('div');
         body.className = 'home-body';
@@ -4073,8 +4068,7 @@
             redraw();
         }
         function refreshNow() { st.fresh.lights = false; st.fresh.thermos = false; sigs = {}; draw(); loadLights(true); loadThermos(true); }
-        refresh.addEventListener('click', refreshNow);
-        // The card panel's own ↻ in the header does the same (it used to do nothing for this card).
+        // The refresh is the card panel's ↻ in its header (the same one every card has) — the card has no button of its own.
         function onPanelRefresh() {
             if (!wrap.isConnected) { document.removeEventListener('kachow-home-refresh', onPanelRefresh); return; }
             refreshNow();
