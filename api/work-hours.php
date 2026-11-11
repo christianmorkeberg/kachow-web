@@ -9,6 +9,7 @@ declare(strict_types=1);
  *
  *   POST { period?: today|week|4w|12w|year, scope?, date?, to?, place?, bucket? } → { card }   (dates YYYY-MM-DD)
  *   POST { only:'sessions', date, to?, place? }                                   → { sessions, total, total_minutes }
+ *   POST { action:'clock', kind:'in'|'out', place? }                              → { ok, message?, error?, card }   clock in / out right now (the card's button; the same rules as clocking by chat)
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -56,6 +57,21 @@ $bucket = isset($in['bucket']) && in_array($in['bucket'], ['day', 'week', 'month
 
 try {
     $events = new WorkEvents();
+    // The card's Clock in / Clock out button: exactly what clocking by chat does (already-clocked-in check, the one open workplace, work-from-home note), then today's card.
+    if (($in['action'] ?? '') === 'clock') {
+        $kind = (string) ($in['kind'] ?? '');
+        if ($kind !== 'in' && $kind !== 'out') {
+            out(400, ['error' => 'kind must be in or out.']);
+        }
+        $registry = \App\Tools\RegistryFactory::standard($users, new \App\Data\Memories(), new \App\Data\UserInstructions());
+        $args     = ['kind' => $kind] + ($place !== null ? ['place' => $place] : []);
+        $res      = $registry->dispatch('log_work_event', $args, $userId, 'card');
+        $fresh    = $events->overview($userId, ['period' => 'today', 'scope' => 'today', 'date' => null, 'to' => null, 'place' => null, 'bucket' => null]);
+        if (isset($res['error']) || ($res['recorded'] ?? false) === false && !($res['duplicate'] ?? false)) {
+            out(200, ['ok' => false, 'error' => (string) ($res['error'] ?? $res['message'] ?? 'Nothing was recorded.'), 'card' => $fresh]);
+        }
+        out(200, ['ok' => true, 'message' => $kind === 'in' ? 'Clocked in' : 'Clocked out', 'duplicate' => (bool) ($res['duplicate'] ?? false), 'card' => $fresh]);
+    }
     // Only the session lines for a stretch of days (a tapped bar whose lines the card does not carry).
     if (($in['only'] ?? '') === 'sessions' && $date('date') !== null) {
         $sum = $events->summary($userId, 'today', $date('date'), $place, $date('to') ?? $date('date'));

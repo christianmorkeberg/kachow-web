@@ -3568,3 +3568,7 @@ textarea.set-field { resize: vertical; }
 .set-scopes { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 6px; }
 .set-scope { font-size: 13px; cursor: pointer; }
 .settings-card .plan-card, .settings-card .set-group .plan-card { margin: 4px 0; box-shadow: none; border: none; padding: 0; background: none; }
+
+/* Work hours: manual Clock in / out */
+.wk-clock { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.wk-clock-btn.is-out { border-color: var(--accent); }

@@ -10580,6 +10580,39 @@
         if (card.range && card.range !== card.title) head.appendChild(wkEl('div', 'wk-range', card.range));
         wrap.appendChild(head);
 
+        // Clock in / Clock out by hand (the same as saying it in the chat): one button per open workplace, or Clock in when nobody is open.
+        if (!shared && card.clock) {
+            var clockBar = wkEl('div', 'wk-clock');
+            var openSess = card.clock.open || [];
+            function clockPost(kind, place, btn) {
+                btn.disabled = true;
+                fetch('/api/work-hours.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                    body: JSON.stringify({ action: 'clock', kind: kind, place: place || undefined })
+                }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (res) {
+                    if (res && res.card) {
+                        buildWorkHours(wrap, res.card);
+                        if (panelKind === 'work_hours' && cardPanelBody.contains(wrap)) panelCard = res.card;
+                    }
+                    toast(res && res.ok ? daText(kind === 'in' ? 'Clocked in.' : 'Clocked out.', kind === 'in' ? 'Stemplet ind.' : 'Stemplet ud.') : ((res && res.error) || daText('Could not clock.', 'Kunne ikke stemple.')));
+                }).catch(function () { btn.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
+            }
+            if (openSess.length) {
+                openSess.forEach(function (o) {
+                    var out = wkEl('button', 'sched-btn wk-clock-btn is-out', daText('Clock out', 'Stempl ud') + (o.place && openSess.length > 1 ? ' · ' + o.place : '') + ' · ' + daText('in since ', 'ind siden ') + o.since);
+                    out.type = 'button';
+                    out.addEventListener('click', function () { clockPost('out', o.place, out); });
+                    clockBar.appendChild(out);
+                });
+            } else {
+                var inn = wkEl('button', 'sched-btn wk-clock-btn primary', daText('Clock in', 'Stempl ind'));
+                inn.type = 'button';
+                inn.addEventListener('click', function () { clockPost('in', null, inn); });
+                clockBar.appendChild(inn);
+            }
+            wrap.appendChild(clockBar);
+        }
+
         if (!shared && card.query) {
             var ctl = wkEl('div', 'prog-controls wk-modes');
             var seg = wkEl('div', 'prog-seg');
