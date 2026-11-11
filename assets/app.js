@@ -1434,7 +1434,7 @@
         if (!card) return false;
         if (card.kind === 'location_day' && card.date === locToday()) return true;
         if ((card.kind === 'income' || card.kind === 'receipt') && card.id) return true;
-        if (['bookkeeping', 'feedback', 'scheduled_tasks', 'dev_ideas'].indexOf(card.kind) !== -1) return true;
+        if (['bookkeeping', 'feedback', 'scheduled_tasks', 'dev_ideas', 'home'].indexOf(card.kind) !== -1) return true;
         if (refreshUrlFor(card)) return true;
         return !card.person && (card.kind === 'work_hours' || card.kind === 'work_chart');
     }
@@ -1461,6 +1461,9 @@
 
     function freshenPanelCard(live) {
         var card = panelCard;
+        // The Home card reads its own parts: opening it and the automatic refresh leave it alone (it keeps its valve status current itself and does not poll the lights);
+        // only the header ↻ (manualRefresh) asks it to re-read the lights and the radiators live.
+        if (card && card.kind === 'home') return;
         if (card && card.kind === 'location_day' && card.date === locToday()) {
             fetchLocationDay(card.date).then(function (j) {
                 if (j && j.card && panelCard === card) applyFresh(j.card, live);
@@ -1581,6 +1584,7 @@
             if (!canFreshen(panelCard)) { toast(daText('This one is a snapshot of the answer — ask me again for fresh data.', 'Det her er et øjebliksbillede af svaret — spørg igen for friske data.')); return; }
             var ic = refresh ? refresh.querySelector('svg') : null;
             if (ic) ic.classList.add('tl-spin');
+            if (panelCard && panelCard.kind === 'home') document.dispatchEvent(new CustomEvent('kachow-home-refresh'));   // same as the card's own Refresh: lights + radiators, live
             freshenPanelCard();
             setTimeout(function () { if (ic) ic.classList.remove('tl-spin'); }, 700);
         }
@@ -4020,8 +4024,9 @@
             }
         }
 
-        function getPart(part) {
-            return fetch('/api/home.php?part=' + part, { credentials: 'same-origin' })
+        // fresh = skip the server's saved copy (it is re-read every few minutes) and ask the bridge / valves now: what Refresh means.
+        function getPart(part, fresh) {
+            return fetch('/api/home.php?part=' + part + (fresh ? '&fresh=1' : ''), { credentials: 'same-origin' })
                 .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok && j && j.ok, j: j || {} }; }); });
         }
         // a redraw while a slider or the wheel is being dragged would cut the gesture off: it waits for the pointer to be released
@@ -4034,8 +4039,8 @@
         document.addEventListener('pointerup', released);
         document.addEventListener('pointercancel', released);
 
-        function loadLights() {
-            getPart('lights').then(function (r) {
+        function loadLights(fresh) {
+            getPart('lights', fresh).then(function (r) {
                 if (r.ok) {
                     homeCacheWrite('lights', { rooms: r.j.rooms || [], other: r.j.other || [], known: r.j.thermostats_known || null });
                     st.lights = { rooms: r.j.rooms || [], other: r.j.other || [] };
@@ -4046,8 +4051,8 @@
                 redrawIfChanged('lights', [st.lights, st.lightsErr, st.fresh.lights]);
             }).catch(function () { st.lightsErr = daText('network error', 'netværksfejl'); redrawIfChanged('lights', [st.lights, st.lightsErr, st.fresh.lights]); });
         }
-        function loadThermos() {
-            getPart('thermostats').then(function (r) {
+        function loadThermos(fresh) {
+            getPart('thermostats', fresh).then(function (r) {
                 if (r.ok) {
                     // the browser cache keeps the readings only: a "sending" / "unconfirmed" from last time must not flash up before the fresh answer
                     homeCacheWrite('thermos', (r.j.thermostats || []).map(function (x) { var c = {}; Object.keys(x).forEach(function (k) { if (k.indexOf('set_') !== 0) c[k] = x[k]; }); return c; }));
@@ -4067,7 +4072,14 @@
             sigs[part] = sig;
             redraw();
         }
-        refresh.addEventListener('click', function () { st.fresh.lights = false; st.fresh.thermos = false; sigs = {}; draw(); loadLights(); loadThermos(); });
+        function refreshNow() { st.fresh.lights = false; st.fresh.thermos = false; sigs = {}; draw(); loadLights(true); loadThermos(true); }
+        refresh.addEventListener('click', refreshNow);
+        // The card panel's own ↻ in the header does the same (it used to do nothing for this card).
+        function onPanelRefresh() {
+            if (!wrap.isConnected) { document.removeEventListener('kachow-home-refresh', onPanelRefresh); return; }
+            refreshNow();
+        }
+        document.addEventListener('kachow-home-refresh', onPanelRefresh);
 
         // The radiator STATUS (sending / confirmed / unconfirmed) keeps itself current — also while the card is minimised, so opening it never shows an old state.
         // It asks only for the status (a few bytes from the server's own records, never the Pico) and updates the status lines in place: no redraw, no scroll jump.
