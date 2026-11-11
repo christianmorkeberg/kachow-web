@@ -153,7 +153,7 @@ try {
         new BookkeepingAudit(),
         Discogs::fromEnv()
     );
-    $gemini = GeminiClient::fromEnv();
+    $gemini = GeminiClient::fromEnv(null, 'photo');
     $loop   = new AssistantLoop($gemini, $registry, $conversations, $instructions, $memories, new UserSettings());
 
     // The persisted user turn is just the caption (or a neutral placeholder); the

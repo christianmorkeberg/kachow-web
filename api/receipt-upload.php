@@ -58,7 +58,7 @@ try {
 
     $receipts = new Receipts();
     $path     = $storage->pathFor($userId, $stored['file_ref']);
-    $read     = $path !== null ? (new ReceiptReader(GeminiClient::fromEnv()))->read($path, $stored['mime']) : [];
+    $read     = $path !== null ? (new ReceiptReader(GeminiClient::fromEnv(null, 'receipt_read')))->read($path, $stored['mime']) : [];
 
     $id  = $receipts->create($userId, $read + ['file_ref' => $stored['file_ref'], 'mime' => $stored['mime']], 'photo');
     $row = $receipts->get($userId, $id);

@@ -3572,3 +3572,14 @@ textarea.set-field { resize: vertical; }
 /* Work hours: manual Clock in / out */
 .wk-clock { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
 .wk-clock-btn.is-out { border-color: var(--accent); }
+
+/* Insights: Gemini cost */
+.ins-sub { margin: 12px 0 4px; font-size: 12px; color: var(--muted); }
+.ins-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ins-table th { text-align: right; font-weight: 600; color: var(--muted); padding: 3px 6px; border-bottom: 1px solid var(--border, rgba(127,127,127,.3)); }
+.ins-table td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border, rgba(127,127,127,.15)); }
+.ins-table th:first-child, .ins-table td:first-child { text-align: left; }
+.ins-price-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-bottom: 1px solid var(--border, rgba(127,127,127,.15)); }
+.ins-price-model { flex: 1 1 100%; font-weight: 600; font-size: 12.5px; }
+.ins-price-row label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.ins-price-row input { width: 74px; font: inherit; padding: 4px 6px; background: var(--panel-2, rgba(127,127,127,.08)); color: var(--text); border: 1px solid transparent; border-radius: 6px; }

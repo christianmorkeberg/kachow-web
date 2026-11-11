@@ -68,7 +68,7 @@ try {
     }
 
     $ownerName = trim((string) ((new Users())->findById((int) $link['user_id'])['name'] ?? '')) ?: 'the owner';
-    $chat = new RecruiterChat(GeminiClient::fromEnv(), new AboutEntries(), $links, LeadDelivery::fromEnv($links), $ownerName);
+    $chat = new RecruiterChat(GeminiClient::fromEnv(null, 'recruiter'), new AboutEntries(), $links, LeadDelivery::fromEnv($links), $ownerName);
     $res  = $chat->reply($link, $message, $ipHash);
     if ($res['error'] !== null) {
         out(503, ['ok' => false, 'error' => $res['error']]);

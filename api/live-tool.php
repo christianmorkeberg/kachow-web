@@ -85,7 +85,7 @@ try {
             $conversations->setTitle($userId, $gwConv, 'Voice → assistant');
             $log->add($userId, $sessionId, 'gateway', $gwConv);
         }
-        $loop  = new AssistantLoop(GeminiClient::fromEnv(), $registry, $conversations, $instructions, $memories, new UserSettings(), routines: new \App\Data\Routines());
+        $loop  = new AssistantLoop(GeminiClient::fromEnv(null, 'voice_assistant'), $registry, $conversations, $instructions, $memories, new UserSettings(), routines: new \App\Data\Routines());
         $reply = $loop->handle($userId, $gwConv, $request);
 
         return ['reply' => $reply, 'card' => $loop->lastRender()];

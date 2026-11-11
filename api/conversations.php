@@ -66,7 +66,7 @@ try {
         }
 
         if ($action === 'generate_title') {
-            $titler = new ConversationTitler(GeminiClient::fromEnv(), $conversations);
+            $titler = new ConversationTitler(GeminiClient::fromEnv(null, 'title'), $conversations);
             out(200, ['title' => $titler->ensure($userId, $id)]);
         }
 

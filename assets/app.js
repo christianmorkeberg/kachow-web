@@ -296,6 +296,7 @@
                 ov.querySelectorAll('.ins-range').forEach(function (x) { x.classList.remove('on'); });
                 b.classList.add('on');
                 loadInsights();
+                loadInsightsCost();
             });
             rc.appendChild(b);
         });
@@ -303,11 +304,12 @@
         var live = ov.querySelector('#insLive');
         live.checked = insights.live;
         live.addEventListener('change', function () { insights.live = live.checked; scheduleInsights(); });
-        ov.querySelector('#insRefresh').addEventListener('click', loadInsights);
+        ov.querySelector('#insRefresh').addEventListener('click', function () { loadInsights(); loadInsightsCost(); });
         ov.querySelector('#insClose').addEventListener('click', closeInsights);
         ov.addEventListener('click', function (e) { if (e.target === ov) closeInsights(); });
 
         loadInsights();
+        loadInsightsCost();
         scheduleInsights();
     }
 
@@ -315,6 +317,74 @@
         if (insights.timer) { clearInterval(insights.timer); insights.timer = null; }
         var ov = document.getElementById('insightsOverlay');
         if (ov) ov.remove();
+    }
+
+    // ---- Cost: tokens and the estimated money per purpose / model / day, from what the Gemini API reports (api/usage-cost.php). Prices are entered here (USD per million tokens). ----
+    function insMoney(v) { return v === null || v === undefined ? '—' : '$' + (v < 0.01 ? v.toFixed(4) : v.toFixed(2)); }
+    function insTok(n) { return n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n || 0); }
+    function loadInsightsCost() {
+        var body = document.getElementById('insBody');
+        if (!body) return;
+        var box = document.getElementById('insCost');
+        if (!box) { box = document.createElement('div'); box.id = 'insCost'; box.className = 'ins-section ins-cost'; body.appendChild(box); }
+        if (!box.firstChild) box.innerHTML = '<h4>Cost (estimate)</h4><div class="insights-loading">Loading…</div>';
+        fetch('/api/usage-cost.php' + (insights.days ? '?days=' + insights.days : ''), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (document.getElementById('insCost') === box) drawInsightsCost(box, j); })
+            .catch(function () { box.innerHTML = '<h4>Cost (estimate)</h4><div class="insights-error">Could not load the cost.</div>'; });
+    }
+    function drawInsightsCost(box, j) {
+        if (!j || j.ok === false || j.error) {
+            box.innerHTML = '<h4>Cost (estimate)</h4><div class="insights-error">' + progEsc((j && j.error) || 'No data.') + '</div>';
+            return;
+        }
+        var t = j.totals || {};
+        var unpriced = t.unpriced_calls || 0;
+        var h = '<h4>Cost (estimate) · ' + (insights.days ? 'last ' + insights.days + 'd' : 'all history') + '</h4>' +
+            '<div class="ins-cards">' + insCard(insMoney(unpriced === t.calls && t.calls ? null : t.cost), 'est. cost') + insCard(t.calls || 0, 'calls') +
+            insCard(insTok(t.prompt), 'prompt tokens') + insCard(insTok(t.cached), 'cached') + insCard(insTok((t.output || 0) + (t.thoughts || 0)), 'reply + thinking') + '</div>';
+        if (unpriced) h += '<div class="ins-meta">' + unpriced + ' call' + (unpriced === 1 ? '' : 's') + ' on a model with no price yet — set it below to include them in the cost.</div>';
+        function table(title, rows, keyLabel) {
+            if (!rows || !rows.length) return '';
+            var x = '<div class="ins-sub">' + title + '</div><table class="ins-table"><thead><tr><th>' + keyLabel + '</th><th>calls</th><th>prompt</th><th>cached</th><th>reply</th><th>think</th><th>cost</th></tr></thead><tbody>';
+            rows.forEach(function (r) {
+                x += '<tr><td>' + progEsc(r.key) + '</td><td>' + r.calls + '</td><td>' + insTok(r.prompt) + '</td><td>' + insTok(r.cached) + '</td><td>' + insTok(r.output) + '</td><td>' + insTok(r.thoughts) + '</td><td>' +
+                    (r.unpriced_calls && r.unpriced_calls === r.calls ? '—' : insMoney(r.cost)) + (r.unpriced_calls && r.unpriced_calls !== r.calls ? '*' : '') + '</td></tr>';
+            });
+            return x + '</tbody></table>';
+        }
+        h += table('What costs what (by purpose)', j.by_purpose, 'purpose') + table('By model', j.by_model, 'model') + table('By day', (j.by_day || []).slice(-14).reverse(), 'day');
+        // Prices: one row per model seen or priced; blank = no price yet. USD per million tokens.
+        var models = {};
+        (j.by_model || []).forEach(function (r) { models[r.key] = true; });
+        Object.keys(j.prices || {}).forEach(function (m) { models[m] = true; });
+        h += '<div class="ins-sub">Prices (USD per million tokens)</div><div class="ins-prices" id="insPrices"></div>';
+        box.innerHTML = h;
+        var pbox = box.querySelector('#insPrices');
+        Object.keys(models).sort().forEach(function (m) {
+            var p = (j.prices || {})[m] || null;
+            var row = document.createElement('form');
+            row.className = 'ins-price-row';
+            row.innerHTML = '<span class="ins-price-model">' + progEsc(m) + '</span>' +
+                '<label>in <input name="i" inputmode="decimal" value="' + (p ? p.input_per_m : '') + '" placeholder="in"></label>' +
+                '<label>cached <input name="c" inputmode="decimal" value="' + (p ? p.cached_per_m : '') + '" placeholder="cached"></label>' +
+                '<label>out <input name="o" inputmode="decimal" value="' + (p ? p.output_per_m : '') + '" placeholder="out + thinking"></label>' +
+                '<button type="submit" class="sched-btn">Save</button><span class="set-status"></span>';
+            row.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var st = row.querySelector('.set-status');
+                st.textContent = '…';
+                fetch('/api/usage-cost.php' + (insights.days ? '?days=' + insights.days : ''), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                    body: JSON.stringify({ model: m, input_per_m: row.i.value, cached_per_m: row.c.value, output_per_m: row.o.value })
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.ok !== false && !res.error) { drawInsightsCost(box, res); }
+                    else { st.textContent = (res && res.error) || 'Not saved'; st.className = 'set-status is-err'; }
+                }).catch(function () { st.textContent = 'Network error'; st.className = 'set-status is-err'; });
+            });
+            pbox.appendChild(row);
+        });
+        if (!Object.keys(models).length) pbox.innerHTML = '<div class="ins-meta">No calls recorded yet.</div>';
     }
 
     function scheduleInsights() {
@@ -367,8 +437,10 @@
             progEsc(m.first_at || '—') + ' → ' + progEsc(m.last_at || '—') +
             (m.days ? ' · last ' + m.days + 'd' : ' · all history') + '</div>';
 
+        var keepCost = document.getElementById('insCost');   // the cost section is loaded on its own (not on the 10 s refresh), so it survives a redraw
         if (!m.turns) {
             body.innerHTML = html + '<div class="insights-loading">No turns in this range yet.</div>';
+            if (keepCost) body.appendChild(keepCost);
             return;
         }
 
@@ -452,6 +524,7 @@
         }
 
         body.innerHTML = html;
+        if (keepCost) body.appendChild(keepCost);
 
         // Wire tool drill-down toggles.
         body.querySelectorAll('.ins-tool-hd').forEach(function (hd) {
@@ -921,6 +994,11 @@
             parts.push('<div class="diag-timing"><b>timing:</b> total ' + t.total_ms + 'ms · gemini '
                 + t.gemini_ms + 'ms (' + t.gemini_calls + ' call' + (t.gemini_calls === 1 ? '' : 's')
                 + ') · tools ' + t.tools_ms + 'ms · app ' + t.app_ms + 'ms · req ' + t.req_kb + 'kb' + net + '</div>');
+        }
+        if (d.timing && d.timing.tokens && d.timing.tokens.calls) {
+            var tk = d.timing.tokens;
+            parts.push('<div class="diag-timing"><b>tokens:</b> prompt ' + tk.prompt + (tk.cached ? ' (cached ' + tk.cached + ')' : '') + ' · reply ' + tk.output + ' · thinking ' + tk.thoughts + (tk.tool ? ' · tool ' + tk.tool : '')
+                + ' · ' + tk.calls + ' call' + (tk.calls === 1 ? '' : 's') + '</div>');
         }
         if (d.calls && d.calls.length) {
             parts.push('<ul class="diag-calls">' + d.calls.map(function (c) {

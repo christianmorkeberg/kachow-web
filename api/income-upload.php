@@ -79,7 +79,7 @@ try {
     }
 
     $path = $storage->pathFor($userId, $stored['file_ref']);
-    $read   = $path !== null ? (new InvoiceReader(GeminiClient::fromEnv()))->read($path, $stored['mime']) : [];
+    $read   = $path !== null ? (new InvoiceReader(GeminiClient::fromEnv(null, 'invoice_read')))->read($path, $stored['mime']) : [];
 
     // Fill the moms triple from whatever the reader got (DK 25%).
     [$ex, $vat, $total] = Income::deriveVat(
