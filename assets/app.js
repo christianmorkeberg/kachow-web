@@ -6635,6 +6635,52 @@
             if (ids.length) downloadUrl('/api/dev-ideas-export.php?ids=' + ids.join(','));
         });
 
+        // Delete one or several ideas (the row's ✕, or every ticked one): gone for good, so a first tap only asks.
+        function deleteIdeas(ids, onDone) {
+            fetch('/api/dev-ideas.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                body: JSON.stringify({ action: 'delete', ids: ids })
+            }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (res) {
+                if (res && res.ok) {
+                    items = items.filter(function (it) { return ids.indexOf(it.id) === -1; });
+                    card.items = items;
+                    ids.forEach(function (id) { delete picked[id]; });
+                    draw();
+                    if (panelCard === card && cardPanelSub) cardPanelSub.textContent = cardSubFor(card);
+                    toast(daText('Deleted.', 'Slettet.'));
+                } else {
+                    toast((res && res.error) || daText('Could not delete.', 'Kunne ikke slette.'));
+                }
+                if (onDone) onDone();
+            }).catch(function () { toast(daText('Network error.', 'Netværksfejl.')); if (onDone) onDone(); });
+        }
+        function askFirst(btn, label, run) {
+            if (btn.getAttribute('data-sure') !== '1') {
+                btn.setAttribute('data-sure', '1');
+                btn.textContent = daText('Delete?', 'Slet?');
+                btn.classList.add('is-sure');
+                setTimeout(function () { if (btn.isConnected) { btn.removeAttribute('data-sure'); btn.textContent = label; btn.classList.remove('is-sure'); } }, 4000);
+                return;
+            }
+            btn.disabled = true;
+            run();
+        }
+        var delSel = document.createElement('button');
+        delSel.type = 'button';
+        delSel.className = 'di-export di-delete-sel';
+        exportBar.appendChild(delSel);
+        function delSelLabel() {
+            var n = Object.keys(picked).length;
+            delSel.hidden = !n;
+            delSel.removeAttribute('data-sure');
+            delSel.classList.remove('is-sure');
+            delSel.disabled = false;
+            delSel.textContent = daText('Delete selected (' + n + ')', 'Slet valgte (' + n + ')');
+        }
+        delSel.addEventListener('click', function () {
+            askFirst(delSel, delSel.textContent, function () { deleteIdeas(Object.keys(picked).map(Number)); });
+        });
+
         function counts() {
             var c = { new: 0, in_progress: 0, done: 0 };
             items.forEach(function (i) { if (c[i.status] != null) c[i.status]++; });
@@ -6689,6 +6735,7 @@
                 pick.addEventListener('change', function () {
                     if (pick.checked) picked[i.id] = true; else delete picked[i.id];
                     exportLabel(0, items.filter(visible).length);
+                    delSelLabel();
                 });
                 row.appendChild(pick);
 
@@ -6764,11 +6811,19 @@
                     pill.textContent = devStatusLabel(i.status);
                     row.appendChild(pill);
                 }
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'shop-item-btn';
+                del.title = daText('Delete this idea', 'Slet denne idé');
+                del.setAttribute('aria-label', daText('Delete idea #', 'Slet idé #') + i.id);
+                del.textContent = '🗑';
+                del.addEventListener('click', function () { askFirst(del, '🗑', function () { deleteIdeas([i.id]); }); });
+                row.appendChild(del);
                 list.appendChild(row);
             });
         }
 
-        function draw() { drawChips(); drawList(); exportLabel(0, items.filter(visible).length); }
+        function draw() { drawChips(); drawList(); exportLabel(0, items.filter(visible).length); delSelLabel(); }
         draw();
 
         messages.appendChild(wrap);

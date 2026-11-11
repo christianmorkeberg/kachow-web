@@ -7,6 +7,7 @@ declare(strict_types=1);
  *
  *   GET                                  → { ok, card }   (admin: every idea; others: their own)
  *   POST { id:int, status:new|in_progress|done } → { ok, card }   (admin only)
+ *   POST { action:'delete', id:int | ids:int[] }  → { ok, card }   delete ideas (admin: any; others: only their own)
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -44,11 +45,28 @@ $ideas   = new DevIdeas();
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $in = json_decode((string) file_get_contents('php://input'), true);
+        $in = is_array($in) ? $in : [];
+        if (($in['action'] ?? '') === 'delete') {
+            $ids = array_values(array_unique(array_filter(array_map('intval', is_array($in['ids'] ?? null) ? $in['ids'] : [(int) ($in['id'] ?? 0)]), static fn (int $i): bool => $i > 0)));
+            if ($ids === [] || count($ids) > 200) {
+                out(400, ['error' => 'An idea id (or a list of up to 200) is required.']);
+            }
+            $gone = 0;
+            foreach ($ids as $did) {
+                if ($isAdmin ? $ideas->deleteAny($did) : $ideas->delete($userId, $did)) {
+                    $gone++;
+                }
+            }
+            if ($gone === 0) {
+                out(404, ['error' => 'No such idea (it may already be gone).']);
+            }
+            $list = $isAdmin ? $ideas->listAll() : $ideas->listForUser($userId);
+            out(200, ['ok' => true, 'deleted' => $gone, 'card' => DevIdeas::card($list, $isAdmin, $userId, (string) ($in['filter'] ?? 'open'))]);
+        }
         if (!$isAdmin) {
             out(403, ['error' => 'Only the developer can change the status of ideas.']);
         }
-        $in     = json_decode((string) file_get_contents('php://input'), true);
-        $in     = is_array($in) ? $in : [];
         $id     = (int) ($in['id'] ?? 0);
         $status = (string) ($in['status'] ?? '');
         if ($id <= 0 || !isset(DevIdeas::STATUSES[$status])) {
