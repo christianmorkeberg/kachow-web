@@ -3536,3 +3536,17 @@ button.ghost:hover, a.badge:hover, button.badge:hover, .composer-menu > summary:
 .rec-vis { font: inherit; font-size: 12.5px; background: var(--panel-2); color: var(--text); border: 1px solid transparent; padding: 2px 4px; }
 .rec-vis-private { color: var(--muted); }
 a.sched-btn { display: inline-block; text-decoration: none; }
+
+/* Lists card + per-item edit/delete on a list */
+.plan-items li:has(> .shop-item-btn) { display: flex; align-items: center; gap: 4px; }
+.plan-items li:has(> .shop-item-btn) > label { flex: 1; min-width: 0; }
+.shop-item-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 14px; line-height: 1; opacity: .55; }
+.shop-item-btn:hover, .shop-item-btn:focus-visible { opacity: 1; background: var(--accent-soft); color: var(--text); }
+.shop-item-btn.is-sure { opacity: 1; color: var(--error); font-weight: 600; font-size: 13px; }
+.lists-rows { list-style: none; margin: 0 0 8px; padding: 0; }
+.lists-row { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
+.lists-row > .shop-add-input { flex: 1; }
+.lists-open { flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; text-align: left; background: none; border: none; color: var(--text); font: inherit; padding: 10px 8px; border-radius: 8px; cursor: pointer; }
+.lists-open:hover, .lists-open:focus-visible { background: var(--accent-soft); }
+.lists-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lists-count { color: var(--muted); font-size: 13px; white-space: nowrap; }

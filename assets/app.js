@@ -1009,6 +1009,7 @@
     // kind → [icon, title]. Icon names come from assets/icons.js (Lucide).
     var CARD_TITLES = {
         shopping_list: ['shopping-cart', 'Shopping list'],
+        lists:         ['list-checks', 'Lists'],
         reminders:     ['alarm-clock', 'Reminders'],
         loan_pack:     ['book-open', 'Regnskabspakke'],
         workout_timer: ['timer', 'Workout timer'],
@@ -1027,8 +1028,6 @@
         expenses:      ['credit-card', 'Expenses'],
         income:        ['file-text', 'Income'],
         export_preview: ['file-text', 'Export'],
-        income_summary:['trending-up', 'Income'],
-        owner_draws:   ['wallet', 'Owner draws'],
         bookkeeping:   ['book-open', 'Books'],
         moms:          ['percent', 'Moms'],
         cash:          ['landmark', 'Cash'],
@@ -1234,6 +1233,10 @@
             var ls = card.stats || {};
             return (card.title || '') + (ls.points ? ' · ' + ls.distance_km + ' km' : '');
         }
+        if (card.kind === 'lists') {
+            var ln = (card.lists || []).length;
+            return ln + (ln === 1 ? ' list' : ' lists');
+        }
         if (card.kind === 'shopping_list' && Array.isArray(card.items)) {
             var openN = card.items.filter(function (i) { return !i.done; }).length;   // hidden checked don't count
             return openN + (openN === 1 ? ' item' : ' items');
@@ -1419,6 +1422,7 @@
         var enc = encodeURIComponent;
         switch (card.kind) {
             case 'shopping_list':   return card.title ? '/api/shopping-list.php?list=' + enc(card.title) : null;
+            case 'lists':           return '/api/shopping-list.php?all=1';
             case 'moms':            return '/api/moms.php?offset=' + enc(card.offset || 0);
             case 'mileage':         return '/api/mileage.php?offset=' + enc(card.offset || 0);
             case 'pl':              return '/api/pl.php?granularity=' + enc(card.granularity || 'year') + '&offset=' + enc(card.offset || 0);
@@ -1667,6 +1671,16 @@
                 .then(function (j) { return pick ? pick(j) : (j && j.card); });
         };
     }
+    // A card endpoint's answer, or a failure the picker can show ("no mail account yet") instead of opening nothing.
+    function cardOrFail(j) {
+        if (j && j.card) return j.card;
+        throw new Error((j && j.error) || 'no card');
+    }
+    function postJson(url, body) {
+        return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('load failed')); })
+            .then(cardOrFail);
+    }
     var HOME_CARDS = {
         work_hours:      { kind: 'work_hours',      icon: 'clock',         en: "Today's hours",   da: 'Dagens timer',   load: cardFromUrl('/api/card.php?for=work_hours', function (j) { return j && j.card; }) },
         work_week:       { kind: 'work_hours',      icon: 'chart-column',  en: 'Last week',       da: 'Sidste uge',     load: cardFromUrl('/api/card.php?for=work_week', function (j) { return j && j.card; }) },
@@ -1682,6 +1696,15 @@
         scheduled_tasks: { kind: 'scheduled_tasks', icon: 'repeat',        en: 'Routines & tasks', da: 'Rutiner og opgaver', load: cardFromUrl('/api/scheduled-tasks.php') },
         feedback:        { kind: 'feedback',        icon: 'wrench',        en: 'Reports',         da: 'Rapporter',      load: cardFromUrl('/api/feedback.php') },
         home:            { kind: 'home',            icon: 'house',         en: 'Home',            da: 'Hjem',           load: function () { return Promise.resolve({ kind: 'home', title: 'Home' }); } },
+        reminders:       { kind: 'reminders',      icon: 'alarm-clock',   en: 'Reminders',       da: 'Påmindelser',    load: cardFromUrl('/api/reminders.php', cardOrFail) },
+        weather:         { kind: 'weather',        icon: 'cloud-sun',     en: 'Weather',         da: 'Vejr',           load: cardFromUrl('/api/card.php?for=weather', cardOrFail) },
+        places:          { kind: 'places',         icon: 'map',           en: 'Places',          da: 'Steder',         load: function () { return postJson('/api/places.php', { action: 'list' }); } },
+        inbox:           { kind: 'email_list',     icon: 'inbox',         en: 'Inbox',           da: 'Indbakke',       load: cardFromUrl('/api/email-list.php?limit=20', cardOrFail) },
+        workout_plan:    { kind: 'workout_plan',   icon: 'dumbbell',      en: 'Workout plan',    da: 'Træningsplan',   load: cardFromUrl('/api/workout-plan.php', cardOrFail) },
+        progression:     { kind: 'progression',    icon: 'trending-up',   en: 'Progress',        da: 'Fremgang',       load: function () { return postJson('/api/workout-progress.php', {}); } },
+        power_prices:    { kind: 'power_prices',   icon: 'zap',           en: 'Power prices',    da: 'Elpriser',       load: cardFromUrl('/api/card.php?for=power_prices', cardOrFail) },
+        appearance:      { kind: 'appearance',     icon: 'palette',       en: 'Appearance',      da: 'Udseende',       load: function () { var p = themePair(); return Promise.resolve({ kind: 'appearance', theme: themeChoice(), theme_dark: p.dark, theme_light: p.light }); } },
+        lists:           { kind: 'lists',          icon: 'list-checks',   en: 'Lists',           da: 'Lister',         load: cardFromUrl('/api/shopping-list.php?all=1') },
         recruiter:       { kind: 'recruiter',       icon: 'briefcase',          en: 'Recruiter',       da: 'Rekruttering',   load: cardFromUrl('/api/recruiter.php') },
         dev_ideas:       { kind: 'dev_ideas',       icon: 'lightbulb',     en: 'Dev ideas',       da: 'Udviklingsidéer', load: cardFromUrl('/api/dev-ideas.php') },
         timer:           { kind: 'workout_timer',   icon: 'timer',         en: 'Timer',           da: 'Timer',          load: function () { return Promise.resolve({ kind: 'workout_timer' }); } },
@@ -1690,11 +1713,12 @@
     // The "All cards" list is shown in these groups (key lists must name HOME_CARDS keys; anything unlisted still shows, last).
     var CARD_GROUPS = [
         ['Work', 'Arbejde', ['work_hours', 'work_week', 'work_log']],
-        ['Day', 'Dagen', ['calendar', 'location', 'cycle', 'timer']],
+        ['Day', 'Dagen', ['calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer']],
+        ['Training', 'Træning', ['workout_plan', 'progression']],
         ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack']],
-        ['Assistant', 'Assistent', ['scheduled_tasks', 'feedback', 'recruiter', 'dev_ideas', 'home']]
+        ['Assistant', 'Assistent', ['scheduled_tasks', 'home', 'power_prices', 'appearance', 'feedback', 'recruiter', 'dev_ideas']]
     ];
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'location', 'cycle', 'timer', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'feedback', 'recruiter', 'dev_ideas', 'home'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer', 'workout_plan', 'progression', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'home', 'power_prices', 'appearance', 'feedback', 'recruiter', 'dev_ideas'];
     HOME_CARD_ORDER = HOME_CARD_ORDER.filter(function (k) { return HOME_CARDS[k]; });   // a key without a card can never break the pickers
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
@@ -1910,8 +1934,6 @@
         if (card.kind === 'receipt') { renderReceipt(card); return; }
         if (card.kind === 'expenses') { renderExpenses(card); return; }
         if (card.kind === 'income') { renderIncome(card); return; }
-        if (card.kind === 'income_summary') { renderIncomeSummary(card); return; }
-        if (card.kind === 'owner_draws') { renderOwnerDraws(card); return; }
         if (card.kind === 'bookkeeping') { renderBooks(card); return; }
         if (card.kind === 'moms') { renderMoms(card); return; }
         if (card.kind === 'cash') { renderCash(card); return; }
@@ -1938,6 +1960,7 @@
         if (card.kind === 'home') { renderHome(card); return; }
         if (card.kind === 'training_program') { renderTrainingProgram(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
+        if (card.kind === 'lists') { renderLists(card); return; }
         if (card.kind === 'reminders') { renderReminders(card); return; }
         if (card.kind === 'loan_pack') { renderLoanPack(card); return; }
         if (card.kind === 'workout_timer') { renderWorkoutTimer(card); return; }
@@ -2057,6 +2080,13 @@
         h.className = 'plan-card-title';
         h.textContent = (card.title || 'Shopping list') + (open.length ? ' · ' + open.length + ' left' : '');
         head.appendChild(h);
+        var allLists = document.createElement('button');
+        allLists.type = 'button';
+        allLists.className = 'sched-btn';
+        allLists.textContent = '‹ ' + daText('Lists', 'Lister');
+        allLists.title = daText('All lists — create, rename, delete', 'Alle lister — opret, omdøb, slet');
+        allLists.addEventListener('click', openListsCard);
+        head.appendChild(allLists);
         // Grouped by category ↔ one flat list, saved per list (older cards without the field get no switch).
         if (card.list_id && (card.grouping === 'auto' || card.grouping === 'none')) {
             var grouped = card.grouping === 'auto';
@@ -2150,6 +2180,12 @@
             cul.className = 'plan-items';
             checked.forEach(function (it) { cul.appendChild(shoppingLi(it, wrap, card)); });
             det.appendChild(cul);
+            var clr = document.createElement('button');
+            clr.type = 'button';
+            clr.className = 'sched-btn';
+            clr.textContent = daText('Clear ticked', 'Ryd afkrydsede');
+            clr.addEventListener('click', function () { shopPost({ action: 'clear_checked', list_id: card.list_id }, wrap, false); });
+            det.appendChild(clr);
             wrap.appendChild(det);
         }
     }
@@ -2167,7 +2203,180 @@
         label.appendChild(cb);
         label.appendChild(span);
         li.appendChild(label);
+        // Edit the text / delete the item right on the card.
+        var ed = document.createElement('button');
+        ed.type = 'button';
+        ed.className = 'shop-item-btn';
+        ed.title = daText('Edit', 'Redigér');
+        ed.setAttribute('aria-label', daText('Edit', 'Redigér'));
+        ed.textContent = '✎';
+        ed.addEventListener('click', function () {
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.className = 'shop-add-input';
+            inp.value = it.label;
+            li.replaceChildren(inp);
+            inp.focus();
+            var done = false;
+            function save() {
+                if (done) return;
+                done = true;
+                var v = inp.value.trim();
+                if (v && v !== it.label) shopPost({ action: 'rename_item', item_id: it.id, item: v }, wrap, false);
+                else buildShopping(wrap, card);
+            }
+            inp.addEventListener('blur', save);
+            inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { done = true; buildShopping(wrap, card); } });
+        });
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'shop-item-btn';
+        del.title = daText('Delete', 'Slet');
+        del.setAttribute('aria-label', daText('Delete', 'Slet'));
+        del.textContent = '✕';
+        del.addEventListener('click', function () { shopPost({ action: 'delete_item', item_id: it.id }, wrap, false); });
+        li.appendChild(ed);
+        li.appendChild(del);
         return li;
+    }
+
+    // ---- Lists: every list of the household; create, rename and delete here, tap one to open it (the shopping_list card) ----
+    function openListsCard() {
+        fetch('/api/shopping-list.php?all=1', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) presentCard(j.card, 'open'); else toast((j && j.error) || daText('Could not open that.', 'Kunne ikke åbne den.')); })
+            .catch(function () { toast(daText('Could not open that.', 'Kunne ikke åbne den.')); });
+    }
+    function openListByName(name) {
+        fetch('/api/shopping-list.php?list=' + encodeURIComponent(name), { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.card) presentCard(j.card, 'open'); else toast((j && j.error) || daText('Could not open that.', 'Kunne ikke åbne den.')); })
+            .catch(function () { toast(daText('Could not open that.', 'Kunne ikke åbne den.')); });
+    }
+    function renderLists(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card lists-card';
+        buildLists(wrap, card);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+    function listsPost(body, wrap) {
+        wrap.classList.add('loading');
+        return fetch('/api/shopping-list.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                wrap.classList.remove('loading');
+                if (res.ok && res.j && res.j.card) {
+                    if (panelCard && panelCard.kind === 'lists') panelCard = res.j.card;
+                    buildLists(wrap, res.j.card);
+                } else {
+                    toast((res.j && res.j.error) || daText('That did not work.', 'Det virkede ikke.'));
+                }
+            })
+            .catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); });
+    }
+    function buildLists(wrap, card) {
+        wrap.innerHTML = '';
+        var head = document.createElement('div');
+        head.className = 'shop-head';
+        var h = document.createElement('div');
+        h.className = 'plan-card-title';
+        h.textContent = daText('Lists', 'Lister');
+        head.appendChild(h);
+        wrap.appendChild(head);
+        var lists = card.lists || [];
+        if (!lists.length) {
+            var empty = document.createElement('div');
+            empty.className = 'plan-empty';
+            empty.textContent = daText('No lists yet — create the first one below.', 'Ingen lister endnu — opret den første herunder.');
+            wrap.appendChild(empty);
+        }
+        var ul = document.createElement('ul');
+        ul.className = 'plan-items lists-rows';
+        lists.forEach(function (l) {
+            var li = document.createElement('li');
+            li.className = 'lists-row';
+            var open = document.createElement('button');
+            open.type = 'button';
+            open.className = 'lists-open';
+            var nm = document.createElement('span');
+            nm.className = 'lists-name';
+            nm.textContent = l.name;
+            var ct = document.createElement('span');
+            ct.className = 'lists-count';
+            ct.textContent = l.remaining + (l.total > l.remaining ? ' / ' + l.total : '') + ' ' + daText('left', 'tilbage');
+            open.appendChild(nm);
+            open.appendChild(ct);
+            open.addEventListener('click', function () { openListByName(l.name); });
+            li.appendChild(open);
+            var ren = document.createElement('button');
+            ren.type = 'button';
+            ren.className = 'shop-item-btn';
+            ren.title = daText('Rename', 'Omdøb');
+            ren.setAttribute('aria-label', daText('Rename', 'Omdøb'));
+            ren.textContent = '✎';
+            ren.addEventListener('click', function () {
+                var inp = document.createElement('input');
+                inp.type = 'text';
+                inp.className = 'shop-add-input';
+                inp.value = l.name;
+                li.replaceChildren(inp);
+                inp.focus();
+                inp.select();
+                var done = false;
+                function save() {
+                    if (done) return;
+                    done = true;
+                    var v = inp.value.trim();
+                    if (v && v !== l.name) listsPost({ action: 'rename_list', list_id: l.id, name: v }, wrap);
+                    else buildLists(wrap, card);
+                }
+                inp.addEventListener('blur', save);
+                inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { done = true; buildLists(wrap, card); } });
+            });
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'shop-item-btn';
+            del.title = daText('Delete', 'Slet');
+            del.setAttribute('aria-label', daText('Delete', 'Slet'));
+            del.textContent = '🗑';
+            del.addEventListener('click', function () {
+                // Two taps: the first turns the button into a question, so a list full of items is never lost by a slip.
+                if (del.getAttribute('data-sure') !== '1') {
+                    del.setAttribute('data-sure', '1');
+                    del.textContent = daText('Delete?', 'Slet?');
+                    del.classList.add('is-sure');
+                    setTimeout(function () { if (del.isConnected) { del.removeAttribute('data-sure'); del.textContent = '🗑'; del.classList.remove('is-sure'); } }, 4000);
+                    return;
+                }
+                listsPost({ action: 'delete_list', list_id: l.id }, wrap);
+            });
+            li.appendChild(ren);
+            li.appendChild(del);
+            ul.appendChild(li);
+        });
+        wrap.appendChild(ul);
+        var form = document.createElement('form');
+        form.className = 'shop-add';
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'shop-add-input';
+        inp.placeholder = daText('New list…', 'Ny liste…');
+        inp.autocomplete = 'off';
+        var addBtn = document.createElement('button');
+        addBtn.type = 'submit';
+        addBtn.className = 'shop-add-btn';
+        addBtn.setAttribute('aria-label', daText('Create list', 'Opret liste'));
+        addBtn.textContent = '＋';
+        form.appendChild(inp);
+        form.appendChild(addBtn);
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var v = inp.value.trim();
+            if (!v) return;
+            inp.value = '';
+            listsPost({ action: 'create_list', name: v }, wrap);
+        });
+        wrap.appendChild(form);
     }
 
     function shopPost(body, wrap, refocus) {
@@ -7682,175 +7891,6 @@
 
     // Income summary for a period — read-only (net / moms / gross per currency,
     // outstanding invoices, per-customer breakdown). Mirrors the expenses summary.
-    function renderIncomeSummary(card) {
-        clearEmptyHint();
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card expenses-card income-summary-card';
-
-        var head = document.createElement('div');
-        head.className = 'plan-card-title';
-        head.textContent = card.title || daText('Income', 'Indtægt');
-        wrap.appendChild(head);
-
-        var totals = document.createElement('div');
-        totals.className = 'exp-totals';
-        var currencies = card.currencies || [];
-        if (!currencies.length) {
-            var zrow = document.createElement('div'); zrow.className = 'exp-cur';
-            var zt = document.createElement('div'); zt.className = 'exp-total'; zt.textContent = fmtMoney(0, 'DKK');
-            zrow.appendChild(zt); totals.appendChild(zrow);
-        }
-        currencies.forEach(function (c) {
-            var row = document.createElement('div'); row.className = 'exp-cur';
-            var t = document.createElement('div'); t.className = 'exp-total'; t.textContent = fmtMoney(c.total, c.currency);
-            var s = document.createElement('div'); s.className = 'exp-sub';
-            s.textContent = c.count + (c.count === 1 ? ' invoice' : ' invoices')
-                + ' · ' + daText('net ', 'netto ') + fmtMoney(c.ex, c.currency)
-                + ' · moms ' + fmtMoney(c.vat, c.currency);
-            row.appendChild(t); row.appendChild(s); totals.appendChild(row);
-        });
-        wrap.appendChild(totals);
-
-        // Outstanding (unpaid) invoices — the debtor total.
-        (card.outstanding || []).forEach(function (o) {
-            var out = document.createElement('div');
-            out.className = 'income-outstanding';
-            out.textContent = daText('Outstanding: ', 'Udestående: ') + fmtMoney(o.total, o.currency)
-                + ' (' + o.count + ')';
-            wrap.appendChild(out);
-        });
-
-        // Per-customer chips.
-        if ((card.by_customer || []).length) {
-            var bd = document.createElement('div');
-            bd.className = 'exp-breakdown';
-            card.by_customer.forEach(function (c) {
-                var chip = document.createElement('span');
-                chip.className = 'exp-cat';
-                chip.textContent = (c.customer || '—') + ' · ' + fmtMoney(c.total, c.currency);
-                bd.appendChild(chip);
-            });
-            wrap.appendChild(bd);
-        }
-
-        var items = card.items || [];
-        if (items.length) {
-            var list = document.createElement('ul');
-            list.className = 'exp-list';
-            items.forEach(function (it) {
-                var li = document.createElement('li');
-                var left = document.createElement('div'); left.className = 'exp-when';
-                var main = document.createElement('div'); main.className = 'exp-main';
-                rowDateName(main, it.date, it.customer || it.doc_number || '');
-                left.appendChild(main);
-                var right = document.createElement('span');
-                right.className = 'exp-amt';
-                right.textContent = fmtMoney(it.total, it.currency);
-                if (!it.paid) {
-                    var badge = document.createElement('span');
-                    badge.className = 'income-unpaid-badge';
-                    badge.textContent = daText('unpaid', 'ubetalt');
-                    left.appendChild(badge);
-                }
-                li.appendChild(left); li.appendChild(right);
-                list.appendChild(li);
-            });
-            wrap.appendChild(list);
-        }
-
-        messages.appendChild(wrap);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
-    // Owner drawings (private hævninger) for a period — read-only total + list.
-    function renderOwnerDraws(card) {
-        clearEmptyHint();
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card expenses-card owner-draws-card';
-
-        var head = document.createElement('div');
-        head.className = 'plan-card-title';
-        head.textContent = card.title || daText('Owner draws', 'Hævninger');
-        wrap.appendChild(head);
-
-        // Per-currency totals, keyed so a row delete can update them live.
-        var totals = document.createElement('div');
-        totals.className = 'exp-totals';
-        var curState = {};
-        function drawSub(count) { return count + (count === 1 ? ' draw' : ' draws'); }
-        var t2 = (card.totals || []);
-        if (!t2.length) {
-            var zr = document.createElement('div'); zr.className = 'exp-cur';
-            var zt2 = document.createElement('div'); zt2.className = 'exp-total'; zt2.textContent = fmtMoney(0, 'DKK');
-            zr.appendChild(zt2); totals.appendChild(zr);
-        }
-        t2.forEach(function (c) {
-            var row = document.createElement('div'); row.className = 'exp-cur';
-            var t = document.createElement('div'); t.className = 'exp-total'; t.textContent = fmtMoney(c.total, c.currency);
-            var s = document.createElement('div'); s.className = 'exp-sub'; s.textContent = drawSub(c.count);
-            row.appendChild(t); row.appendChild(s); totals.appendChild(row);
-            curState[c.currency] = { total: Number(c.total) || 0, count: c.count || 0, totalEl: t, subEl: s, rowEl: row };
-        });
-        wrap.appendChild(totals);
-
-        var hint = document.createElement('div');
-        hint.className = 'income-outstanding';
-        hint.textContent = daText('Private drawings — not an expense; excluded from profit & moms.',
-                                  'Private hævninger — ikke en udgift; tæller ikke i overskud & moms.');
-        wrap.appendChild(hint);
-
-        var items = card.items || [];
-        if (items.length) {
-            var list = document.createElement('ul');
-            list.className = 'exp-list';
-            items.forEach(function (it) {
-                var li = document.createElement('li');
-                var left = document.createElement('div'); left.className = 'exp-when';
-                var main = document.createElement('div'); main.className = 'exp-main';
-                rowDateName(main, it.date, it.note || '');
-                left.appendChild(main);
-                var right = document.createElement('span');
-                right.className = 'exp-amt';
-                right.textContent = fmtMoney(it.amount, it.currency);
-
-                var del = deleteButton(daText('Delete draw', 'Slet hævning'));
-                del.addEventListener('click', function () {
-                    if (!window.confirm(daText('Delete this drawing?', 'Slet denne hævning?'))) return;
-                    del.disabled = true;
-                    fetch('/api/draws.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ action: 'discard', id: it.id })
-                    }).then(function (r) { return r.json(); }).then(function (res) {
-                        if (res && res.deleted) {
-                            var st = curState[it.currency];
-                            if (st) {
-                                st.total -= Number(it.amount) || 0;
-                                st.count -= 1;
-                                if (st.count <= 0) { st.rowEl.remove(); delete curState[it.currency]; }
-                                else {
-                                    st.totalEl.textContent = fmtMoney(st.total, it.currency);
-                                    st.subEl.textContent = drawSub(st.count);
-                                }
-                            }
-                            li.remove();
-                        } else { del.disabled = false; }
-                    }).catch(function () { del.disabled = false; });
-                });
-
-                li.appendChild(left);
-                li.appendChild(right);
-                li.appendChild(del);
-                list.appendChild(li);
-            });
-            wrap.appendChild(list);
-        }
-
-        messages.appendChild(wrap);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
     // ---- Bookkeeping cockpit (kind: bookkeeping) — a modular dashboard ----
     // Composed of KPI tiles + income/expense/draw modules, with overview→detail drill-in
     // and period switching. Interactive on its own via /api/books.php (no chat turn).
@@ -12692,8 +12732,6 @@
     drawCash = withBookHelp(drawCash, 'cash');
     drawMileage = withBookHelp(drawMileage, 'mileage');
     buildLoanPack = withBookHelp(buildLoanPack, 'loan_pack');
-    renderIncomeSummary = withBookHelpLast(renderIncomeSummary, 'income');
-    renderOwnerDraws = withBookHelpLast(renderOwnerDraws, 'draws');
     renderExpenses = withBookHelpLast(renderExpenses, 'expenses');
     })();
 if (document.documentElement.hasAttribute('data-demo')) { window.kachowDemo = { renderCard: renderCard }; }
