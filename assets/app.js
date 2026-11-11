@@ -4253,35 +4253,50 @@
         wrap.className = 'plan-card homecards-card';
         var intro = document.createElement('div');
         intro.className = 'persona-intro';
-        intro.textContent = daText('Pick the cards you want. The first opens when the app starts; the rest stay one tap away.',
-            'Vælg de kort du vil have. Det første åbner når appen starter; resten er et tryk væk.');
+        intro.textContent = daText('Pick the cards you want — changes save by themselves. The first opens when the app starts; the rest stay one tap away.',
+            'Vælg de kort du vil have — ændringer gemmes af sig selv. Det første åbner når appen starter; resten er et tryk væk.');
         wrap.appendChild(intro);
         var list = document.createElement('ul');
         list.className = 'hc-list';
         list.id = 'hcc' + Date.now();
         wrap.appendChild(list);
         var state = { chosen: cleanHomeCards(card.chosen || []) };
-        function draw() { fillHomeCardsList(list, state, draw); card.chosen = state.chosen.slice(); }
+        var status = document.createElement('span');
+        status.className = 'set-status';
+        var saveTimer = null;
+        // Every tick / reorder saves by itself (a moment after the last change); there is no Save button.
+        function onChange() {
+            draw();
+            clearTimeout(saveTimer);
+            status.className = 'set-status';
+            status.textContent = '…';
+            saveTimer = setTimeout(function () {
+                saveHomeCards(state.chosen.join(','), function (ok, msg) {
+                    status.className = 'set-status ' + (ok ? 'is-ok' : 'is-err');
+                    status.textContent = ok ? daText('Saved', 'Gemt') : msg;
+                });
+            }, 500);
+        }
+        function draw() { fillHomeCardsList(list, state, onChange); card.chosen = state.chosen.slice(); }
         draw();
         var actions = document.createElement('div');
         actions.className = 'sched-actions';
-        function btn(label, cls, value) {
-            var b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'sched-btn' + (cls ? ' ' + cls : '');
-            b.textContent = label;
-            b.addEventListener('click', function () {
-                b.disabled = true;
-                saveHomeCards(value(), function (ok, msg) {
-                    toast(msg);
-                    b.disabled = false;
-                    if (ok && value() === '') { state.chosen = []; draw(); }
-                });
+        var reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'sched-btn';
+        reset.textContent = daText('Back to default', 'Tilbage til standard');
+        reset.addEventListener('click', function () {
+            clearTimeout(saveTimer);
+            reset.disabled = true;
+            saveHomeCards('', function (ok, msg) {
+                reset.disabled = false;
+                status.className = 'set-status ' + (ok ? 'is-ok' : 'is-err');
+                status.textContent = ok ? daText('Saved', 'Gemt') : msg;
+                if (ok) { state.chosen = []; draw(); }
             });
-            actions.appendChild(b);
-        }
-        btn(daText('Save', 'Gem'), 'primary', function () { return state.chosen.join(','); });
-        btn(daText('Back to default', 'Tilbage til standard'), '', function () { return ''; });
+        });
+        actions.appendChild(reset);
+        actions.appendChild(status);
         wrap.appendChild(actions);
         wrap.appendChild(shortcutBox());
         messages.appendChild(wrap);
