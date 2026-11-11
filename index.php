@@ -234,6 +234,7 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <button type="button" class="tm-item" data-imap-preset="custom" data-icon="plus">Other mailbox (IMAP)</button>
 
                         <div class="tm-sep"></div>
+                        <button type="button" id="settingsBtn" class="tm-item" data-icon="settings">Settings</button>
                         <button type="button" id="notifBtn" class="tm-item" data-icon="bell" hidden>Notifications</button>
                         <button type="button" id="appearanceBtn" class="tm-item" data-icon="palette">Appearance</button>
                         <button type="button" id="homeCardsBtn" class="tm-item" data-icon="star">Start cards</button>

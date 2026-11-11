@@ -12097,6 +12097,12 @@
         // Opening Notifications hands off to its modal, so collapse the menu.
         var notif = document.getElementById('notifBtn');
         if (notif) notif.addEventListener('click', function () { menu.removeAttribute('open'); });
+        // Settings → the Settings card (every setting, grouped).
+        var setBtn = document.getElementById('settingsBtn');
+        if (setBtn) setBtn.addEventListener('click', function () {
+            menu.removeAttribute('open');
+            openHomeCard('settings');
+        });
         // Appearance → show the theme picker card.
         var appBtn = document.getElementById('appearanceBtn');
         if (appBtn) appBtn.addEventListener('click', function () {
