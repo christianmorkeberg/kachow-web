@@ -918,30 +918,6 @@ button.ghost {
 .mileage-logform { flex-wrap: wrap; }
 .mileage-destsel { flex: 1 1 140px; }
 
-/* Work clock — shadow comparison (phase 4) */
-.wc-card { display: flex; flex-direction: column; gap: 10px; }
-.wc-summary { display: flex; flex-wrap: wrap; gap: 8px; }
-.wc-chip { flex: 1 1 90px; background: var(--panel-2); border: 1px solid transparent; border-radius: 0; padding: 7px 10px; }
-.wc-chip.wc-auto { border-left: 3px solid var(--accent); }
-.wc-chip.wc-punch { border-left: 3px solid var(--muted); }
-.wc-chip-l { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-.wc-chip-v { font-size: 15px; font-weight: 700; color: var(--text-strong); }
-.wc-day { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 8px; padding: 7px 2px; border-top: 1px solid var(--line); }
-.wc-date { font-size: 12px; color: var(--muted); }
-.wc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-width: 0; }
-.wc-col { min-width: 0; }
-.wc-col-total { font-size: 13px; font-weight: 600; color: var(--text-strong); }
-.wc-col.wc-auto .wc-col-total { color: var(--accent); }
-.wc-col-sub { font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wc-delta { font-size: 12px; font-weight: 700; justify-self: end; }
-.wc-day.is-match .wc-delta { color: var(--accent); }
-.wc-day.is-diff .wc-delta { color: var(--warn); }
-.wc-note { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
-.wc-note.is-warn { color: #b45309; }
-/* A day with a tracking hole: the auto figure is incomplete, so flag it rather than compare it. */
-.wc-gap { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
-    color: #b45309; background: rgba(180, 83, 9, .12); border-radius: 0; padding: 1px 4px; vertical-align: 1px; }
-.wc-day.is-incomplete .wc-auto .wc-col-total { opacity: .6; }
 
 .books-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 .books-chip {
@@ -3550,3 +3526,31 @@ a.sched-btn { display: inline-block; text-decoration: none; }
 .lists-open:hover, .lists-open:focus-visible { background: var(--accent-soft); }
 .lists-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lists-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
+
+/* Calendar views: day / 3 days / week / month */
+.cm-views { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.cm-view { background: none; border: 1px solid var(--border, rgba(127,127,127,.35)); color: var(--muted); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.cm-view:hover, .cm-view:focus-visible { color: var(--text); border-color: var(--accent); }
+.cm-view.on { background: var(--accent-soft); color: var(--text); border-color: var(--accent); font-weight: 600; }
+.cm-today-btn { margin-left: auto; }
+.cm-range-day { margin-bottom: 10px; }
+.cm-range-day.today .plan-day-head { color: var(--accent); }
+
+/* Settings card */
+.set-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.set-group { border-top: 1px solid var(--border, rgba(127,127,127,.25)); padding: 6px 0; }
+.set-group > summary { cursor: pointer; font-weight: 600; padding: 6px 0; list-style: none; }
+.set-group > summary::before { content: '▸ '; color: var(--muted); }
+.set-group[open] > summary::before { content: '▾ '; }
+.set-row { padding: 8px 0 10px; }
+.set-label { font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+.set-row.is-custom .set-label::after { content: ' •'; color: var(--accent); }
+.set-field { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; background: var(--panel-2, rgba(127,127,127,.08)); color: var(--text); border: 1px solid transparent; border-radius: 6px; }
+.set-field:focus { outline: none; border-color: var(--accent); }
+textarea.set-field { resize: vertical; }
+.set-foot { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; }
+.set-desc { flex: 1; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.set-reset { background: none; border: none; color: var(--muted); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; padding: 0; }
+.set-status { font-size: 12px; min-width: 40px; text-align: right; }
+.set-status.is-ok { color: var(--accent); }
+.set-status.is-err { color: var(--error); }

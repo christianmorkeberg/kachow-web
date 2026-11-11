@@ -7,7 +7,7 @@ declare(strict_types=1);
  * notification can open a fresh chat that already shows the relevant card. Own data
  * only. The `for` key comes from NotificationTypes::deepLink (`/?card=<key>`).
  *
- *   GET ?for=cycle | work_hours | work_week | work_log | feedback | power_prices | weather  → { card }
+ *   GET ?for=cycle | work_hours | work_week | work_log | feedback | power_prices | weather | training_program  → { card }
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -91,6 +91,10 @@ try {
             // The Reminders card, with the one the push was about in focus (an old or unknown id just shows the card).
             $rid  = isset($_GET['rid']) ? (int) $_GET['rid'] : 0;
             $card = (new Reminders())->card($userId, $rid > 0 ? $rid : null);
+            break;
+        case 'training_program':
+            // The card picker's "Training programme": the active programme (empty card when there is none).
+            $card = \App\Support\ProgramCard::forUser(new \App\Data\TrainingPrograms(), $userId);
             break;
         case 'power_prices':
             // The card picker's "Power prices": the next hours of the Danish spot price (the same card get_power_prices shows).

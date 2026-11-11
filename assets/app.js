@@ -614,10 +614,8 @@
         get_voice_log: ['Reading the voice log', 'Læser stemmeloggen'],
         get_week_plan: ['Checking the week’s training', 'Tjekker ugens træning'],
         get_wishlist: ['Reading the wishlist', 'Læser ønskelisten'],
-        get_work_clock: ['Checking the work clock', 'Tjekker arbejdsuret'],
         get_work_hours: ['Adding up your work hours', 'Lægger dine arbejdstimer sammen'],
         get_work_log: ['Reading your work log', 'Læser din arbejdslog'],
-        get_work_tracking_setup: ['Checking the work tracking setup', 'Tjekker opsætningen af arbejdssporing'],
         get_workout_history: ['Reading your workout history', 'Læser din træningshistorik'],
         get_workout_plan: ['Checking the day’s training', 'Tjekker dagens træning'],
         get_workout_progress: ['Checking your progress', 'Tjekker din fremgang'],
@@ -1014,7 +1012,6 @@
         loan_pack:     ['book-open', 'Regnskabspakke'],
         workout_timer: ['timer', 'Workout timer'],
         workout_plan:  ['dumbbell', 'Workout plan'],
-        agenda:        ['calendar', 'Agenda'],
         calendar_month: ['calendar', 'Month'],
         weather:       ['cloud-sun', 'Weather'],
         work_hours:    ['clock', 'Work hours'],
@@ -1042,7 +1039,7 @@
         recruiter:     ['briefcase', 'Recruiter'],
         dev_ideas:     ['lightbulb', 'Dev ideas'],
         scheduled_tasks: ['repeat', 'Routines'],
-        personality:   ['drama', 'Personality'],
+        settings:      ['settings', 'Settings'],
         home_cards:    ['list-checks', 'Start cards'],
         home:          ['house', 'Home'],
         training_program: ['dumbbell', 'Programme'],
@@ -1188,9 +1185,6 @@
             var nw = (card.weeks || []).length;
             return nw + daText(nw === 1 ? ' week' : ' weeks', nw === 1 ? ' uge' : ' uger');
         }
-        if (card.kind === 'personality' && card.level) {
-            return daText('Level ', 'Niveau ') + card.level + '/5';
-        }
         if (card.kind === 'appearance') {
             if (card.theme === 'auto') return daText('Match device', 'Følg enheden');
             var th = THEMES.filter(function (t) { return t.id === (card.theme || currentTheme()); })[0];
@@ -1211,6 +1205,7 @@
             var pi = card.now_index != null ? card.now_index : 0;
             return powerFmt(card.hours[pi].t) + ' kr/kWh';
         }
+        if (card.kind === 'calendar_month' && card.view && card.view !== 'month') return card.title || '';
         if (card.kind === 'calendar_month' && card.month) {
             var mf = new Date(card.month + '-01T12:00:00');
             return isNaN(mf) ? (card.title || '') : mf.toLocaleDateString(daText('en-GB', 'da-DK'), { month: 'long', year: 'numeric' });
@@ -1430,7 +1425,7 @@
             case 'reminders':       return '/api/reminders.php';
             case 'recruiter':       return '/api/recruiter.php';
             case 'loan_pack':       return '/api/loanpack.php?year=' + enc(card.year || '');
-            case 'calendar_month':  return card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null;
+            case 'calendar_month':  return (card.view && card.view !== 'month') ? calLoadUrl(card.view, card.anchor) : (card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null);
         }
         return null;
     }
@@ -1686,7 +1681,7 @@
         work_week:       { kind: 'work_hours',      icon: 'chart-column',  en: 'Last week',       da: 'Sidste uge',     load: cardFromUrl('/api/card.php?for=work_week', function (j) { return j && j.card; }) },
         work_log:        { kind: 'work_log',        icon: 'notebook-pen',  en: 'Work log',        da: 'Arbejdslog',     load: cardFromUrl('/api/card.php?for=work_log', function (j) { return j && j.card; }) },
         location:        { kind: 'location_day',    icon: 'map-pin',       en: 'Location',        da: 'Lokation',       load: function () { return fetchLocationDay(locToday()).then(function (j) { return j && j.card; }); } },
-        calendar:        { kind: 'calendar_month',  icon: 'calendar',      en: 'Calendar',        da: 'Kalender',       load: cardFromUrl('/api/calendar-month.php') },
+        calendar:        { kind: 'calendar_month',  icon: 'calendar',      en: 'Calendar',        da: 'Kalender',       load: function () { var v = calSavedView(); return cardFromUrl(v === 'month' ? '/api/calendar-month.php' : calLoadUrl(v, ''))(); } },
         cycle:           { kind: 'cycle',           icon: 'moon',          en: 'Cycle',           da: 'Cyklus',         load: cardFromUrl('/api/card.php?for=cycle', function (j) { return j && j.card; }) },
         books:           { kind: 'bookkeeping',     icon: 'book-open',     en: 'Books',           da: 'Regnskab',       load: cardFromUrl('/api/books.php?granularity=quarter&offset=0') },
         moms:            { kind: 'moms',            icon: 'percent',       en: 'Moms',            da: 'Moms',           load: cardFromUrl('/api/moms.php?offset=0') },
@@ -1701,8 +1696,10 @@
         places:          { kind: 'places',         icon: 'map',           en: 'Places',          da: 'Steder',         load: function () { return postJson('/api/places.php', { action: 'list' }); } },
         inbox:           { kind: 'email_list',     icon: 'inbox',         en: 'Inbox',           da: 'Indbakke',       load: cardFromUrl('/api/email-list.php?limit=20', cardOrFail) },
         workout_plan:    { kind: 'workout_plan',   icon: 'dumbbell',      en: 'Workout plan',    da: 'Træningsplan',   load: cardFromUrl('/api/workout-plan.php', cardOrFail) },
+        training_program: { kind: 'training_program', icon: 'dumbbell',    en: 'Training programme', da: 'Træningsprogram', load: cardFromUrl('/api/card.php?for=training_program', cardOrFail) },
         progression:     { kind: 'progression',    icon: 'trending-up',   en: 'Progress',        da: 'Fremgang',       load: function () { return postJson('/api/workout-progress.php', {}); } },
         power_prices:    { kind: 'power_prices',   icon: 'zap',           en: 'Power prices',    da: 'Elpriser',       load: cardFromUrl('/api/card.php?for=power_prices', cardOrFail) },
+        settings:        { kind: 'settings',       icon: 'settings',      en: 'Settings',        da: 'Indstillinger',  load: cardFromUrl('/api/settings.php?card=1', cardOrFail) },
         appearance:      { kind: 'appearance',     icon: 'palette',       en: 'Appearance',      da: 'Udseende',       load: function () { var p = themePair(); return Promise.resolve({ kind: 'appearance', theme: themeChoice(), theme_dark: p.dark, theme_light: p.light }); } },
         lists:           { kind: 'lists',          icon: 'list-checks',   en: 'Lists',           da: 'Lister',         load: cardFromUrl('/api/shopping-list.php?all=1') },
         recruiter:       { kind: 'recruiter',       icon: 'briefcase',          en: 'Recruiter',       da: 'Rekruttering',   load: cardFromUrl('/api/recruiter.php') },
@@ -1714,11 +1711,11 @@
     var CARD_GROUPS = [
         ['Work', 'Arbejde', ['work_hours', 'work_week', 'work_log']],
         ['Day', 'Dagen', ['calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer']],
-        ['Training', 'Træning', ['workout_plan', 'progression']],
+        ['Training', 'Træning', ['workout_plan', 'training_program', 'progression']],
         ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack']],
-        ['Assistant', 'Assistent', ['scheduled_tasks', 'home', 'power_prices', 'appearance', 'feedback', 'recruiter', 'dev_ideas']]
+        ['Assistant', 'Assistent', ['scheduled_tasks', 'home', 'power_prices', 'settings', 'appearance', 'feedback', 'recruiter', 'dev_ideas']]
     ];
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer', 'workout_plan', 'progression', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'home', 'power_prices', 'appearance', 'feedback', 'recruiter', 'dev_ideas'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer', 'workout_plan', 'training_program', 'progression', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'home', 'power_prices', 'settings', 'appearance', 'feedback', 'recruiter', 'dev_ideas'];
     HOME_CARD_ORDER = HOME_CARD_ORDER.filter(function (k) { return HOME_CARDS[k]; });   // a key without a card can never break the pickers
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
@@ -1926,7 +1923,6 @@
         if (!card || !card.kind) return;
 
         // Calendar agenda is display-only (read from Google), so it has its own renderer.
-        if (card.kind === 'agenda') { renderAgenda(card); return; }
         if (card.kind === 'recruiter') { renderRecruiter(card); return; }
         if (card.kind === 'calendar_month') { renderCalendarMonth(card); return; }
         if (card.kind === 'weather') { renderWeather(card); return; }
@@ -1948,13 +1944,12 @@
         if (card.kind === 'cycle') { renderCycle(card); return; }
         if (card.kind === 'progression') { renderProgression(card); return; }
         if (card.kind === 'work_chart') { renderWorkChart(card); return; }
-        if (card.kind === 'work_clock') { renderWorkClock(card); return; }
         if (card.kind === 'chart') { renderChart(card); return; }
         if (card.kind === 'power_prices') { renderPowerPrices(card); return; }
         if (card.kind === 'feedback') { renderFeedback(card); return; }
         if (card.kind === 'dev_ideas') { renderDevIdeas(card); return; }
         if (card.kind === 'scheduled_tasks') { renderScheduledTasks(card); return; }
-        if (card.kind === 'personality') { renderPersonality(card); return; }
+        if (card.kind === 'settings') { renderSettings(card); return; }
         if (card.kind === 'appearance') { renderAppearance(card); return; }
         if (card.kind === 'home_cards') { renderHomeCards(card); return; }
         if (card.kind === 'home') { renderHome(card); return; }
@@ -2748,10 +2743,17 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
+    var calViewKey = 'kachow-cal-view';
+    function calSavedView() { try { var v = localStorage.getItem(calViewKey); return ['day', '3day', 'week', 'month'].indexOf(v) !== -1 ? v : 'month'; } catch (e) { return 'month'; } }
+    function calLoadUrl(view, date) {
+        return '/api/calendar-month.php?view=' + encodeURIComponent(view) + '&date=' + encodeURIComponent(date || '');
+    }
+
     function buildCalendarMonth(wrap, card, selected) {
         wrap.innerHTML = '';
         var days = card.days || {};
         var month = card.month || '';
+        var view = card.view || 'month';
         var allDays = Object.keys(days).map(function (k) { return { events: days[k] }; });
         var colors = makeCalColorMap(allDays);
         var da = (navigator.language || '').toLowerCase().indexOf('da') === 0;
@@ -2760,20 +2762,21 @@
         head.className = 'cm-head';
         var prev = document.createElement('button');
         prev.type = 'button'; prev.className = 'cm-nav'; prev.textContent = '‹';
-        prev.setAttribute('aria-label', daText('Previous month', 'Forrige måned'));
+        prev.setAttribute('aria-label', daText('Previous', 'Forrige'));
         var next = document.createElement('button');
         next.type = 'button'; next.className = 'cm-nav'; next.textContent = '›';
-        next.setAttribute('aria-label', daText('Next month', 'Næste måned'));
+        next.setAttribute('aria-label', daText('Next', 'Næste'));
         var title = document.createElement('div');
         title.className = 'plan-card-title cm-title';
         var first = new Date(month + '-01T12:00:00');
-        title.textContent = isNaN(first) ? (card.title || '') : first.toLocaleDateString(da ? 'da-DK' : 'en-GB', { month: 'long', year: 'numeric' });
+        title.textContent = view !== 'month' ? (card.title || '') : (isNaN(first) ? (card.title || '') : first.toLocaleDateString(da ? 'da-DK' : 'en-GB', { month: 'long', year: 'numeric' }));
         head.appendChild(prev); head.appendChild(title); head.appendChild(next);
         wrap.appendChild(head);
 
-        function go(m) {
+        // One calendar, several views: day / 3 days / week / month — the same data, a different window.
+        function loadView(url) {
             wrap.classList.add('loading');
-            fetch('/api/calendar-month.php?month=' + encodeURIComponent(m), { credentials: 'same-origin' })
+            fetch(url, { credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (j) {
                     wrap.classList.remove('loading');
@@ -2784,13 +2787,99 @@
                             if (cardPanelSub) cardPanelSub.textContent = cardSubFor(j.card);
                         }
                     } else {
-                        toast((j && j.error) || daText('Could not load that month.', 'Kunne ikke hente måneden.'));
+                        toast((j && j.error) || daText('Could not load the calendar.', 'Kunne ikke hente kalenderen.'));
                     }
                 })
                 .catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); });
         }
-        prev.addEventListener('click', function () { if (card.prev) go(card.prev); });
-        next.addEventListener('click', function () { if (card.next) go(card.next); });
+        var anchor = card.anchor || (card.today && card.today.slice(0, 7) === month ? card.today : month + '-01');
+        prev.addEventListener('click', function () { if (card.prev) loadView(view === 'month' ? '/api/calendar-month.php?month=' + encodeURIComponent(card.prev) : calLoadUrl(view, card.prev)); });
+        next.addEventListener('click', function () { if (card.next) loadView(view === 'month' ? '/api/calendar-month.php?month=' + encodeURIComponent(card.next) : calLoadUrl(view, card.next)); });
+
+        var sw = document.createElement('div');
+        sw.className = 'cm-views';
+        [['day', daText('Day', 'Dag')], ['3day', daText('3 days', '3 dage')], ['week', daText('Week', 'Uge')], ['month', daText('Month', 'Måned')]].forEach(function (v) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'cm-view' + (v[0] === view ? ' on' : '');
+            b.textContent = v[1];
+            b.addEventListener('click', function () {
+                if (v[0] === view) return;
+                try { localStorage.setItem(calViewKey, v[0]); } catch (e) { /* ignore */ }
+                loadView(calLoadUrl(v[0], anchor));
+            });
+            sw.appendChild(b);
+        });
+        var todayBtn = document.createElement('button');
+        todayBtn.type = 'button';
+        todayBtn.className = 'cm-view cm-today-btn';
+        todayBtn.textContent = daText('Today', 'I dag');
+        todayBtn.addEventListener('click', function () { loadView(calLoadUrl(view, card.today)); });
+        sw.appendChild(todayBtn);
+        wrap.appendChild(sw);
+
+        function eventList(list) {
+            var ul = document.createElement('ul');
+            ul.className = 'agenda-items';
+            list.forEach(function (ev) {
+                var li = document.createElement('li');
+                if (ev.all_day) li.classList.add('all-day');
+                var t = document.createElement('span');
+                t.className = 'agenda-time';
+                t.textContent = ev.all_day ? daText('All day', 'Hele dagen') : (ev.time === 'cont.' ? daText('cont.', 'fortsat') : ev.time);
+                var body = document.createElement('span');
+                body.className = 'agenda-body';
+                var ttl = document.createElement('span');
+                ttl.className = 'agenda-title';
+                if (ev.calendar) {
+                    var dot = document.createElement('span');
+                    dot.className = 'cal-dot';
+                    dot.style.background = colors[ev.calendar];
+                    ttl.appendChild(dot);
+                }
+                ttl.appendChild(document.createTextNode(ev.summary));
+                body.appendChild(ttl);
+                var meta = [ev.calendar, ev.location].filter(Boolean).join(' · ');
+                if (meta) {
+                    var m = document.createElement('span');
+                    m.className = 'agenda-meta';
+                    m.textContent = meta;
+                    body.appendChild(m);
+                }
+                li.appendChild(t); li.appendChild(body);
+                ul.appendChild(li);
+            });
+            return ul;
+        }
+
+        // Day / 3-day / week: the days of the range one under the other, empty days included ("Nothing scheduled").
+        if (view !== 'month') {
+            var from0 = new Date((card.range_from || anchor) + 'T12:00:00');
+            var to0 = new Date((card.range_to || anchor) + 'T12:00:00');
+            var list = document.createElement('div');
+            list.className = 'cm-range';
+            for (var dd = new Date(from0); dd <= to0; dd.setDate(dd.getDate() + 1)) {
+                var k = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0');
+                var blk = document.createElement('div');
+                blk.className = 'plan-day cm-range-day' + (k === card.today ? ' today' : '');
+                var dh = document.createElement('div');
+                dh.className = 'plan-day-head';
+                dh.textContent = dd.toLocaleDateString(da ? 'da-DK' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+                blk.appendChild(dh);
+                var evs0 = days[k] || [];
+                if (!evs0.length) {
+                    var em = document.createElement('div');
+                    em.className = 'plan-empty';
+                    em.textContent = daText('Nothing scheduled.', 'Intet i kalenderen.');
+                    blk.appendChild(em);
+                } else {
+                    blk.appendChild(eventList(evs0));
+                }
+                list.appendChild(blk);
+            }
+            wrap.appendChild(list);
+            return;
+        }
 
         var grid = document.createElement('div');
         grid.className = 'cm-grid';
@@ -2823,37 +2912,7 @@
                 detail.appendChild(e);
                 return;
             }
-            var ul = document.createElement('ul');
-            ul.className = 'agenda-items';
-            list.forEach(function (ev) {
-                var li = document.createElement('li');
-                if (ev.all_day) li.classList.add('all-day');
-                var t = document.createElement('span');
-                t.className = 'agenda-time';
-                t.textContent = ev.all_day ? daText('All day', 'Hele dagen') : (ev.time === 'cont.' ? daText('cont.', 'fortsat') : ev.time);
-                var body = document.createElement('span');
-                body.className = 'agenda-body';
-                var ttl = document.createElement('span');
-                ttl.className = 'agenda-title';
-                if (ev.calendar) {
-                    var dot = document.createElement('span');
-                    dot.className = 'cal-dot';
-                    dot.style.background = colors[ev.calendar];
-                    ttl.appendChild(dot);
-                }
-                ttl.appendChild(document.createTextNode(ev.summary));
-                body.appendChild(ttl);
-                var meta = [ev.calendar, ev.location].filter(Boolean).join(' · ');
-                if (meta) {
-                    var m = document.createElement('span');
-                    m.className = 'agenda-meta';
-                    m.textContent = meta;
-                    body.appendChild(m);
-                }
-                li.appendChild(t); li.appendChild(body);
-                ul.appendChild(li);
-            });
-            detail.appendChild(ul);
+            detail.appendChild(eventList(list));
         }
 
         var from = new Date((card.grid_from || month + '-01') + 'T12:00:00');
@@ -2908,100 +2967,6 @@
         // Open on today when it's in this month, else the 1st.
         if (todayCell && card.today && card.today.slice(0, 7) === month) showDay(card.today, todayCell);
         else showDay(selected || month + '-01', grid.querySelector('.cm-day:not(.out)'));
-    }
-
-    // Read-only calendar agenda: days, each with a list of events (time + title).
-    function renderAgenda(card) {
-        clearEmptyHint();
-        const wrap = document.createElement('div');
-        wrap.className = 'plan-card agenda-card';
-
-        if (card.title) {
-            const h = document.createElement('div');
-            h.className = 'plan-card-title';
-            h.textContent = card.title;
-            wrap.appendChild(h);
-        }
-
-        const days = card.days || [];
-        if (!days.length) {
-            const empty = document.createElement('div');
-            empty.className = 'plan-empty';
-            empty.textContent = 'Nothing scheduled.';
-            wrap.appendChild(empty);
-            messages.appendChild(wrap);
-            messages.scrollTop = messages.scrollHeight;
-            return;
-        }
-
-        const calColors = makeCalColorMap(days);
-
-        days.forEach(function (d) {
-            const dayEl = document.createElement('div');
-            dayEl.className = 'plan-day';
-
-            const head = document.createElement('div');
-            head.className = 'plan-day-head';
-            head.textContent = d.weekday + ' · ' + d.label;
-            dayEl.appendChild(head);
-
-            const ul = document.createElement('ul');
-            ul.className = 'agenda-items';
-            (d.events || []).forEach(function (ev) {
-                const li = document.createElement('li');
-                if (ev.all_day) li.classList.add('all-day');
-
-                const time = document.createElement('span');
-                time.className = 'agenda-time';
-                time.textContent = ev.time;
-
-                const body = document.createElement('span');
-                body.className = 'agenda-body';
-
-                const title = document.createElement('span');
-                title.className = 'agenda-title';
-                if (ev.calendar) {
-                    // A colour dot keyed to the calendar name — same calendar, same colour.
-                    const dot = document.createElement('span');
-                    dot.className = 'cal-dot';
-                    dot.style.background = calColors[ev.calendar];
-                    title.appendChild(dot);
-                }
-                title.appendChild(document.createTextNode(ev.summary));
-                body.appendChild(title);
-
-                // Meta line: which calendar it's from, then location if any.
-                const metaBits = [];
-                if (ev.calendar) metaBits.push(ev.calendar);
-                if (ev.location) metaBits.push(ev.location);
-                if (metaBits.length) {
-                    const meta = document.createElement('span');
-                    meta.className = 'agenda-meta';
-                    meta.textContent = metaBits.join(' · ');
-                    body.appendChild(meta);
-                }
-
-                li.appendChild(time);
-                li.appendChild(body);
-
-                // Tap an event to drop a reference to it into the composer, so a
-                // follow-up like "move to 4pm" / "delete it" is unambiguous.
-                li.tabIndex = 0;
-                li.title = 'Tap to ask about this event';
-                const pick = function () { prefillEvent(d, ev); };
-                li.addEventListener('click', pick);
-                li.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
-                });
-
-                ul.appendChild(li);
-            });
-            dayEl.appendChild(ul);
-            wrap.appendChild(dayEl);
-        });
-
-        messages.appendChild(wrap);
-        messages.scrollTop = messages.scrollHeight;
     }
 
     // Put a plain-language reference to an event into the composer, ready for the
@@ -3138,14 +3103,11 @@
     // a clear outcome instead of re-rendering the item as if it still exists.
     // Personality slider card: a 3-stop range (Off / Subtle / Full) that saves the
     // `personality` setting on release and live-previews a sample reply per level.
-    function renderPersonality(card) {
-        clearEmptyHint();
+    // The personality dial (a section of the Settings card): slide or tap to set how much character the assistant's replies carry; saved at once.
+    function buildPersonality(wrap, card) {
         var levels = PERSONALITY_LEVELS;
         var idx = levels.map(function (l) { return l.value; }).indexOf(String(card.level || '2'));
         if (idx < 0) idx = 1;
-
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card personality-card';
 
         var intro = document.createElement('div');
         intro.className = 'persona-intro';
@@ -3209,8 +3171,128 @@
         slider.addEventListener('change', function () { apply(parseInt(slider.value, 10) || 0, true); });
 
         paint(idx);
+    }
+
+    // ---- Settings: every setting in one card, grouped; change a value and it saves ("Reset" returns it to the default). Appearance and the start cards keep their own cards. ----
+    function renderSettings(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card settings-card';
+        buildSettings(wrap, card);
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
+    }
+    function buildSettings(wrap, card) {
+        wrap.innerHTML = '';
+        var h = document.createElement('div');
+        h.className = 'plan-card-title';
+        h.textContent = daText('Settings', 'Indstillinger');
+        wrap.appendChild(h);
+
+        var links = document.createElement('div');
+        links.className = 'set-links';
+        [[daText('Appearance', 'Udseende'), function () { openAppearanceCard(); }],
+         [daText('Start cards', 'Startkort'), function () { var b = document.getElementById('homeCardsBtn'); if (b) b.click(); }],
+         [daText('Notifications', 'Notifikationer'), function () { var b = document.getElementById('notifBtn'); if (b) b.click(); }]].forEach(function (l) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'sched-btn';
+            b.textContent = l[0] + ' ›';
+            b.addEventListener('click', l[1]);
+            links.appendChild(b);
+        });
+        wrap.appendChild(links);
+
+        function save(item, value, status, row) {
+            status.textContent = '…';
+            status.className = 'set-status';
+            return fetch('/api/settings.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ key: item.key, value: value }) })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (res) {
+                    if (!res.ok || !res.j || res.j.ok === false) {
+                        status.textContent = (res.j && res.j.error) || daText('Not saved', 'Ikke gemt');
+                        status.className = 'set-status is-err';
+                        return null;
+                    }
+                    status.textContent = daText('Saved', 'Gemt');
+                    status.className = 'set-status is-ok';
+                    item.value = res.j.value;
+                    item.is_custom = String(res.j.value) !== String(item.default);
+                    if (row) row.classList.toggle('is-custom', item.is_custom);
+                    return res.j;
+                })
+                .catch(function () { status.textContent = daText('Network error', 'Netværksfejl'); status.className = 'set-status is-err'; return null; });
+        }
+
+        (card.groups || []).forEach(function (g, gi) {
+            var det = document.createElement('details');
+            det.className = 'set-group';
+            if (gi === 0) det.open = true;
+            var sum = document.createElement('summary');
+            sum.textContent = daText(g.en, g.da);
+            det.appendChild(sum);
+            (g.items || []).forEach(function (it) {
+                var row = document.createElement('div');
+                row.className = 'set-row' + (it.is_custom ? ' is-custom' : '');
+                var lab = document.createElement('div');
+                lab.className = 'set-label';
+                lab.textContent = it.label;
+                row.appendChild(lab);
+                var status = document.createElement('span');
+                status.className = 'set-status';
+                if (it.type === 'dial') {
+                    buildPersonality(row, { level: it.value });
+                } else {
+                    var field;
+                    if (it.type === 'choice') {
+                        field = document.createElement('select');
+                        (it.choices || []).forEach(function (c) {
+                            var o = document.createElement('option');
+                            o.value = c.value;
+                            o.textContent = daText(c.en, c.da);
+                            field.appendChild(o);
+                        });
+                        field.value = it.value;
+                        field.addEventListener('change', function () { save(it, field.value, status, row); });
+                    } else {
+                        field = document.createElement(it.type === 'textarea' ? 'textarea' : 'input');
+                        if (it.type === 'textarea') field.rows = 2; else field.type = it.type === 'number' ? 'text' : 'text';
+                        if (it.type === 'number') field.inputMode = 'decimal';
+                        field.value = it.value;
+                        field.placeholder = it.default || '';
+                        field.className = 'set-field';
+                        field.addEventListener('change', function () { save(it, field.value.trim(), status, row); });
+                    }
+                    field.classList.add('set-field');
+                    row.appendChild(field);
+                }
+                var foot = document.createElement('div');
+                foot.className = 'set-foot';
+                var desc = document.createElement('span');
+                desc.className = 'set-desc';
+                desc.textContent = it.description || '';
+                foot.appendChild(desc);
+                var reset = document.createElement('button');
+                reset.type = 'button';
+                reset.className = 'set-reset';
+                reset.textContent = daText('Reset', 'Nulstil');
+                reset.title = daText('Back to the default: ', 'Tilbage til standard: ') + (it.default || '—');
+                reset.addEventListener('click', function () {
+                    save(it, '', status, row).then(function (j) { if (j) { loadView(); } });
+                });
+                foot.appendChild(reset);
+                foot.appendChild(status);
+                row.appendChild(foot);
+                det.appendChild(row);
+            });
+            wrap.appendChild(det);
+        });
+        // After a reset, re-read the card so every field shows the real value.
+        function loadView() {
+            fetch('/api/settings.php?card=1', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+                .then(function (j) { if (j && j.card) { var open = Array.prototype.map.call(wrap.querySelectorAll('.set-group'), function (d) { return d.open; }); buildSettings(wrap, j.card); wrap.querySelectorAll('.set-group').forEach(function (d, i) { d.open = !!open[i]; }); } })
+                .catch(function () { /* keep what is shown */ });
+        }
     }
 
     // Home card: one box per room; inside it one labelled section per SOURCE (Climate = thermostats, Lights = Hue …), each a grid of
@@ -3878,20 +3960,22 @@
         var pill = document.createElement('span');
         pill.className = 'sched-pill' + (p.status === 'active' ? '' : ' draft');
         pill.textContent = p.status === 'active' ? daText('Active', 'Aktiv') : daText('Archived', 'Arkiveret');
-        head.appendChild(pill);
+        if (!card.empty) head.appendChild(pill);
         wrap.appendChild(head);
         var meta = document.createElement('div');
         meta.className = 'tp-meta';
         meta.textContent = p.week_mode === 'relative'
             ? daText('Week 1, 2, 3 … from ', 'Uge 1, 2, 3 … fra ') + (p.start_date || '?') + (p.repeat_weeks ? daText(', repeats every ', ', gentages hver ') + p.repeat_weeks + daText(' weeks', '. uge') : '')
             : daText('Calendar weeks', 'Kalenderuger');
-        wrap.appendChild(meta);
+        if (!card.empty) wrap.appendChild(meta);
 
         var weeks = card.weeks || [];
         if (!weeks.length) {
             var empty = document.createElement('div');
             empty.className = 'prog-empty';
-            empty.textContent = daText('No days in this programme yet.', 'Ingen dage i dette program endnu.');
+            empty.textContent = card.empty
+                ? daText('No training programme yet. Paste yours in the chat and ask Kachow to save it.', 'Intet træningsprogram endnu. Indsæt dit i chatten, og bed Kachow gemme det.')
+                : daText('No days in this programme yet.', 'Ingen dage i dette program endnu.');
             wrap.appendChild(empty);
             messages.appendChild(wrap);
             return;
@@ -5913,106 +5997,6 @@
             'Samlet pris pr. kWh: spot + net- og Energinet-tariffer + afgift, inkl. moms. Kilde: Energi Data Service.')
             + (card.incomplete ? daText(' ⚠ A tariff was missing, price may be too low.', ' ⚠ En tarif manglede, prisen kan være for lav.') : '');
         wrap.appendChild(note);
-
-        messages.appendChild(wrap);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
-    // Phase-4 shadow work clock: location-derived hours vs recorded punches, per day.
-    function renderWorkClock(card) {
-        clearEmptyHint();
-        var wrap = document.createElement('div');
-        wrap.className = 'plan-card wc-card';
-
-        var head = document.createElement('div'); head.className = 'books-head';
-        var title = document.createElement('div'); title.className = 'books-title';
-        title.textContent = daText('Work clock · shadow', 'Arbejdsur · skygge');
-        head.appendChild(title);
-        var range = document.createElement('span'); range.className = 'books-navlabel'; range.textContent = card.range || '';
-        head.appendChild(range);
-        wrap.appendChild(head);
-
-        // Summary: auto total vs punch total + agreement.
-        var sum = document.createElement('div'); sum.className = 'wc-summary';
-        function chip(labelText, value, cls) {
-            var c = document.createElement('div'); c.className = 'wc-chip ' + (cls || '');
-            var l = document.createElement('div'); l.className = 'wc-chip-l'; l.textContent = labelText;
-            var v = document.createElement('div'); v.className = 'wc-chip-v'; v.textContent = value;
-            c.appendChild(l); c.appendChild(v); return c;
-        }
-        sum.appendChild(chip(daText('Auto (location)', 'Auto (lokation)'), card.location_total || '0m', 'wc-auto'));
-        sum.appendChild(chip(daText('Punches', 'Stempling'), card.punch_total || '0m', 'wc-punch'));
-        sum.appendChild(chip(daText('Days matching', 'Dage der matcher'),
-            (card.agree_days || 0) + '/' + (card.compared_days || 0)));
-        wrap.appendChild(sum);
-
-        // Per-day rows.
-        var days = card.days || [];
-        if (!days.length) {
-            var empty = document.createElement('div'); empty.className = 'wc-note';
-            empty.textContent = daText('No work-place stays or punches in this range.',
-                                       'Ingen ophold på arbejdssteder eller stemplinger i perioden.');
-            wrap.appendChild(empty);
-        }
-        days.forEach(function (d) {
-            var row = document.createElement('div');
-            row.className = 'wc-day' + (d.match === true ? ' is-match' : (d.match === false ? ' is-diff' : ''))
-                + (d.incomplete ? ' is-incomplete' : '');
-
-            var date = document.createElement('div'); date.className = 'wc-date'; date.textContent = d.label || d.date;
-            // A day the tracker missed part of: the auto figure is low because of missing data,
-            // not because the rules are wrong.
-            if (d.incomplete) {
-                var warn = document.createElement('span'); warn.className = 'wc-gap';
-                warn.textContent = daText('gap', 'hul');
-                warn.title = daText('No positions for part of this day', 'Ingen positioner i en del af dagen');
-                date.appendChild(document.createTextNode(' '));
-                date.appendChild(warn);
-            }
-            row.appendChild(date);
-
-            var cols = document.createElement('div'); cols.className = 'wc-cols';
-            function col(cls, total, sessions) {
-                var c = document.createElement('div'); c.className = 'wc-col ' + cls;
-                var t = document.createElement('div'); t.className = 'wc-col-total'; t.textContent = total || '0m';
-                c.appendChild(t);
-                var times = (sessions || []).map(function (s) {
-                    return (s.in || '') + '–' + (s.ongoing ? '…' : (s.out || ''));
-                });
-                if (times.length) {
-                    var sub = document.createElement('div'); sub.className = 'wc-col-sub'; sub.textContent = times.join(', ');
-                    c.appendChild(sub);
-                }
-                return c;
-            }
-            cols.appendChild(col('wc-auto', d.location_total, d.location_sessions));
-            cols.appendChild(col('wc-punch', d.punch_total, d.punch_sessions));
-            row.appendChild(cols);
-
-            var delta = document.createElement('div'); delta.className = 'wc-delta';
-            delta.textContent = d.match === true ? '✓' : (d.delta_label || '');
-            row.appendChild(delta);
-
-            wrap.appendChild(row);
-        });
-
-        if (card.incomplete_days) {
-            var inc = document.createElement('div'); inc.className = 'wc-note is-warn';
-            inc.textContent = daText(
-                card.incomplete_days + ' of these days are marked "gap": the phone stopped reporting for an hour or '
-                    + 'more, so the auto figure saw only part of the day. Judge the rules on the other days.',
-                card.incomplete_days + ' af dagene er markeret "hul": telefonen holdt op med at sende i en time '
-                    + 'eller mere, så auto-tallet har kun set en del af dagen. Vurdér reglerne på de øvrige dage.');
-            wrap.appendChild(inc);
-        }
-
-        if (card.note) {
-            var note = document.createElement('div'); note.className = 'wc-note';
-            note.textContent = daText(
-                'Shadow only — not counted in your hours yet. Auto reads work-type places; punches are your current clock.',
-                'Kun skygge — tælles ikke med i dine timer endnu. Auto læser arbejdssteder; stempling er dit nuværende ur.');
-            wrap.appendChild(note);
-        }
 
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;

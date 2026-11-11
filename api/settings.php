@@ -3,10 +3,11 @@
 declare(strict_types=1);
 
 /**
- * Settings card actions (authenticated session, JSON) — the tap affordances on the
- * personality slider card. Own settings only.
+ * The Settings card and its actions (authenticated session, JSON). Own settings only.
  *
- *   POST { key:'personality', value:'off'|'subtle'|'full' } → save it, returns the card
+ *   GET ?card=1                    → { ok, card }   the Settings card (every setting, grouped, with its current value)
+ *   GET                            → { ok, values } the current value of every setting (the app applies the saved theme on load)
+ *   POST { key, value }            → save it ('' = back to the default), returns { ok, key, value, card? }
  */
 
 require __DIR__ . '/../bootstrap.php';
@@ -44,6 +45,9 @@ $userId = (int) $session->userId();
 // load across devices (after the instant localStorage apply that avoids a flash).
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     $read   = new UserSettings();
+    if (isset($_GET['card'])) {
+        out(200, ['ok' => true, 'card' => $read->settingsCard($userId)]);
+    }
     $values = [];
     foreach (UserSettings::keys() as $k) {
         $values[$k] = $read->get($userId, $k);
@@ -59,6 +63,12 @@ if (!UserSettings::exists($key)) {
     out(400, ['error' => 'Unknown setting.']);
 }
 // Canonicalise the values the cards drive.
+if ($key === 'work_clock' && $value !== '') {
+    $value = UserSettings::normalizeWorkClock($value) ?? '';
+    if ($value === '') {
+        out(400, ['error' => 'Work clock must be manual or automatic (location).']);
+    }
+}
 if ($key === 'personality') {
     $value = UserSettings::normalizePersonality($value);
 } elseif (in_array($key, ['theme', 'theme_dark', 'theme_light'], true)) {
@@ -72,9 +82,7 @@ $settings->set($userId, $key, $value);
 $saved = $settings->get($userId, $key) ?? '';
 
 $card = null;
-if ($key === 'personality') {
-    $card = UserSettings::personalityCard($saved);
-} elseif (in_array($key, ['theme', 'theme_dark', 'theme_light'], true)) {
+if (in_array($key, ['theme', 'theme_dark', 'theme_light'], true)) {
     $card = $settings->appearance($userId);
 }
 
