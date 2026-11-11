@@ -296,7 +296,7 @@
                 ov.querySelectorAll('.ins-range').forEach(function (x) { x.classList.remove('on'); });
                 b.classList.add('on');
                 loadInsights();
-                loadInsightsCost();
+                loadInsightsCost(); loadInsightsShadow();
             });
             rc.appendChild(b);
         });
@@ -304,12 +304,12 @@
         var live = ov.querySelector('#insLive');
         live.checked = insights.live;
         live.addEventListener('change', function () { insights.live = live.checked; scheduleInsights(); });
-        ov.querySelector('#insRefresh').addEventListener('click', function () { loadInsights(); loadInsightsCost(); });
+        ov.querySelector('#insRefresh').addEventListener('click', function () { loadInsights(); loadInsightsCost(); loadInsightsShadow(); });
         ov.querySelector('#insClose').addEventListener('click', closeInsights);
         ov.addEventListener('click', function (e) { if (e.target === ov) closeInsights(); });
 
         loadInsights();
-        loadInsightsCost();
+        loadInsightsCost(); loadInsightsShadow();
         scheduleInsights();
     }
 
@@ -387,6 +387,42 @@
         if (!Object.keys(models).length) pbox.innerHTML = '<div class="ins-meta">No calls recorded yet.</div>';
     }
 
+    // ---- Tool targeting (shadow): would a targeted tool list (the message's areas + the most used tools + new ones + a small core) have held the tools the
+    // model really called? Per top-N size: the miss rate and the saving. Nothing is switched yet — this is what decides whether and how (api/tool-shadow.php). ----
+    function loadInsightsShadow() {
+        var body = document.getElementById('insBody');
+        if (!body) return;
+        var box = document.getElementById('insShadow');
+        if (!box) { box = document.createElement('div'); box.id = 'insShadow'; box.className = 'ins-section ins-cost'; body.appendChild(box); }
+        if (!box.firstChild) box.innerHTML = '<h4>Tool targeting (shadow)</h4><div class="insights-loading">Loading…</div>';
+        fetch('/api/tool-shadow.php' + (insights.days ? '?days=' + insights.days : ''), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (document.getElementById('insShadow') === box) drawInsightsShadow(box, j); })
+            .catch(function () { box.innerHTML = '<h4>Tool targeting (shadow)</h4><div class="insights-error">Could not load.</div>'; });
+    }
+    function drawInsightsShadow(box, j) {
+        if (!j || j.ok === false || j.error) {
+            box.innerHTML = '<h4>Tool targeting (shadow)</h4><div class="insights-error">' + progEsc((j && j.error) || 'No data.') + '</div>';
+            return;
+        }
+        var h = '<h4>Tool targeting (shadow)</h4>' +
+            '<div class="ins-meta">' + j.turns + ' turns measured (' + j.turns_with_tools + ' used tools) · the full list today is ' + insTok(j.full_chars_avg) + ' chars per call. ' +
+            'Nothing is switched: this is what a targeted list WOULD have done.</div>';
+        if (!j.turns) { box.innerHTML = h + '<div class="insights-loading">No turns measured yet.</div>'; return; }
+        h += '<table class="ins-table"><thead><tr><th>top N</th><th>would miss</th><th>miss rate</th><th>list size</th><th>saving</th></tr></thead><tbody>';
+        (j.sizes || []).forEach(function (x) {
+            h += '<tr><td>' + x.n + '</td><td>' + x.missed_turns + ' turn' + (x.missed_turns === 1 ? '' : 's') + '</td><td>' + (x.miss_rate === null ? '—' : (x.miss_rate * 100).toFixed(1) + '%') +
+                '</td><td>' + insTok(x.chars_avg) + '</td><td>' + (x.saving === null ? '—' : Math.round(x.saving * 100) + '%') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+        (j.sizes || []).forEach(function (x) {
+            var names = Object.keys(x.missed_tools || {});
+            if (!names.length) return;
+            h += '<div class="ins-sub">Would have been missing at top ' + x.n + ': ' + names.map(function (t) { return progEsc(t) + ' ×' + x.missed_tools[t]; }).join(', ') + '</div>';
+        });
+        box.innerHTML = h;
+    }
+
     function scheduleInsights() {
         if (insights.timer) { clearInterval(insights.timer); insights.timer = null; }
         if (insights.live && document.getElementById('insightsOverlay')) {
@@ -437,10 +473,12 @@
             progEsc(m.first_at || '—') + ' → ' + progEsc(m.last_at || '—') +
             (m.days ? ' · last ' + m.days + 'd' : ' · all history') + '</div>';
 
-        var keepCost = document.getElementById('insCost');   // the cost section is loaded on its own (not on the 10 s refresh), so it survives a redraw
+        var keepCost = document.getElementById('insCost');   // the cost and shadow sections load on their own (not on the 10 s refresh), so they survive a redraw
+        var keepShadow = document.getElementById('insShadow');
         if (!m.turns) {
             body.innerHTML = html + '<div class="insights-loading">No turns in this range yet.</div>';
             if (keepCost) body.appendChild(keepCost);
+            if (keepShadow) body.appendChild(keepShadow);
             return;
         }
 
@@ -525,6 +563,7 @@
 
         body.innerHTML = html;
         if (keepCost) body.appendChild(keepCost);
+        if (keepShadow) body.appendChild(keepShadow);
 
         // Wire tool drill-down toggles.
         body.querySelectorAll('.ins-tool-hd').forEach(function (hd) {
