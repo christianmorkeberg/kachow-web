@@ -3173,36 +3173,74 @@
         paint(idx);
     }
 
-    // ---- Settings: every setting in one card, grouped; change a value and it saves ("Reset" returns it to the default). Appearance and the start cards keep their own cards. ----
+    // ---- Settings: ONE place for everything — General (all settings + appearance + start cards), Accounts (calendar, mail), People (connections and what is shared), Notifications, Devices, Developer. ----
+    var SET_TABS = [['general', 'General', 'Generelt'], ['accounts', 'Accounts', 'Konti'], ['people', 'People', 'Personer'], ['notifications', 'Notifications', 'Notifikationer'], ['devices', 'Devices', 'Enheder'], ['developer', 'Developer', 'Udvikler']];
+    var setTabKey = 'kachow-settings-tab';
+    function setEl(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+    }
+    // Draws a card with its ordinary renderer and moves the result into $container (so Appearance and the Start cards live inside Settings without being written twice).
+    function embedRendered(container, renderFn, card) {
+        var orig = messages.appendChild;   // the renderers end with messages.appendChild(wrap): catch that one call (presentCard does the same for the card panel)
+        messages.appendChild = function (node) { return container.appendChild(node); };
+        try {
+            renderFn(card);
+        } finally {
+            messages.appendChild = orig;
+        }
+    }
     function renderSettings(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');
         wrap.className = 'plan-card settings-card';
-        buildSettings(wrap, card);
+        buildSettings(wrap, card, null);
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
-    function buildSettings(wrap, card) {
+    function buildSettings(wrap, card, tab) {
         wrap.innerHTML = '';
-        var h = document.createElement('div');
-        h.className = 'plan-card-title';
-        h.textContent = daText('Settings', 'Indstillinger');
-        wrap.appendChild(h);
+        var saved = null;
+        try { saved = localStorage.getItem(setTabKey); } catch (e) { /* ignore */ }
+        tab = tab || (SET_TABS.some(function (t) { return t[0] === saved; }) ? saved : 'general');
+        wrap.appendChild(setEl('div', 'plan-card-title', daText('Settings', 'Indstillinger')));
 
-        var links = document.createElement('div');
-        links.className = 'set-links';
-        [[daText('Appearance', 'Udseende'), function () { openAppearanceCard(); }],
-         [daText('Start cards', 'Startkort'), function () { var b = document.getElementById('homeCardsBtn'); if (b) b.click(); }],
-         [daText('Notifications', 'Notifikationer'), function () { var b = document.getElementById('notifBtn'); if (b) b.click(); }]].forEach(function (l) {
-            var b = document.createElement('button');
+        var bar = setEl('div', 'set-tabs');
+        SET_TABS.forEach(function (t) {
+            var b = setEl('button', 'cm-view' + (t[0] === tab ? ' on' : ''), daText(t[1], t[2]));
             b.type = 'button';
-            b.className = 'sched-btn';
-            b.textContent = l[0] + ' ›';
-            b.addEventListener('click', l[1]);
-            links.appendChild(b);
+            b.addEventListener('click', function () {
+                try { localStorage.setItem(setTabKey, t[0]); } catch (e) { /* ignore */ }
+                buildSettings(wrap, card, t[0]);
+            });
+            bar.appendChild(b);
         });
-        wrap.appendChild(links);
+        wrap.appendChild(bar);
+        var panel = setEl('div', 'set-panel');
+        wrap.appendChild(panel);
+        var reload = function () {
+            fetch('/api/settings.php?card=1', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+                .then(function (j) {
+                    if (j && j.card) {
+                        var open = Array.prototype.map.call(wrap.querySelectorAll('.set-group'), function (d) { return d.open; });
+                        buildSettings(wrap, j.card, tab);
+                        wrap.querySelectorAll('.set-group').forEach(function (d, i) { d.open = !!open[i]; });
+                    }
+                }).catch(function () { /* keep what is shown */ });
+        };
+        if (tab === 'general') settingsGeneral(panel, card, reload);
+        else if (tab === 'accounts') settingsAccounts(panel, card);
+        else if (tab === 'people') settingsPeople(panel, card);
+        else if (tab === 'notifications') {
+            if (window.kachowNotifPanel) window.kachowNotifPanel(panel);
+            else panel.appendChild(setEl('div', 'plan-empty', daText('Notifications are not available in this browser.', 'Notifikationer er ikke tilgængelige i denne browser.')));
+        } else if (tab === 'devices') settingsDevices(panel);
+        else settingsDeveloper(panel, card);
+    }
 
+    function settingsGeneral(panel, card, reload) {
         function save(item, value, status, row) {
             status.textContent = '…';
             status.className = 'set-status';
@@ -3223,23 +3261,14 @@
                 })
                 .catch(function () { status.textContent = daText('Network error', 'Netværksfejl'); status.className = 'set-status is-err'; return null; });
         }
-
         (card.groups || []).forEach(function (g, gi) {
-            var det = document.createElement('details');
-            det.className = 'set-group';
+            var det = setEl('details', 'set-group');
             if (gi === 0) det.open = true;
-            var sum = document.createElement('summary');
-            sum.textContent = daText(g.en, g.da);
-            det.appendChild(sum);
+            det.appendChild(setEl('summary', null, daText(g.en, g.da)));
             (g.items || []).forEach(function (it) {
-                var row = document.createElement('div');
-                row.className = 'set-row' + (it.is_custom ? ' is-custom' : '');
-                var lab = document.createElement('div');
-                lab.className = 'set-label';
-                lab.textContent = it.label;
-                row.appendChild(lab);
-                var status = document.createElement('span');
-                status.className = 'set-status';
+                var row = setEl('div', 'set-row' + (it.is_custom ? ' is-custom' : ''));
+                row.appendChild(setEl('div', 'set-label', it.label));
+                var status = setEl('span', 'set-status');
                 if (it.type === 'dial') {
                     buildPersonality(row, { level: it.value });
                 } else {
@@ -3247,61 +3276,254 @@
                     if (it.type === 'choice') {
                         field = document.createElement('select');
                         (it.choices || []).forEach(function (c) {
-                            var o = document.createElement('option');
+                            var o = setEl('option', null, daText(c.en, c.da));
                             o.value = c.value;
-                            o.textContent = daText(c.en, c.da);
                             field.appendChild(o);
                         });
                         field.value = it.value;
                         field.addEventListener('change', function () { save(it, field.value, status, row); });
                     } else {
                         field = document.createElement(it.type === 'textarea' ? 'textarea' : 'input');
-                        if (it.type === 'textarea') field.rows = 2; else field.type = it.type === 'number' ? 'text' : 'text';
+                        if (it.type === 'textarea') field.rows = 2; else field.type = 'text';
                         if (it.type === 'number') field.inputMode = 'decimal';
                         field.value = it.value;
                         field.placeholder = it.default || '';
-                        field.className = 'set-field';
                         field.addEventListener('change', function () { save(it, field.value.trim(), status, row); });
                     }
                     field.classList.add('set-field');
                     row.appendChild(field);
                 }
-                var foot = document.createElement('div');
-                foot.className = 'set-foot';
-                var desc = document.createElement('span');
-                desc.className = 'set-desc';
-                desc.textContent = it.description || '';
-                foot.appendChild(desc);
-                var reset = document.createElement('button');
+                var foot = setEl('div', 'set-foot');
+                foot.appendChild(setEl('span', 'set-desc', it.description || ''));
+                var reset = setEl('button', 'set-reset', daText('Reset', 'Nulstil'));
                 reset.type = 'button';
-                reset.className = 'set-reset';
-                reset.textContent = daText('Reset', 'Nulstil');
                 reset.title = daText('Back to the default: ', 'Tilbage til standard: ') + (it.default || '—');
-                reset.addEventListener('click', function () {
-                    save(it, '', status, row).then(function (j) { if (j) { loadView(); } });
-                });
+                reset.addEventListener('click', function () { save(it, '', status, row).then(function (j) { if (j) reload(); }); });
                 foot.appendChild(reset);
                 foot.appendChild(status);
                 row.appendChild(foot);
                 det.appendChild(row);
             });
-            wrap.appendChild(det);
+            panel.appendChild(det);
         });
-        // After a reset, re-read the card so every field shows the real value.
-        function loadView() {
-            fetch('/api/settings.php?card=1', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
-                .then(function (j) { if (j && j.card) { var open = Array.prototype.map.call(wrap.querySelectorAll('.set-group'), function (d) { return d.open; }); buildSettings(wrap, j.card); wrap.querySelectorAll('.set-group').forEach(function (d, i) { d.open = !!open[i]; }); } })
-                .catch(function () { /* keep what is shown */ });
-        }
+        // The look and the start cards are settings too: shown here, written once (their own renderers).
+        var lookBox = setEl('details', 'set-group');
+        lookBox.appendChild(setEl('summary', null, daText('Appearance', 'Udseende')));
+        var pair = themePair();
+        embedRendered(lookBox, renderAppearance, { kind: 'appearance', theme: themeChoice(), theme_dark: pair.dark, theme_light: pair.light });
+        panel.appendChild(lookBox);
+        var startBox = setEl('details', 'set-group');
+        startBox.appendChild(setEl('summary', null, daText('Start cards', 'Startkort')));
+        embedRendered(startBox, renderHomeCards, { kind: 'home_cards', chosen: homeCards.slice() });
+        panel.appendChild(startBox);
     }
 
-    // Home card: one box per room; inside it one labelled section per SOURCE (Climate = thermostats, Lights = Hue …), each a grid of
-    // equal-size tiles. A new kind of device later is one more section. The lights and the (slower) valves load separately, so the
-    // rooms appear first and the thermostats fill in. Controls update at once and are sent to /api/home.php; a failed one toasts the
-    // reason and re-reads the bridge. A light tile switches on tap; its ⋯ opens the panel (brightness, colour wheel, whites).
-    // The Home card's loading animation: a bulb that flickers on and a thermometer whose mercury rises, with changing little messages.
-    // kind: 'lights' | 'thermo'. The messages stop by themselves once the loader leaves the page.
-    var HOME_CACHE_KEY = 'kachow_home_cache_v1';
+    function settingsAccounts(panel, card) {
+        var acc = card.accounts || { calendar: { connected: false }, email: [] };
+        var cal = setEl('div', 'set-acc-block');
+        cal.appendChild(setEl('div', 'set-label', daText('Google Calendar', 'Google Kalender')));
+        var calRow = setEl('div', 'set-acc-row');
+        calRow.appendChild(setEl('span', 'set-acc-name', acc.calendar.connected ? daText('Connected', 'Forbundet') : daText('Not connected', 'Ikke forbundet')));
+        var calBtn = setEl('a', 'sched-btn', acc.calendar.connected ? daText('Reconnect', 'Forbind igen') : daText('Connect', 'Forbind'));
+        calBtn.href = 'index.php?action=connect_google';
+        calRow.appendChild(calBtn);
+        cal.appendChild(calRow);
+        panel.appendChild(cal);
+
+        var mail = setEl('div', 'set-acc-block');
+        mail.appendChild(setEl('div', 'set-label', daText('Email', 'Mail')));
+        if (!(acc.email || []).length) mail.appendChild(setEl('div', 'plan-empty', daText('No mailbox connected yet.', 'Ingen postkasse forbundet endnu.')));
+        (acc.email || []).forEach(function (m) {
+            var row = setEl('div', 'set-acc-row');
+            row.appendChild(setEl('span', 'set-acc-name', m.email + ' · ' + m.provider));
+            var x = setEl('button', 'set-reset', daText('Disconnect', 'Frakobl'));
+            x.type = 'button';
+            x.addEventListener('click', function () {
+                if (!window.confirm(daText('Disconnect ' + m.email + '? Kachow will no longer read or send from it.', 'Frakobl ' + m.email + '? Kachow læser og sender ikke længere fra den.'))) return;
+                x.disabled = true;
+                fetch('/api/email-disconnect.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ id: m.id }) })
+                    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+                    .then(function (r) {
+                        if (r.ok && r.j && r.j.ok) { row.remove(); toast(daText('Disconnected.', 'Frakoblet.')); }
+                        else { x.disabled = false; toast((r.j && r.j.error) || daText('Could not disconnect.', 'Kunne ikke frakoble.')); }
+                    })
+                    .catch(function () { x.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
+            });
+            row.appendChild(x);
+            mail.appendChild(row);
+        });
+        var add = setEl('div', 'set-links');
+        [['Gmail', 'index.php?action=connect_gmail'], ['Hotmail / Outlook', 'index.php?action=connect_outlook']].forEach(function (l) {
+            var a = setEl('a', 'sched-btn', '+ ' + l[0]);
+            a.href = l[1];
+            add.appendChild(a);
+        });
+        var imap = setEl('button', 'sched-btn', '+ ' + daText('Other mailbox (IMAP)', 'Anden postkasse (IMAP)'));
+        imap.type = 'button';
+        imap.addEventListener('click', function () { var b = document.querySelector('[data-imap-preset="custom"]'); if (b) b.click(); });
+        add.appendChild(imap);
+        mail.appendChild(add);
+        panel.appendChild(mail);
+    }
+
+    function settingsPeople(panel, card) {
+        var people = card.people || { connections: [], scopes: [], is_admin: false };
+        var box = setEl('div', 'set-people');
+        panel.appendChild(box);
+        var scopeLabel = { workouts: 'Workouts', wishlist: 'Wishlist', calendar: 'Calendar', cycle: 'Cycle', home: 'Home devices', vinyls: 'Vinyls', work_hours: 'Work hours' };
+        function post(body) {
+            box.classList.add('loading');
+            return fetch('/api/connections.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (res) {
+                    box.classList.remove('loading');
+                    if (res.ok && res.j && res.j.people) { people = res.j.people; draw(res.j); return res.j; }
+                    toast((res.j && res.j.error) || daText('That did not work.', 'Det virkede ikke.'));
+                    return null;
+                })
+                .catch(function () { box.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); return null; });
+        }
+        function scopeBoxes(parent, checked) {
+            var wrapS = setEl('div', 'set-scopes');
+            (people.scopes || []).forEach(function (sc) {
+                var lab = setEl('label', 'set-scope');
+                lab.title = sc.help;
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = sc.key;
+                cb.checked = (checked || []).indexOf(sc.key) !== -1;
+                lab.appendChild(cb);
+                lab.appendChild(document.createTextNode(' ' + (scopeLabel[sc.key] || sc.key)));
+                wrapS.appendChild(lab);
+            });
+            parent.appendChild(wrapS);
+            return function () { return Array.prototype.filter.call(wrapS.querySelectorAll('input'), function (i) { return i.checked; }).map(function (i) { return i.value; }); };
+        }
+        function draw(extra) {
+            box.innerHTML = '';
+            var list = people.connections || [];
+            if (!list.length) box.appendChild(setEl('div', 'plan-empty', daText('You are not connected to anyone yet.', 'Du er ikke forbundet med nogen endnu.')));
+            list.forEach(function (c) {
+                var row = setEl('div', 'set-person');
+                var who = (c.person && (c.person.name || c.person.email)) || '?';
+                var head = setEl('div', 'set-person-head');
+                head.appendChild(setEl('span', 'set-label', who));
+                if (c.person && c.person.name) head.appendChild(setEl('span', 'set-desc', c.person.email));
+                row.appendChild(head);
+                if (c.status === 'pending' && c.direction === 'incoming') {
+                    row.appendChild(setEl('div', 'set-desc', daText('wants to connect. Choose what you share back:', 'vil forbindes. Vælg hvad du deler tilbage:')));
+                    var picked = scopeBoxes(row, ['workouts']);
+                    var act = setEl('div', 'set-links');
+                    var ok = setEl('button', 'sched-btn', daText('Accept', 'Accepter')); ok.type = 'button';
+                    ok.addEventListener('click', function () { post({ action: 'accept', connection_id: c.connection_id, share: picked() }); });
+                    var no = setEl('button', 'sched-btn', daText('Decline', 'Afvis')); no.type = 'button';
+                    no.addEventListener('click', function () { post({ action: 'remove', connection_id: c.connection_id }); });
+                    act.appendChild(ok); act.appendChild(no);
+                    row.appendChild(act);
+                } else if (c.status === 'pending') {
+                    row.appendChild(setEl('div', 'set-desc', daText('Request sent — waiting for them.', 'Anmodning sendt — venter på dem.')));
+                    var cn = setEl('button', 'set-reset', daText('Cancel request', 'Annuller anmodning')); cn.type = 'button';
+                    cn.addEventListener('click', function () { post({ action: 'remove', connection_id: c.connection_id }); });
+                    row.appendChild(cn);
+                } else {
+                    row.appendChild(setEl('div', 'set-desc', daText('You share (tap to change):', 'Du deler (tryk for at ændre):')));
+                    var cur = scopeBoxes(row, c.you_share || []);
+                    row.querySelectorAll('.set-scope input').forEach(function (i) {
+                        i.addEventListener('change', function () { post({ action: 'sharing', connection_id: c.connection_id, share: cur() }); });
+                    });
+                    row.appendChild(setEl('div', 'set-desc', daText('They share with you: ', 'De deler med dig: ') + ((c.they_share || []).map(function (k) { return scopeLabel[k] || k; }).join(', ') || daText('nothing', 'ingenting'))));
+                    var rm = setEl('button', 'set-reset', daText('Remove connection', 'Fjern forbindelse')); rm.type = 'button';
+                    rm.addEventListener('click', function () {
+                        if (rm.getAttribute('data-sure') !== '1') { rm.setAttribute('data-sure', '1'); rm.textContent = daText('Really remove?', 'Fjern helt?'); setTimeout(function () { if (rm.isConnected) { rm.removeAttribute('data-sure'); rm.textContent = daText('Remove connection', 'Fjern forbindelse'); } }, 4000); return; }
+                        post({ action: 'remove', connection_id: c.connection_id });
+                    });
+                    row.appendChild(rm);
+                }
+                box.appendChild(row);
+            });
+            // Connect with someone who has an account.
+            var add = setEl('div', 'set-person');
+            add.appendChild(setEl('div', 'set-label', daText('Connect with someone', 'Forbind med nogen')));
+            var em = document.createElement('input');
+            em.type = 'email'; em.className = 'set-field'; em.placeholder = daText('Their account email', 'Deres konto-mail'); em.autocomplete = 'off';
+            add.appendChild(em);
+            add.appendChild(setEl('div', 'set-desc', daText('What you share with them:', 'Hvad du deler med dem:')));
+            var chosen = scopeBoxes(add, []);
+            var send = setEl('button', 'sched-btn', daText('Send request', 'Send anmodning')); send.type = 'button';
+            send.addEventListener('click', function () {
+                if (!em.value.trim()) return;
+                post({ action: 'request', email: em.value.trim(), share: chosen() }).then(function (j) { if (j) toast(daText('Request sent.', 'Anmodning sendt.')); });
+            });
+            add.appendChild(send);
+            box.appendChild(add);
+            if (people.is_admin) {
+                var inv = setEl('div', 'set-person');
+                inv.appendChild(setEl('div', 'set-label', daText('Invite a new person (admin)', 'Inviter en ny person (admin)')));
+                var ie = document.createElement('input');
+                ie.type = 'email'; ie.className = 'set-field'; ie.placeholder = daText('Their email — they get a link to create an account', 'Deres mail — de får et link til at oprette en konto'); ie.autocomplete = 'off';
+                inv.appendChild(ie);
+                var ib = setEl('button', 'sched-btn', daText('Send invite', 'Send invitation')); ib.type = 'button';
+                var out = setEl('div', 'set-desc');
+                ib.addEventListener('click', function () {
+                    if (!ie.value.trim()) return;
+                    post({ action: 'invite', email: ie.value.trim() }).then(function (j) { if (j) { toast(daText('Invitation created.', 'Invitation oprettet.')); } });
+                });
+                inv.appendChild(ib);
+                inv.appendChild(out);
+                if (extra && extra.invite_url) {
+                    var link = setEl('a', 'set-desc', extra.invite_url);
+                    link.href = extra.invite_url;
+                    inv.appendChild(link);
+                }
+                box.appendChild(inv);
+            }
+        }
+        draw(null);
+    }
+
+    function settingsDevices(panel) {
+        panel.appendChild(setEl('div', 'set-desc', daText('Setup links and tokens are created by Kachow, so these ask it in the chat.', 'Opsætningslinks og tokens laves af Kachow, så disse spørger den i chatten.')));
+        var list = setEl('div', 'set-links');
+        var kiosk = setEl('a', 'sched-btn', daText('Open the kiosk display', 'Åbn kiosk-skærmen'));
+        kiosk.href = 'kiosk.php';
+        list.appendChild(kiosk);
+        [[daText('Kiosk setup', 'Kiosk-opsætning'), 'Show my kiosk setup'],
+         [daText('Location tracking setup', 'Opsætning af positionssporing'), 'Show my location tracking setup'],
+         [daText('Home agent setup', 'Opsætning af hjemmeagent'), 'Show my home agent setup'],
+         [daText('Radiator / lights gateway script', 'Gateway-script til radiatorer / lys'), 'Show my gateway script'],
+         [daText('Sensor setup', 'Sensor-opsætning'), 'Show my sensor setup']].forEach(function (d) {
+            var b = setEl('button', 'sched-btn', d[0] + ' ›');
+            b.type = 'button';
+            b.addEventListener('click', function () { send(d[1]); });
+            list.appendChild(b);
+        });
+        panel.appendChild(list);
+    }
+
+    function settingsDeveloper(panel, card) {
+        var dev = document.getElementById('devModeToggle');
+        var row = setEl('div', 'set-acc-row');
+        row.appendChild(setEl('span', 'set-acc-name', daText('Developer mode (shows diagnostics under replies)', 'Udviklertilstand (viser diagnostik under svar)')));
+        var tg = setEl('button', 'sched-btn', dev && dev.getAttribute('aria-pressed') === 'true' ? daText('On — turn off', 'Til — slå fra') : daText('Off — turn on', 'Fra — slå til'));
+        tg.type = 'button';
+        tg.addEventListener('click', function () { if (dev) dev.click(); setTimeout(function () { tg.textContent = dev && dev.getAttribute('aria-pressed') === 'true' ? daText('On — turn off', 'Til — slå fra') : daText('Off — turn on', 'Fra — slå til'); }, 50); });
+        row.appendChild(tg);
+        panel.appendChild(row);
+        var list = setEl('div', 'set-links');
+        var ins = setEl('button', 'sched-btn', daText('Insights (usage)', 'Indsigt (forbrug)') + ' ›');
+        ins.type = 'button';
+        ins.addEventListener('click', function () { var b = document.getElementById('insightsBtn'); if (b) b.click(); });
+        list.appendChild(ins);
+        [['feedback', daText('Reports', 'Rapporter')], ['dev_ideas', daText('Dev ideas', 'Udviklingsidéer')], ['recruiter', daText('Recruiter', 'Rekruttering')]].forEach(function (c) {
+            if (!HOME_CARDS[c[0]]) return;
+            var b = setEl('button', 'sched-btn', c[1] + ' ›');
+            b.type = 'button';
+            b.addEventListener('click', function () { openHomeCard(c[0]); });
+            list.appendChild(b);
+        });
+        panel.appendChild(list);
+    }
+
     function homeCacheRead() {
         try { var j = JSON.parse(localStorage.getItem(HOME_CACHE_KEY) || 'null'); return j && typeof j === 'object' ? j : null; } catch (e) { return null; }
     }
@@ -11746,6 +11968,7 @@
 
         var pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
         var config = null; // { supported, public_key, types }
+        var target = body;  // where render() draws: the modal, or a panel of the Settings card (kachowNotifPanel)
 
         // iOS only allows push for the installed Home-Screen app.
         function isStandalone() {
@@ -11781,11 +12004,13 @@
         document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') heal(false); });
 
         btn.hidden = false;
+        // The Settings card's Notifications panel draws the same controls into its own container.
+        window.kachowNotifPanel = function (container) { target = container; render(); loadConfig(); };
         btn.addEventListener('click', openModal);
         if (closeBtn) closeBtn.addEventListener('click', closeModal);
         modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
 
-        function openModal() { modal.hidden = false; render(); loadConfig(); }
+        function openModal() { target = body; modal.hidden = false; render(); loadConfig(); }
         function closeModal() { modal.hidden = true; }
 
         function urlBase64ToUint8Array(base64String) {
@@ -11838,22 +12063,22 @@
         }
 
         function render() {
-            body.innerHTML = '';
+            target.innerHTML = '';
 
             if (!pushSupported) {
-                body.appendChild(note('This browser doesn\'t support notifications.'));
+                target.appendChild(note('This browser doesn\'t support notifications.'));
                 return;
             }
             if (isiOS() && !isStandalone()) {
-                body.appendChild(note('To get notifications on iPhone, add Kachow to your Home Screen (Share → Add to Home Screen), then open it from there.'));
+                target.appendChild(note('To get notifications on iPhone, add Kachow to your Home Screen (Share → Add to Home Screen), then open it from there.'));
                 return;
             }
             if (config && config.supported === false) {
-                body.appendChild(note('Notifications aren\'t configured on the server yet.'));
+                target.appendChild(note('Notifications aren\'t configured on the server yet.'));
                 return;
             }
             if (!config) {
-                body.appendChild(note('Loading…'));
+                target.appendChild(note('Loading…'));
                 return;
             }
 
@@ -11866,11 +12091,11 @@
                     .then(function () { masterSwitch.checkbox.disabled = false; refreshMaster(); });
             });
             masterRow.appendChild(masterSwitch);
-            body.appendChild(masterRow);
+            target.appendChild(masterRow);
 
             var typesWrap = document.createElement('div');
             typesWrap.id = 'notifTypes';
-            body.appendChild(typesWrap);
+            target.appendChild(typesWrap);
 
             var testBtn = document.createElement('button');
             testBtn.className = 'notif-test';
@@ -11901,7 +12126,7 @@
                     });
                 }).catch(function () { testBtn.disabled = false; testBtn.textContent = 'Send a test notification'; });
             });
-            body.appendChild(testBtn);
+            target.appendChild(testBtn);
 
             // Deep-linked test: a push that should open the work-week card on tap. Lets us
             // verify the notification → card path on demand (no waiting for a real nudge).
@@ -11917,7 +12142,7 @@
                     setTimeout(function () { testCardBtn.disabled = false; testCardBtn.textContent = 'Send a test card notification'; }, 4000);
                 }).catch(function () { testCardBtn.disabled = false; testCardBtn.textContent = 'Send a test card notification'; });
             });
-            body.appendChild(testCardBtn);
+            target.appendChild(testCardBtn);
 
             function refreshMaster() {
                 currentSubscription().then(function (sub) {

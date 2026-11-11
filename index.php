@@ -215,34 +215,17 @@ $displayInitial = $displayName !== '' ? mb_strtoupper(mb_substr($displayName, 0,
                         <div class="tm-identity"><?= $e($displayName) ?></div>
                         <div class="tm-sep"></div>
 
-                        <div class="tm-head">Calendar</div>
-                        <?php if ($calendarConnected): ?>
-                            <a class="tm-item" data-icon="calendar" href="index.php?action=connect_google">Connected — tap to reconnect</a>
-                        <?php else: ?>
-                            <a class="tm-item" data-icon="calendar" href="index.php?action=connect_google">Connect Calendar</a>
-                        <?php endif; ?>
-
-                        <div class="tm-head">Email</div>
-                        <?php foreach ($emailAccounts as $acc): ?>
-                            <div class="tm-acc" title="<?= $e($acc['provider']) ?>">
-                                <span class="email-menu-dot email-menu-<?= $e($acc['provider']) ?>"></span><span class="tm-acc-name"><?= $e($acc['email']) ?></span>
-                                <button type="button" class="tm-acc-x" data-email-disconnect="<?= (int) $acc['id'] ?>" data-email="<?= $e($acc['email']) ?>" aria-label="Disconnect <?= $e($acc['email']) ?>" title="Disconnect this mailbox">&times;</button>
-                            </div>
-                        <?php endforeach; ?>
-                        <a class="tm-item" data-icon="plus" href="index.php?action=connect_gmail">Gmail</a>
-                        <a class="tm-item" data-icon="plus" href="index.php?action=connect_outlook">Hotmail / Outlook</a>
-                        <button type="button" class="tm-item" data-imap-preset="custom" data-icon="plus">Other mailbox (IMAP)</button>
-
-                        <div class="tm-sep"></div>
                         <button type="button" id="settingsBtn" class="tm-item" data-icon="settings">Settings</button>
-                        <button type="button" id="notifBtn" class="tm-item" data-icon="bell" hidden>Notifications</button>
-                        <button type="button" id="appearanceBtn" class="tm-item" data-icon="palette">Appearance</button>
-                        <button type="button" id="homeCardsBtn" class="tm-item" data-icon="star">Start cards</button>
                         <a class="tm-item" data-icon="maximize-2" href="kiosk.php">Kiosk</a>
-                        <button type="button" id="devModeToggle" class="tm-item" aria-pressed="false" data-icon="wrench">Developer mode</button>
-<?php if ($users->isAdmin((int) $session->userId())): ?>
-<?php endif; ?>
-                        <button type="button" id="insightsBtn" class="tm-item" data-icon="chart-column">Insights</button>
+                        <?php /* Calendar, mail, connections, notifications, appearance, start cards, developer mode and insights all live in Settings now. The controls below stay in the page (hidden) because the app's scripts bind to them; Settings drives them. */ ?>
+                        <div hidden>
+                            <button type="button" id="notifBtn" hidden>Notifications</button>
+                            <button type="button" id="appearanceBtn">Appearance</button>
+                            <button type="button" id="homeCardsBtn">Start cards</button>
+                            <button type="button" id="devModeToggle" aria-pressed="false">Developer mode</button>
+                            <button type="button" id="insightsBtn">Insights</button>
+                            <button type="button" data-imap-preset="custom">Other mailbox (IMAP)</button>
+                        </div>
                         <a class="tm-item" data-icon="log-out" href="index.php?action=logout">Log out</a>
 <?php $version = \App\Support\Version::summary(__DIR__, $appPath); ?>
 <?php if ($version !== null): ?>

@@ -46,7 +46,25 @@ $userId = (int) $session->userId();
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     $read   = new UserSettings();
     if (isset($_GET['card'])) {
-        out(200, ['ok' => true, 'card' => $read->settingsCard($userId)]);
+        // The Settings card with its Accounts and People panels (the same data the burger menu used to show, plus the connections).
+        $calendarConnected = false;
+        try {
+            $calendarConnected = \App\Auth\GoogleOAuth::fromEnv($users)->isConnected($userId);
+        } catch (\Throwable $e) {
+            $calendarConnected = false;
+        }
+        $mailboxes = [];
+        try {
+            $mailboxes = (new \App\Data\EmailAccounts())->listForUser($userId);
+        } catch (\Throwable $e) {
+            $mailboxes = [];
+        }
+        $card = $read->settingsCard($userId) + [
+            'accounts' => \App\Support\SettingsPanels::accounts($calendarConnected, $mailboxes),
+            'people'   => \App\Support\SettingsPanels::people(new \App\Data\Connections(), $userId, $users->isAdmin($userId)),
+            'is_admin' => $users->isAdmin($userId),
+        ];
+        out(200, ['ok' => true, 'card' => $card]);
     }
     $values = [];
     foreach (UserSettings::keys() as $k) {
