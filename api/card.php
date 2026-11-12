@@ -68,9 +68,7 @@ try {
             $card = (new WorkEvents())->overview($userId, ['scope' => 'lastweek']);
             break;
         case 'work_log':
-            $from = date('Y-m-d', strtotime('monday this week'));
-            $to   = date('Y-m-d');
-            $card = (new WorkLog())->card($userId, $from, $to, 'This week');
+            $card = (new WorkLog())->weekCard($userId, (int) ($_GET['offset'] ?? 0));
             break;
         case 'moms':
             // The quarter awaiting filing (previous quarter) — what the nudge is about.

@@ -1540,6 +1540,7 @@
             case 'moms':            return '/api/moms.php?offset=' + enc(card.offset || 0);
             case 'mileage':         return '/api/mileage.php?offset=' + enc(card.offset || 0);
             case 'pl':              return '/api/pl.php?granularity=' + enc(card.granularity || 'year') + '&offset=' + enc(card.offset || 0);
+            case 'work_log':        return card.weekly ? '/api/card.php?for=work_log&offset=' + enc(card.offset || 0) : null;
             case 'cash':            return '/api/cash.php';
             case 'reminders':       return '/api/reminders.php';
             case 'recruiter':       return '/api/recruiter.php';
@@ -5446,30 +5447,85 @@
         clearEmptyHint();
         var wrap = document.createElement('div');
         wrap.className = 'plan-card worklog-card';
+        buildWorkLog(wrap, card, { job: null });
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
 
+    // The work log: a week at a time (arrows) when the card is the weekly one, and a tap on a job chip filters the entries to it (tap again: all).
+    function buildWorkLog(wrap, card, st) {
+        wrap.innerHTML = '';
         var head = document.createElement('div');
-        head.className = 'plan-card-title';
-        head.textContent = card.title || 'Work log';
+        head.className = 'tr-head';
+        var title = document.createElement('div');
+        title.className = 'tr-title';
+        var tb = document.createElement('b');
+        tb.textContent = card.title || 'Work log';
+        title.appendChild(tb);
+        if (card.weekly && card.from) {
+            var fmt = function (d) { return new Date(d + 'T12:00:00').toLocaleDateString(daText('en-GB', 'da-DK'), { day: 'numeric', month: 'short' }); };
+            var sub = document.createElement('span');
+            sub.className = 'tr-sub';
+            sub.textContent = daText('Wk ', 'Uge ') + card.week + ' · ' + fmt(card.from) + ' – ' + fmt(card.to);
+            title.appendChild(sub);
+        }
+        if (card.weekly) {
+            var go = function (delta) {
+                wrap.classList.add('loading');
+                fetch('/api/card.php?for=work_log&offset=' + encodeURIComponent((card.offset || 0) + delta), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) {
+                        wrap.classList.remove('loading');
+                        if (j && j.card) {
+                            if (panelCard && panelCard.kind === 'work_log') { panelCard = j.card; if (cardPanelSub) cardPanelSub.textContent = cardSubFor(j.card); }
+                            railRecents.forEach(function (r) { if (r.kind === 'work_log') r.card = j.card; });
+                            buildWorkLog(wrap, j.card, st);
+                        } else toast(daText('Could not load.', 'Kunne ikke hente.'));
+                    })
+                    .catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); });
+            };
+            var prev = document.createElement('button'); prev.type = 'button'; prev.className = 'tr-nav'; prev.innerHTML = icon('chevron-left'); prev.setAttribute('aria-label', daText('Previous week', 'Forrige uge'));
+            var next = document.createElement('button'); next.type = 'button'; next.className = 'tr-nav'; next.innerHTML = icon('chevron-right'); next.setAttribute('aria-label', daText('Next week', 'Næste uge'));
+            prev.addEventListener('click', function () { go(-1); });
+            next.addEventListener('click', function () { go(1); });
+            next.disabled = (card.offset || 0) >= 0;
+            head.appendChild(prev); head.appendChild(title); head.appendChild(next);
+        } else {
+            head.appendChild(title);
+        }
         wrap.appendChild(head);
 
         var byJob = card.by_job || [];
-        if (byJob.length) {
+        if (st.job && !byJob.some(function (j) { return j.job === st.job; })) st.job = null;
+        if (byJob.length > 1 || st.job) {
             var chips = document.createElement('div');
             chips.className = 'worklog-jobs';
+            byJob.forEach(function (j) {
+                var chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'worklog-job' + (st.job === j.job ? ' on' : '');
+                chip.textContent = j.job + ' (' + j.entries + ')';
+                chip.addEventListener('click', function () { st.job = st.job === j.job ? null : j.job; buildWorkLog(wrap, card, st); });
+                chips.appendChild(chip);
+            });
+            wrap.appendChild(chips);
+        } else if (byJob.length) {
+            var one = document.createElement('div');
+            one.className = 'worklog-jobs';
             byJob.forEach(function (j) {
                 var chip = document.createElement('span');
                 chip.className = 'worklog-job';
                 chip.textContent = j.job + ' (' + j.entries + ')';
-                chips.appendChild(chip);
+                one.appendChild(chip);
             });
-            wrap.appendChild(chips);
+            wrap.appendChild(one);
         }
 
-        var items = card.items || [];
+        var items = (card.items || []).filter(function (it) { return !st.job || it.job === st.job; });
         if (!items.length) {
             var empty = document.createElement('div');
             empty.className = 'email-empty';
-            empty.textContent = 'Nothing logged for this period yet.';
+            empty.textContent = daText('Nothing logged for this period yet.', 'Intet logget for denne periode endnu.');
             wrap.appendChild(empty);
         }
         items.forEach(function (it) {
@@ -5488,9 +5544,6 @@
             row.appendChild(desc);
             wrap.appendChild(row);
         });
-
-        messages.appendChild(wrap);
-        messages.scrollTop = messages.scrollHeight;
     }
 
     // Read-only expenses summary: total, VAT, per-category breakdown, receipt list.

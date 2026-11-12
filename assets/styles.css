@@ -3644,3 +3644,6 @@ textarea.set-field { resize: vertical; }
 .tp-aud { margin-left: auto; border: 0; background: transparent; color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; padding: 0; }
 .tp-aud svg { width: 13px; height: 13px; }
 .tp-day-head { display: flex; align-items: center; gap: 0; }
+button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; }
+.worklog-job.on { background: var(--accent); color: var(--accent-ink); }
+.tr-nav:disabled { opacity: .35; cursor: default; }
