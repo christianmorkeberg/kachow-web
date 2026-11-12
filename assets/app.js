@@ -1125,6 +1125,7 @@
     var CARD_TITLES = {
         shopping_list: ['shopping-cart', 'Shopping list'],
         lists:         ['list-checks', 'Lists'],
+        train:         ['dumbbell', 'Train'],
         reminders:     ['alarm-clock', 'Reminders'],
         loan_pack:     ['book-open', 'Regnskabspakke'],
         workout_timer: ['timer', 'Workout timer'],
@@ -1345,6 +1346,7 @@
             var ls = card.stats || {};
             return (card.title || '') + (ls.points ? ' · ' + ls.distance_km + ' km' : '');
         }
+        if (card.kind === 'train') return card.empty ? '' : (card.progress.done + '/' + card.progress.total);
         if (card.kind === 'lists') {
             var ln = (card.lists || []).length;
             return ln + (ln === 1 ? ' list' : ' lists');
@@ -1551,7 +1553,7 @@
         if (!card) return false;
         if (card.kind === 'location_day' && card.date === locToday()) return true;
         if ((card.kind === 'income' || card.kind === 'receipt') && card.id) return true;
-        if (['bookkeeping', 'feedback', 'scheduled_tasks', 'dev_ideas', 'home'].indexOf(card.kind) !== -1) return true;
+        if (['bookkeeping', 'feedback', 'scheduled_tasks', 'dev_ideas', 'home', 'train'].indexOf(card.kind) !== -1) return true;
         if (refreshUrlFor(card)) return true;
         return !card.person && (card.kind === 'work_hours' || card.kind === 'work_chart');
     }
@@ -1580,7 +1582,7 @@
         var card = panelCard;
         // The Home card reads its own parts: opening it and the automatic refresh leave it alone (it keeps its valve status current itself and does not poll the lights);
         // only the header ↻ (manualRefresh) asks it to re-read the lights and the radiators live.
-        if (card && card.kind === 'home') return;
+        if (card && (card.kind === 'home' || card.kind === 'train')) return;
         if (card && card.kind === 'location_day' && card.date === locToday()) {
             fetchLocationDay(card.date).then(function (j) {
                 if (j && j.card && panelCard === card) applyFresh(j.card, live);
@@ -1701,7 +1703,8 @@
             if (!canFreshen(panelCard)) { toast(daText('This one is a snapshot of the answer — ask me again for fresh data.', 'Det her er et øjebliksbillede af svaret — spørg igen for friske data.')); return; }
             var ic = refresh ? refresh.querySelector('svg') : null;
             if (ic) ic.classList.add('tl-spin');
-            if (panelCard && panelCard.kind === 'home') document.dispatchEvent(new CustomEvent('kachow-home-refresh'));   // same as the card's own Refresh: lights + radiators, live
+            if (panelCard && panelCard.kind === 'home') document.dispatchEvent(new CustomEvent('kachow-home-refresh'));
+            if (panelCard && panelCard.kind === 'train') document.dispatchEvent(new CustomEvent('kachow-train-refresh'));   // same as the card's own Refresh: lights + radiators, live
             freshenPanelCard();
             setTimeout(function () { if (ic) ic.classList.remove('tl-spin'); }, 700);
         }
@@ -1816,7 +1819,7 @@
         weather:         { kind: 'weather',        icon: 'cloud-sun',     en: 'Weather',         da: 'Vejr',           load: cardFromUrl('/api/card.php?for=weather', cardOrFail) },
         places:          { kind: 'places',         icon: 'map',           en: 'Places',          da: 'Steder',         load: function () { return postJson('/api/places.php', { action: 'list' }); } },
         inbox:           { kind: 'email_list',     icon: 'inbox',         en: 'Inbox',           da: 'Indbakke',       load: cardFromUrl('/api/email-list.php?limit=20', cardOrFail) },
-        workout_plan:    { kind: 'workout_plan',   icon: 'dumbbell',      en: 'Workout plan',    da: 'Træningsplan',   load: cardFromUrl('/api/workout-plan.php', cardOrFail) },
+        train:           { kind: 'train',          icon: 'dumbbell',      en: 'Train',           da: 'Træning',        load: cardFromUrl('/api/train.php', cardOrFail) },
         training_program: { kind: 'training_program', icon: 'dumbbell',    en: 'Training programme', da: 'Træningsprogram', load: cardFromUrl('/api/card.php?for=training_program', cardOrFail) },
         progression:     { kind: 'progression',    icon: 'trending-up',   en: 'Progress',        da: 'Fremgang',       load: function () { return postJson('/api/workout-progress.php', {}); } },
         power_prices:    { kind: 'power_prices',   icon: 'zap',           en: 'Power prices',    da: 'Elpriser',       load: cardFromUrl('/api/card.php?for=power_prices', cardOrFail) },
@@ -1832,11 +1835,11 @@
     var CARD_GROUPS = [
         ['Work', 'Arbejde', ['work_hours', 'work_week', 'work_log']],
         ['Day', 'Dagen', ['calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer']],
-        ['Training', 'Træning', ['workout_plan', 'training_program', 'progression']],
+        ['Training', 'Træning', ['train', 'training_program', 'progression']],
         ['Books', 'Regnskab', ['books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack']],
         ['Assistant', 'Assistent', ['scheduled_tasks', 'home', 'power_prices', 'settings', 'appearance', 'feedback', 'recruiter', 'dev_ideas']]
     ];
-    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer', 'workout_plan', 'training_program', 'progression', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'home', 'power_prices', 'settings', 'appearance', 'feedback', 'recruiter', 'dev_ideas'];
+    var HOME_CARD_ORDER = ['work_hours', 'work_week', 'work_log', 'calendar', 'reminders', 'lists', 'weather', 'location', 'places', 'inbox', 'cycle', 'timer', 'train', 'training_program', 'progression', 'books', 'moms', 'cash', 'pl', 'mileage', 'loan_pack', 'scheduled_tasks', 'home', 'power_prices', 'settings', 'appearance', 'feedback', 'recruiter', 'dev_ideas'];
     HOME_CARD_ORDER = HOME_CARD_ORDER.filter(function (k) { return HOME_CARDS[k]; });   // a key without a card can never break the pickers
     var homeCards = [];             // the chosen keys, in order ([] = the default rail, nothing opened at start)
     var homeCardsReady = null;      // resolves with homeCards once the saved setting is read
@@ -2077,6 +2080,7 @@
         if (card.kind === 'training_program') { renderTrainingProgram(card); return; }
         if (card.kind === 'shopping_list') { renderShopping(card); return; }
         if (card.kind === 'lists') { renderLists(card); return; }
+        if (card.kind === 'train') { renderTrain(card); return; }
         if (card.kind === 'reminders') { renderReminders(card); return; }
         if (card.kind === 'loan_pack') { renderLoanPack(card); return; }
         if (card.kind === 'workout_timer') { renderWorkoutTimer(card); return; }
@@ -2354,6 +2358,318 @@
         li.appendChild(ed);
         li.appendChild(del);
         return li;
+    }
+
+
+    // ---- Train: one programme day, done by one person or two on one phone. A tick saves that set to that person's own log at once. The weight is the plan's percentage of the
+    // person's training max; tap it to change % or kg (either one moves the other) for the remaining sets or just this one. Changing it never changes the plan. ----
+    function trainRound(kg) { return Math.round(kg / 2.5) * 2.5; }
+    function trainNum(v) { return v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v); }
+    function trainFmt(v) { return v === null || v === undefined ? '—' : String(Math.round(v * 100) / 100); }
+    function trainPct(v) { return v === null || v === undefined ? '' : (Math.round(v * 10) / 10) + '%'; }
+
+    function renderTrain(card) {
+        clearEmptyHint();
+        var wrap = document.createElement('div');
+        wrap.className = 'plan-card train-card';
+        buildTrain(wrap, card, { off: {}, ov: {}, pend: {}, edit: null });
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function trainLoad(wrap, st, date) {
+        wrap.classList.add('loading');
+        return fetch('/api/train.php?date=' + encodeURIComponent(date || ''), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                wrap.classList.remove('loading');
+                if (j && j.card) {
+                    if (date && st.card && st.card.date !== j.card.date) { st.ov = {}; st.pend = {}; st.edit = null; }
+                    buildTrain(wrap, j.card, st);
+                } else {
+                    toast((j && j.error) || daText('Could not load.', 'Kunne ikke hente.'));
+                }
+            })
+            .catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); });
+    }
+
+    function trainPost(wrap, st, body) {
+        wrap.classList.add('loading');
+        body.date = st.card.date;
+        return fetch('/api/train.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                wrap.classList.remove('loading');
+                if (j && j.ok && j.card) { buildTrain(wrap, j.card, st); return j; }
+                toast((j && j.error) || daText('That did not work.', 'Det virkede ikke.'));
+                buildTrain(wrap, st.card, st);
+                return null;
+            })
+            .catch(function () { wrap.classList.remove('loading'); toast(daText('Network error.', 'Netværksfejl.')); buildTrain(wrap, st.card, st); return null; });
+    }
+
+    function buildTrain(wrap, card, st) {
+        st.card = card;
+        if (panelCard && panelCard.kind === 'train') {
+            panelCard = card;
+            if (cardPanelSub) cardPanelSub.textContent = cardSubFor(card);
+        }
+        railRecents.forEach(function (r) { if (r.kind === 'train') r.card = card; });
+        var scroll = cardPanelBody ? cardPanelBody.scrollTop : 0;
+        wrap.innerHTML = '';
+
+        // ---- title + day navigation ----
+        var head = setEl('div', 'tr-head');
+        var prev = setEl('button', 'tr-nav'); prev.type = 'button'; prev.innerHTML = icon('chevron-left'); prev.setAttribute('aria-label', daText('Previous day', 'Forrige dag'));
+        var next = setEl('button', 'tr-nav'); next.type = 'button'; next.innerHTML = icon('chevron-right'); next.setAttribute('aria-label', daText('Next day', 'Næste dag'));
+        prev.addEventListener('click', function () { trainLoad(wrap, st, card.prev); });
+        next.addEventListener('click', function () { trainLoad(wrap, st, card.next); });
+        var dd = new Date(card.date + 'T12:00:00');
+        var dlabel = dd.toLocaleDateString(daText('en-GB', 'da-DK'), { weekday: 'short', day: 'numeric', month: 'short' });
+        var title = setEl('div', 'tr-title');
+        title.appendChild(setEl('b', null, card.empty ? daText('Train', 'Træning') : (card.title || card.program.name)));
+        title.appendChild(setEl('span', 'tr-sub', dlabel + (card.empty ? '' : ' · ' + daText('wk ', 'uge ') + card.program.week)));
+        head.appendChild(prev); head.appendChild(title); head.appendChild(next);
+        wrap.appendChild(head);
+        if (card.date !== card.today) {
+            var tb = setEl('button', 'tr-today', daText('Today', 'I dag')); tb.type = 'button';
+            tb.addEventListener('click', function () { trainLoad(wrap, st, card.today); });
+            wrap.appendChild(tb);
+        }
+        if (card.empty) {
+            wrap.appendChild(setEl('div', 'plan-empty', daText('Nothing planned.', 'Intet planlagt.')));
+            return;
+        }
+
+        var people = card.people || [];
+        var shown = people.filter(function (p) { return !st.off[p.id]; });
+        if (!shown.length) { shown = people.slice(0, 1); delete st.off[shown[0].id]; }
+        function lane(p) { var i = people.indexOf(p); return i === 0 ? 'tr-p0' : 'tr-p1'; }
+
+        if (people.length > 1) {
+            var seg = setEl('div', 'prog-seg tr-people');
+            people.forEach(function (p) {
+                var on = !st.off[p.id];
+                var b = setEl('button', 'prog-seg-btn ' + lane(p) + (on ? ' on' : '')); b.type = 'button';
+                if (on) b.innerHTML = icon('check');
+                b.appendChild(document.createTextNode(p.first));
+                b.addEventListener('click', function () {
+                    if (on && shown.length === 1) return;
+                    st.off[p.id] = on; st.edit = null; buildTrain(wrap, card, st);
+                });
+                seg.appendChild(b);
+            });
+            wrap.appendChild(seg);
+        }
+
+        // ---- effective values of a set: what the server has, with the day's own adjustments on top (not saved until ticked) ----
+        function cellOf(ln, c) {
+            var o = st.ov[ln.person_id + '|' + ln.exercise + '|' + c.n];
+            var out = { weight: c.weight, reps: c.reps, percent: c.percent, ghost: c.ghost };
+            if (!c.done && o) {
+                if (o.weight !== undefined) { out.weight = o.weight; out.ghost = false; out.percent = ln.max ? Math.round(o.weight / ln.max * 1000) / 10 : c.target_pct; }
+                if (o.reps !== undefined) out.reps = o.reps;
+            }
+            return out;
+        }
+
+        var gridCols = '24px ' + shown.map(function () { return '1fr'; }).join(' ');
+        card.exercises.forEach(function (ex, exIdx) {
+            var blk = setEl('div', 'tr-ex');
+            var eh = setEl('div', 'tr-exh');
+            eh.appendChild(setEl('span', 'tr-exn', ex.name));
+            eh.appendChild(setEl('span', 'tr-plan', ex.label));
+            blk.appendChild(eh);
+            var lanes = ex.lanes.filter(function (l) { return shown.some(function (p) { return p.id === l.person_id; }); });
+            var grid = setEl('div', 'tr-grid');
+            grid.style.gridTemplateColumns = gridCols;
+            grid.appendChild(setEl('span'));
+            lanes.forEach(function (l) {
+                var p = people.filter(function (x) { return x.id === l.person_id; })[0];
+                grid.appendChild(setEl('span', 'tr-lh ' + lane(p), p.first));
+            });
+            var nSets = lanes[0] ? lanes[0].sets.length : 0;
+            for (var i = 0; i < nSets; i++) {
+                grid.appendChild(setEl('span', 'tr-n', String(i + 1)));
+                lanes.forEach(function (l) {
+                    var p = people.filter(function (x) { return x.id === l.person_id; })[0];
+                    var c = l.sets[i];
+                    var e = cellOf(l, c);
+                    var editing = st.edit && st.edit.person === l.person_id && st.edit.ex === exIdx && st.edit.n === c.n;
+                    var cell = setEl('div', 'tr-cell ' + lane(p) + (c.done ? ' done' : '') + (editing ? ' edit' : '') + (p.can_log ? '' : ' locked'));
+                    var cb = setEl('button', 'tr-cb'); cb.type = 'button'; cb.innerHTML = c.done ? icon('check') : '';
+                    cb.setAttribute('aria-label', daText('Done', 'Færdig'));
+                    cb.disabled = !p.can_log;
+                    cb.addEventListener('click', function () {
+                        if (c.done) { delete st.ov[l.person_id + '|' + l.exercise + '|' + c.n]; trainPost(wrap, st, { action: 'untick', person_id: l.person_id, workout_id: c.workout_id }); return; }
+                        if (e.weight === null && l.sets.some(function (x) { return x.target_pct !== null; })) { st.edit = { person: l.person_id, ex: exIdx, n: c.n }; buildTrain(wrap, card, st); return; }   // a percentage with no max to take it of: set the weight first
+                        cell.classList.add('done'); cb.innerHTML = icon('check');
+                        var key = l.person_id + '|' + ex.name;
+                        trainPost(wrap, st, {
+                            action: 'tick', person_id: l.person_id, exercise: ex.name, set_no: c.n, weight: e.weight, reps: e.reps, planned_percent: c.target_pct, planned_weight: c.planned_weight,
+                            note: st.pend[key] || undefined
+                        });
+                    });
+                    var val = setEl('button', 'tr-val' + (e.ghost || e.weight === null ? ' ghost' : '')); val.type = 'button';
+                    val.appendChild(setEl('b', null, trainFmt(e.weight)));
+                    val.appendChild(setEl('span', 'tr-pct', e.percent !== null && e.percent !== undefined ? trainPct(e.percent) : (e.weight !== null ? 'kg' : '')));
+                    val.disabled = !p.can_log;
+                    val.addEventListener('click', function () { st.edit = editing ? null : { person: l.person_id, ex: exIdx, n: c.n }; buildTrain(wrap, card, st); });
+                    cell.appendChild(cb); cell.appendChild(val);
+                    grid.appendChild(cell);
+                });
+            }
+            blk.appendChild(grid);
+
+            // comments: today's, or last time's when there is none today
+            var notes = [];
+            lanes.forEach(function (l) {
+                var p = people.filter(function (x) { return x.id === l.person_id; })[0];
+                var t = st.pend[l.person_id + '|' + ex.name] || l.comment || (l.last && l.last.note) || '';
+                if (t) notes.push((people.length > 1 ? p.first + ': ' : '') + t);
+            });
+            if (notes.length) {
+                var cm = setEl('div', 'tr-cm'); cm.innerHTML = icon('message-square'); cm.appendChild(setEl('span', null, notes.join(' · '))); blk.appendChild(cm);
+            }
+
+            if (st.edit && st.edit.ex === exIdx && lanes.some(function (l) { return l.person_id === st.edit.person; })) {
+                blk.appendChild(trainEditor(wrap, card, st, ex, lanes.filter(function (l) { return l.person_id === st.edit.person; })[0], people, cellOf));
+            }
+            wrap.appendChild(blk);
+        });
+
+        // ---- footer: progress, the timer, Start ----
+        var foot = setEl('div', 'tr-foot');
+        if (card.started) {
+            foot.appendChild(setEl('span', 'tr-count', card.progress.done + '/' + card.progress.total));
+            var bar = setEl('span', 'tr-bar'); var fill = setEl('i'); fill.style.width = (card.progress.total ? Math.round(card.progress.done / card.progress.total * 100) : 0) + '%'; bar.appendChild(fill); foot.appendChild(bar);
+        } else {
+            var go = setEl('button', 'sched-btn primary tr-start', daText('Start training', 'Start træning')); go.type = 'button';
+            go.addEventListener('click', function () { trainPost(wrap, st, { action: 'start' }); });
+            foot.appendChild(go);
+            foot.appendChild(setEl('span', 'tr-bar'));
+        }
+        var tm = setEl('button', 'sched-btn tr-timer'); tm.type = 'button'; tm.innerHTML = icon('timer'); tm.title = 'EMOM'; tm.setAttribute('aria-label', 'EMOM');
+        tm.addEventListener('click', function () { openHomeCard('timer'); });
+        foot.appendChild(tm);
+        wrap.appendChild(foot);
+
+        if (cardPanelBody) cardPanelBody.scrollTop = scroll;
+        // The panel's own ↻ asks the card to read itself again (the day's adjustments stay).
+        if (!wrap._trainBound) {
+            wrap._trainBound = true;
+            var onRefresh = function () {
+                if (!wrap.isConnected) { document.removeEventListener('kachow-train-refresh', onRefresh); return; }
+                trainLoad(wrap, st, st.card.date);
+            };
+            document.addEventListener('kachow-train-refresh', onRefresh);
+        }
+    }
+
+    // The editor under an exercise: % and kg are one control — typing either moves the other; "remaining sets" carries the same step to the sets not yet done, "this set" only this one.
+    function trainEditor(wrap, card, st, ex, ln, people, cellOf) {
+        var p = people.filter(function (x) { return x.id === ln.person_id; })[0];
+        var c = ln.sets[st.edit.n - 1];
+        var e = cellOf(ln, c);
+        var box = setEl('div', 'tr-editor');
+        var top = setEl('div', 'tr-etop');
+        top.appendChild(setEl('b', null, ex.name + ' · ' + daText('set ', 'sæt ') + c.n + ' · ' + p.first));
+        var mx = setEl('label', 'tr-max'); mx.appendChild(document.createTextNode(daText('max', 'max') + ' '));
+        var mi = setEl('input', 'tr-in'); mi.type = 'text'; mi.inputMode = 'decimal'; mi.value = ln.max !== null ? String(ln.max) : ''; mi.placeholder = '—';
+        mx.appendChild(mi);
+        top.appendChild(mx);
+        box.appendChild(top);
+
+        var max = ln.max, pct = e.percent, kg = e.weight, reps = e.reps;
+        var row = setEl('div', 'tr-erow');
+        var dec = setEl('button', 'tr-step'); dec.type = 'button'; dec.innerHTML = icon('minus');
+        var inc = setEl('button', 'tr-step'); inc.type = 'button'; inc.innerHTML = icon('plus');
+        var pin = setEl('input', 'tr-in tr-in-big'); pin.type = 'text'; pin.inputMode = 'decimal'; pin.value = pct !== null && pct !== undefined ? String(pct) : ''; pin.placeholder = '%';
+        var kin = setEl('input', 'tr-in tr-in-big'); kin.type = 'text'; kin.inputMode = 'decimal'; kin.value = kg !== null ? String(kg) : ''; kin.placeholder = 'kg';
+        var pu = setEl('span', 'tr-unit', '%'), ku = setEl('span', 'tr-unit', 'kg');
+        row.appendChild(dec); row.appendChild(pin); row.appendChild(pu); row.appendChild(inc); row.appendChild(kin); row.appendChild(ku);
+        box.appendChild(row);
+
+        function fromPct(v) { pct = v; pin.value = v === null ? '' : String(Math.round(v * 10) / 10); if (max && v !== null) { kg = trainRound(max * v / 100); kin.value = String(kg); } drawQuick(); }
+        function fromKg(v) { kg = v; if (max && v !== null) { pct = Math.round(v / max * 1000) / 10; pin.value = String(pct); } drawQuick(); }
+        pin.addEventListener('input', function () { fromPct(trainNum(pin.value.replace(',', '.'))); });
+        kin.addEventListener('input', function () { fromKg(trainNum(kin.value.replace(',', '.'))); });
+        dec.addEventListener('click', function () { fromPct((pct === null ? 0 : pct) - 2.5); });
+        inc.addEventListener('click', function () { fromPct((pct === null ? 0 : pct) + 2.5); });
+        mi.addEventListener('change', function () {
+            var v = trainNum(mi.value.replace(',', '.'));
+            trainPost(wrap, st, { action: 'max', person_id: ln.person_id, exercise: ex.name, max: v === null ? 0 : v });
+        });
+
+        var quick = setEl('div', 'prog-seg tr-quick');
+        function drawQuick() {
+            quick.innerHTML = '';
+            if (pct === null || !max) return;
+            var base = Math.round(pct / 2.5) * 2.5;
+            [-5, -2.5, 0, 2.5, 5].forEach(function (d) {
+                var v = base + d;
+                var b = setEl('button', 'prog-seg-btn' + (Math.abs(v - pct) < 0.05 ? ' on' : ''), String(v)); b.type = 'button';
+                b.addEventListener('click', function () { fromPct(v); });
+                quick.appendChild(b);
+            });
+        }
+        drawQuick();
+        box.appendChild(quick);
+
+        var scope = 'rest';
+        var sg = setEl('div', 'prog-seg tr-scope');
+        var s1 = setEl('button', 'prog-seg-btn on', daText('Remaining sets', 'Resterende sæt')); s1.type = 'button';
+        var s2 = setEl('button', 'prog-seg-btn', daText('This set', 'Dette sæt')); s2.type = 'button';
+        s1.addEventListener('click', function () { scope = 'rest'; s1.classList.add('on'); s2.classList.remove('on'); });
+        s2.addEventListener('click', function () { scope = 'one'; s2.classList.add('on'); s1.classList.remove('on'); });
+        sg.appendChild(s1); sg.appendChild(s2);
+        var rin = setEl('input', 'tr-in tr-in-reps'); rin.type = 'text'; rin.inputMode = 'numeric'; rin.value = reps !== null && reps !== undefined ? String(reps) : ''; rin.placeholder = daText('reps', 'gentagelser');
+        var nin = setEl('input', 'tr-in tr-in-note'); nin.type = 'text'; nin.value = st.pend[ln.person_id + '|' + ex.name] || ln.comment || ''; nin.placeholder = daText('Note', 'Note');
+        var line = setEl('div', 'tr-eline'); line.appendChild(sg); line.appendChild(rin);
+        box.appendChild(line);
+        box.appendChild(nin);
+
+        var acts = setEl('div', 'tr-acts');
+        var cancel = setEl('button', 'sched-btn', daText('Cancel', 'Annullér')); cancel.type = 'button';
+        var apply = setEl('button', 'sched-btn primary', daText('Apply', 'Anvend')); apply.type = 'button';
+        cancel.addEventListener('click', function () { st.edit = null; buildTrain(wrap, card, st); });
+        apply.addEventListener('click', function () {
+            var key = ln.person_id + '|' + ln.exercise + '|';
+            var oldPct = e.percent, oldKg = e.weight;
+            var r = trainNum(rin.value);
+            if (kg !== null && kg !== oldKg) {
+                st.ov[key + c.n] = Object.assign(st.ov[key + c.n] || {}, { weight: kg });
+                if (scope === 'rest') {
+                    ln.sets.forEach(function (o) {
+                        if (o.n <= c.n || o.done) return;
+                        var oe = cellOf(ln, o), w;
+                        if (max && pct !== null && oldPct !== null && oe.percent !== null) { w = trainRound(max * (oe.percent + (pct - oldPct)) / 100); }
+                        else if (oe.weight !== null && oldKg !== null) { w = Math.max(0, oe.weight + (kg - oldKg)); }
+                        else { w = kg; }
+                        st.ov[key + o.n] = Object.assign(st.ov[key + o.n] || {}, { weight: w });
+                    });
+                }
+            }
+            if (r !== null && r !== e.reps) { st.ov[key + c.n] = Object.assign(st.ov[key + c.n] || {}, { reps: r }); }
+            var note = nin.value.trim();
+            var pk = ln.person_id + '|' + ex.name;
+            var noteChanged = note !== (st.pend[pk] || ln.comment || '');
+            if (noteChanged) st.pend[pk] = note;
+            st.edit = null;
+            var after = [];
+            if (c.done) {   // a set already ticked: the correction is saved at once
+                var ee = cellOf(ln, c);
+                after.push({ action: 'tick', person_id: ln.person_id, exercise: ex.name, set_no: c.n, weight: ee.weight, reps: ee.reps, planned_percent: c.target_pct, planned_weight: c.planned_weight, note: note || undefined });
+                delete st.ov[key + c.n];
+            } else if (noteChanged) {
+                after.push({ action: 'comment', person_id: ln.person_id, exercise: ex.name, text: note });
+            }
+            if (!after.length) { buildTrain(wrap, card, st); return; }
+            after.reduce(function (pr, body) { return pr.then(function () { return trainPost(wrap, st, body); }); }, Promise.resolve());
+        });
+        acts.appendChild(cancel); acts.appendChild(apply);
+        box.appendChild(acts);
+        return box;
     }
 
     // ---- Lists: every list of the household; create, rename and delete here, tap one to open it (the shopping_list card) ----
@@ -4354,6 +4670,32 @@
                 dn.textContent = daText(d.name, ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'][d.weekday - 1] || d.name);
                 h.appendChild(dn);
                 if (d.title) { var tt = document.createElement('span'); tt.textContent = ' · ' + d.title; h.appendChild(tt); }
+                if (p.shared && (p.people || []).length > 1) {
+                    // Who the day is for: tap cycles Both → one person → the other → Both. Saved at once.
+                    var ppl = p.people, cur = d.audience === null || d.audience === undefined ? 'both' : d.audience;
+                    var ab = document.createElement('button'); ab.type = 'button'; ab.className = 'tp-aud';
+                    var paint = function () {
+                        var one = ppl.filter(function (x) { return x.id === cur; })[0];
+                        ab.innerHTML = icon(one ? 'user' : 'users');
+                        ab.appendChild(document.createTextNode(one ? one.first : daText('Both', 'Begge')));
+                    };
+                    paint();
+                    ab.addEventListener('click', function () {
+                        var order = ['both'].concat(ppl.map(function (x) { return x.id; }));
+                        var nxt = order[(order.indexOf(cur) + 1) % order.length];
+                        ab.disabled = true;
+                        fetch('/api/train.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+                            body: JSON.stringify({ action: 'audience', program_id: p.id, week: w.week, year: w.year, weekday: d.weekday, audience: nxt }) })
+                            .then(function (r) { return r.json().catch(function () { return {}; }); })
+                            .then(function (j) {
+                                ab.disabled = false;
+                                if (j && j.ok) { cur = nxt; d.audience = nxt === 'both' ? null : nxt; paint(); }
+                                else toast((j && j.error) || daText('That did not work.', 'Det virkede ikke.'));
+                            })
+                            .catch(function () { ab.disabled = false; toast(daText('Network error.', 'Netværksfejl.')); });
+                    });
+                    h.appendChild(ab);
+                }
                 row.appendChild(h);
                 var ul = document.createElement('ul');
                 (d.items || []).forEach(function (it) { var li = document.createElement('li'); li.textContent = it; ul.appendChild(li); });

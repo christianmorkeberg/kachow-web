@@ -94,7 +94,7 @@ try {
             break;
         case 'training_program':
             // The card picker's "Training programme": the active programme (empty card when there is none).
-            $card = \App\Support\ProgramCard::forUser(new \App\Data\TrainingPrograms(), $userId);
+            $card = \App\Support\ProgramCard::forUser(new \App\Data\TrainingPrograms(), $userId, null, $users);
             break;
         case 'power_prices':
             // The card picker's "Power prices": the next hours of the Danish spot price (the same card get_power_prices shows).
