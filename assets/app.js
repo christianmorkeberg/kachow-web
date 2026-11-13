@@ -5496,6 +5496,9 @@
         wrap.appendChild(head);
 
         var byJob = card.by_job || [];
+        if (card.jobs && card.jobs.length > 1) {   // every job there is, with this week's count (0 when none)
+            byJob = card.jobs.map(function (n) { var f = byJob.filter(function (j) { return j.job === n; })[0]; return { job: n, entries: f ? f.entries : 0 }; });
+        }
         if (st.job && !byJob.some(function (j) { return j.job === st.job; })) st.job = null;
         if (byJob.length > 1 || st.job) {
             var chips = document.createElement('div');
