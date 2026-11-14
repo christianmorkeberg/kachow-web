@@ -112,7 +112,33 @@ window.WorkoutTimer = (function () {
     }
     function keepOff() { try { if (keep) keep.pause(); } catch (e) { /* ignore */ } releaseAudioSession(); }
 
+    // On iPhone the silent switch mutes Web Audio but not an HTML <audio> element (it counts as media, like the voice does), so there the beeps are tiny
+    // generated WAV files played through <audio>, one per pitch, cached. Elsewhere Web Audio as before.
+    var toneUrls = {};
+    function toneWavUrl(freq, ms, gain) {
+        var key = freq + '/' + ms + '/' + gain;
+        if (toneUrls[key]) return toneUrls[key];
+        var rate = 22050, n = Math.floor(rate * ms / 1000), b = new Uint8Array(44 + n * 2), dv = new DataView(b.buffer);
+        var str = function (o, t) { for (var i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+        str(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+        dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, rate, true);
+        dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); str(36, 'data'); dv.setUint32(40, n * 2, true);
+        for (var i = 0; i < n; i++) {
+            var t = i / rate, env = Math.min(1, t / 0.01) * Math.min(1, (ms / 1000 - t) / 0.03);   // short fade in and out: no clicks
+            dv.setInt16(44 + i * 2, Math.round(Math.sin(2 * Math.PI * freq * t) * Math.max(0, env) * (gain || 0.4) * 32767), true);
+        }
+        return (toneUrls[key] = URL.createObjectURL(new Blob([b], { type: 'audio/wav' })));
+    }
     function tone(freq, ms, gain) {
+        if (isIos() && soundOn()) {
+            try {
+                var a = new Audio(toneWavUrl(freq, ms, gain));
+                a.setAttribute('playsinline', '');
+                var p = a.play();
+                if (p && p.catch) p.catch(function () { /* blocked: the Web Audio path below stays as it was */ });
+                return;
+            } catch (e) { /* fall through to Web Audio */ }
+        }
         if (!audio) return;
         try {
             var o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
