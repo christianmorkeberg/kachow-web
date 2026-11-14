@@ -1439,6 +1439,7 @@
         if (!cardPanel) { renderCard(card); return; }   // graceful fallback
 
         var sameKind = (panelKind === card.kind);
+        var hadCard  = !!panelCard;   // false while only the "Loading…" placeholder was up (it already sets panelKind)
         var wasMin   = cardPanel.getAttribute('data-state') === 'min';
 
         cardPanelBody.innerHTML = '';
@@ -1471,7 +1472,7 @@
         }
         // Train and the timer are used mid-workout: they open full screen (a phone: over the chat; desktop: over the chat rail). Coming back to the same
         // card (a refresh) leaves whatever the user chose.
-        if (!sameKind && (card.kind === 'train' || card.kind === 'workout_timer') && mode !== 'min') {
+        if ((!sameKind || !hadCard) && (card.kind === 'train' || card.kind === 'workout_timer') && mode !== 'min') {
             if (isDesktopLayout()) {
                 var wsEl = document.getElementById('workspace');
                 if (wsEl) { wsEl.classList.add('ws-focus-card'); setExpandIcon(true); }
