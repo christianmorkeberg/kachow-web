@@ -3649,3 +3649,6 @@ textarea.set-field { resize: vertical; }
 button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; }
 .worklog-job.on { background: var(--accent); color: var(--accent-ink); }
 .tr-nav:disabled { opacity: .35; cursor: default; }
+
+.tr-back { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 13px; padding: 0 0 8px; cursor: pointer; }
+.tr-back svg { width: 15px; height: 15px; }

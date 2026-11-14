@@ -2364,6 +2364,7 @@
 
     // ---- Train: one programme day, done by one person or two on one phone. A tick saves that set to that person's own log at once. The weight is the plan's percentage of the
     // person's training max; tap it to change % or kg (either one moves the other) for the remaining sets or just this one. Changing it never changes the plan. ----
+    var trainKeep = null;
     function trainRound(kg) { return Math.round(kg / 2.5) * 2.5; }
     function trainNum(v) { return v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v); }
     function trainFmt(v) { return v === null || v === undefined ? '—' : String(Math.round(v * 100) / 100); }
@@ -2373,7 +2374,10 @@
         clearEmptyHint();
         var wrap = document.createElement('div');
         wrap.className = 'plan-card train-card';
-        buildTrain(wrap, card, { off: {}, ov: {}, pend: {}, edit: null });
+        // Coming back from the timer: the day's own adjustments (changed weights, hidden person, typed notes) are still there.
+        var st = trainKeep && trainKeep.card && trainKeep.card.date === card.date ? trainKeep : { off: {}, ov: {}, pend: {}, edit: null };
+        trainKeep = null;
+        buildTrain(wrap, card, st);
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
@@ -2573,7 +2577,7 @@
             foot.appendChild(setEl('span', 'tr-bar'));
         }
         var tm = setEl('button', 'sched-btn tr-timer'); tm.type = 'button'; tm.innerHTML = icon('timer'); tm.title = 'EMOM'; tm.setAttribute('aria-label', 'EMOM');
-        tm.addEventListener('click', function () { openHomeCard('timer'); });
+        tm.addEventListener('click', function () { trainKeep = st; openLoadedCard('workout_timer', Promise.resolve({ kind: 'workout_timer', back: 'train' })); });   // the timer, with a way back
         foot.appendChild(tm);
         wrap.appendChild(foot);
 
@@ -2867,6 +2871,21 @@
         clearEmptyHint();
         var wrap = document.createElement('div');
         wrap.className = 'plan-card wt-host';
+        if (card.back === 'train') {
+            var back = document.createElement('button');
+            back.type = 'button';
+            back.className = 'tr-back';
+            back.innerHTML = icon('chevron-left');
+            back.appendChild(document.createTextNode(daText('Train', 'Træning')));
+            back.addEventListener('click', function () { openHomeCard('train'); });
+            wrap.appendChild(back);
+            var inner = document.createElement('div');
+            wrap.appendChild(inner);
+            if (window.WorkoutTimer) window.WorkoutTimer.render(inner, card, { icon: icon, daText: daText });
+            messages.appendChild(wrap);
+            messages.scrollTop = messages.scrollHeight;
+            return;
+        }
         if (window.WorkoutTimer) window.WorkoutTimer.render(wrap, card, { icon: icon, daText: daText });
         else wrap.textContent = daText('The timer could not load.', 'Timeren kunne ikke indlæses.');
         messages.appendChild(wrap);
