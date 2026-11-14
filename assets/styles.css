@@ -3606,9 +3606,15 @@ textarea.set-field { resize: vertical; }
 .tr-grid { display: grid; align-items: stretch; }
 .tr-lh { font-size: 11px; color: var(--muted); padding: 0 0 2px 4px; }
 .tr-lh.tr-p0 { color: var(--tr-p0); } .tr-lh.tr-p1 { color: var(--tr-p1); }
-.tr-n { font-size: 12px; color: var(--muted); display: flex; align-items: center; border: 0; border-top: 1px solid var(--line); background: transparent; border-radius: 0; padding: 0; font-family: inherit; cursor: pointer; text-align: left; }
-.tr-n:disabled { cursor: default; }
-.tr-n:not(:disabled):hover { color: var(--text); }
+.tr-n { font: inherit; font-size: 12px; color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; cursor: default; }
+.tr-n.all { cursor: pointer; }
+/* with two people the set number is a square tick of its own: both at once */
+.tr-n.all::before { content: ''; }
+.tr-n.all { position: relative; }
+.tr-n.all { width: 22px; height: 22px; align-self: center; border: 1.5px solid var(--muted); color: var(--muted); margin: 0 3px; }
+.tr-n.all svg { width: 14px; height: 14px; }
+.tr-n.all.done { background: var(--text); border-color: var(--text); color: var(--bg, var(--panel)); }
+.tr-n.all:hover { color: var(--text); border-color: var(--text); }
 .tr-cell { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); min-width: 0; }
 .tr-cell.edit { background: var(--panel-2); }
 .tr-cell.locked { opacity: .55; }
@@ -3652,3 +3658,4 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 
 .tr-back { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 13px; padding: 0 0 8px; cursor: pointer; }
 .tr-back svg { width: 15px; height: 15px; }
+.tr-n.all.done:hover { color: var(--bg); background: var(--text); }

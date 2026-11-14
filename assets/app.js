@@ -2478,7 +2478,7 @@
             return out;
         }
 
-        var gridCols = '24px ' + shown.map(function () { return '1fr'; }).join(' ');
+        var gridCols = '28px ' + shown.map(function () { return '1fr'; }).join(' ');
         card.exercises.forEach(function (ex, exIdx) {
             var blk = setEl('div', 'tr-ex');
             var eh = setEl('div', 'tr-exh');
@@ -2496,11 +2496,14 @@
             var nSets = lanes[0] ? lanes[0].sets.length : 0;
             for (var i = 0; i < nSets; i++) {
                 // The set number ticks the whole row: every shown person who can log, done together (all done already: it unticks them).
-                var rowBtn = setEl('button', 'tr-n'); rowBtn.type = 'button'; rowBtn.textContent = String(i + 1);
+                var rowBtn = setEl('button', 'tr-n'); rowBtn.type = 'button';
+                var rowDone = lanes.length > 1 && lanes.every(function (l) { return l.sets[i].done; });
+                rowBtn.classList.toggle('done', rowDone);
+                if (rowDone) rowBtn.innerHTML = icon('check'); else rowBtn.textContent = String(i + 1);
                 (function (idx, btnEl) {
                     var able = lanes.filter(function (l) { var p = people.filter(function (x) { return x.id === l.person_id; })[0]; return p && p.can_log; });
                     if (able.length < 2) { btnEl.disabled = true; return; }
-                    btnEl.setAttribute('aria-label', daText('Tick both', 'Afkryds begge'));
+                    btnEl.setAttribute('aria-label', daText('Tick both', 'Afkryds begge')); btnEl.title = daText('Tick both', 'Afkryds begge'); btnEl.classList.add('all');
                     btnEl.addEventListener('click', function () {
                         var allDone = able.every(function (l) { return l.sets[idx].done; });
                         var jobs = [];
