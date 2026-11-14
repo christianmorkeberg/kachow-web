@@ -167,6 +167,7 @@ window.WorkoutTimer = (function () {
         var mode = soundMode();
         if (mode === 'off') return;
         var beeps = mode === 'beep' || mode === 'both', voice = mode === 'voice' || mode === 'both';
+        ensureAudio();   // every cue: the audio session is asked for again (a 'transient' one is let go of after its sound) and a suspended context wakes
         var buzz = function (p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* unsupported */ } };
         if (name === 'tick') {
             // The last 3 seconds: beeps (also with "both" — a spoken count would talk over the next phrase); voice alone counts out loud.
