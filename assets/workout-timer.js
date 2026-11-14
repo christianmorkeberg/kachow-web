@@ -70,12 +70,14 @@ window.WorkoutTimer = (function () {
         try {
             var as = navigator.audioSession;
             if (!as || as.type === 'play-and-record') return;   // a voice session is using the mic: leave its audio session alone
-            as.type = silentOk() ? 'playback' : 'auto';
+            // Never 'playback' (it interrupts other apps' music). 'transient' = a short sound mixed over whatever is playing (heard on silent where the
+            // phone allows it); 'ambient' = mixed over, and muted by the silent switch like any ordinary sound.
+            as.type = silentOk() ? 'transient' : 'ambient';
         } catch (e) { /* unsupported */ }
     }
     /** Give the audio session back when the timer is not sounding any more ('playback' blocks the microphone: voice mode could not start). */
     function releaseAudioSession() {
-        try { var as = navigator.audioSession; if (as && as.type === 'playback') as.type = 'auto'; } catch (e) { /* unsupported */ }
+        try { var as = navigator.audioSession; if (as && as.type !== 'play-and-record') as.type = 'auto'; } catch (e) { /* unsupported */ }
     }
     function ensureAudio() {
         if (!soundOn()) return;
@@ -101,7 +103,7 @@ window.WorkoutTimer = (function () {
         return keepUrl;
     }
     function keepOn() {
-        if (!isIos() || !silentOk() || !soundOn()) return;
+        return;   // no looping silent <audio>: playing one takes the phone's audio focus and pauses other apps' music (the beeps mix over it instead)
         try {
             if (!keep) { keep = new Audio(); keep.loop = true; keep.setAttribute('playsinline', ''); keep.src = silentWavUrl(); }
             var p = keep.play();
