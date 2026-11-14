@@ -1469,6 +1469,16 @@
         } else {
             setPanelState('open');
         }
+        // Train and the timer are used mid-workout: they open full screen (a phone: over the chat; desktop: over the chat rail). Coming back to the same
+        // card (a refresh) leaves whatever the user chose.
+        if (!sameKind && (card.kind === 'train' || card.kind === 'workout_timer') && mode !== 'min') {
+            if (isDesktopLayout()) {
+                var wsEl = document.getElementById('workspace');
+                if (wsEl) { wsEl.classList.add('ws-focus-card'); setExpandIcon(true); }
+            } else {
+                setPanelFull(true);
+            }
+        }
         flashPanel();
         // Every card open (fresh from chat, from the rail, reopened) re-fetches a card that's known to
         // go stale (shopping list, books, work hours …) so you never land on an old snapshot — on a phone
