@@ -7416,6 +7416,7 @@
             if (t.last_status === 'error') { state = daText('Error', 'Fejl'); cls = 'err'; }
             else if (isSystem) { state = t.last_status === 'skipped' ? daText('Skipped', 'Sprunget over') : daText('Ran OK', 'Kørte fint'); cls = 'ok'; }
             else if (t.notified) { state = daText('Notified you', 'Gav dig besked') + (t.last_title ? ': ' + t.last_title : ''); cls = 'notified'; }
+            else if (t.steps) { state = daText('Ran quietly', 'Kørte stille'); cls = 'ok'; }
             else { state = daText('Quiet — nothing to report', 'Stille — intet at melde'); cls = 'ok'; }
             var dot = document.createElement('span');
             dot.className = 'sched-dot ' + cls;
