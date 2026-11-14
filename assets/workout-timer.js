@@ -70,9 +70,9 @@ window.WorkoutTimer = (function () {
         try {
             var as = navigator.audioSession;
             if (!as || as.type === 'play-and-record') return;   // a voice session is using the mic: leave its audio session alone
-            // Never 'playback' (it interrupts other apps' music). 'transient' = a short sound mixed over whatever is playing (heard on silent where the
-            // phone allows it); 'ambient' = mixed over, and muted by the silent switch like any ordinary sound.
-            as.type = silentOk() ? 'transient' : 'ambient';
+            // "Play on silent" ON: 'playback' — the only session iOS lets past the silent switch (other apps' music pauses while the timer sounds).
+            // OFF: 'ambient' — mixed over music, but muted by the silent switch.
+            as.type = silentOk() ? 'playback' : 'ambient';
         } catch (e) { /* unsupported */ }
     }
     /** Give the audio session back when the timer is not sounding any more ('playback' blocks the microphone: voice mode could not start). */
@@ -103,7 +103,7 @@ window.WorkoutTimer = (function () {
         return keepUrl;
     }
     function keepOn() {
-        return;   // no looping silent <audio>: playing one takes the phone's audio focus and pauses other apps' music (the beeps mix over it instead)
+        if (!isIos() || !silentOk() || !soundOn()) return;   // the loop is what lets the beeps through on silent; it pauses other apps' music
         try {
             if (!keep) { keep = new Audio(); keep.loop = true; keep.setAttribute('playsinline', ''); keep.src = silentWavUrl(); }
             var p = keep.play();
@@ -130,7 +130,7 @@ window.WorkoutTimer = (function () {
         return (toneUrls[key] = URL.createObjectURL(new Blob([b], { type: 'audio/wav' })));
     }
     function tone(freq, ms, gain) {
-        if (isIos() && soundOn() && beepEl && beepReady) {
+        if (false && beepEl && beepReady) {   // the <audio> beeps were no better on silent than Web Audio (report); kept for reference
             try {
                 beepEl.src = toneWavUrl(freq, ms, gain);
                 var p = beepEl.play();
@@ -451,7 +451,7 @@ window.WorkoutTimer = (function () {
         function silentRow() {
             if (!navigator.audioSession && !isIos()) return null;
             var row = el('div', 'wt-row');
-            row.appendChild(el('div', 'wt-lab', T('Play on silent', 'Spil på lydløs')));
+            row.appendChild(el('div', 'wt-lab', T('Beeps on silent (pauses music)', 'Bip på lydløs (pauser musik)')));
             var seg = el('div', 'wt-seg'), cur = silentOk();
             [[true, T('On', 'Til')], [false, T('Off', 'Fra')]].forEach(function (o) {
                 seg.appendChild(btn('wt-segb' + (cur === o[0] ? ' on' : ''), o[1], null, function () {
