@@ -63,7 +63,7 @@ window.WorkoutTimer = (function () {
     var audio = null;
     /** Sound that ignores the phone's silent switch, where the browser lets a page ask for it (the Audio Session API: iPhone Safari / Home Screen apps).
      *  'playback' = heard even on silent (and other apps' music pauses); 'auto' = the browser's default (muted by the switch). */
-    function silentOk() { return loadCfg().silent !== false; }
+    function silentOk() { return loadCfg().silentPlay === true; }   // off unless chosen: it pauses other apps' music (the old 'silent' key is ignored on purpose)
     function soundOn() { return soundMode() !== 'off'; }   // with sound off the timer never touches the phone's audio: other apps' music keeps playing
     function applyAudioSession() {
         if (!soundOn()) return;
@@ -165,7 +165,7 @@ window.WorkoutTimer = (function () {
     }
     // Sound setting: beep | voice | both | off (remembered). Voice uses the browser's speech synthesis (Danish or English like the app).
     var SOUNDS = ['both', 'beep', 'voice', 'off'];
-    function soundMode() { var m = loadCfg().sound; return SOUNDS.indexOf(m) !== -1 ? m : 'both'; }
+    function soundMode() { var m = loadCfg().sound; return SOUNDS.indexOf(m) !== -1 ? m : 'voice'; }
     function langTag() { return (navigator.language || '').toLowerCase().indexOf('da') === 0 ? 'da-DK' : 'en-GB'; }
     var talk = null;   // the app's daText, set by render() — the spoken words are translated like the screen
     var voiceCache = null;
@@ -455,7 +455,7 @@ window.WorkoutTimer = (function () {
             var seg = el('div', 'wt-seg'), cur = silentOk();
             [[true, T('On', 'Til')], [false, T('Off', 'Fra')]].forEach(function (o) {
                 seg.appendChild(btn('wt-segb' + (cur === o[0] ? ' on' : ''), o[1], null, function () {
-                    saveCfg({ silent: o[0] });
+                    saveCfg({ silentPlay: o[0] });
                     seg.querySelectorAll('.wt-segb').forEach(function (b) { b.classList.remove('on'); });
                     this.classList.add('on');
                     ensureAudio(); keepOn(); tone(988, 200, 0.4);   // a sample, so you can hear whether it gets through
