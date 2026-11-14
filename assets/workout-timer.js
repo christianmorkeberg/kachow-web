@@ -130,15 +130,28 @@ window.WorkoutTimer = (function () {
         return (toneUrls[key] = URL.createObjectURL(new Blob([b], { type: 'audio/wav' })));
     }
     function tone(freq, ms, gain) {
-        if (isIos() && soundOn()) {
+        if (isIos() && soundOn() && beepEl && beepReady) {
             try {
-                var a = new Audio(toneWavUrl(freq, ms, gain));
-                a.setAttribute('playsinline', '');
-                var p = a.play();
-                if (p && p.catch) p.catch(function () { /* blocked: the Web Audio path below stays as it was */ });
+                beepEl.src = toneWavUrl(freq, ms, gain);
+                var p = beepEl.play();
+                if (p && p.catch) p.catch(function () { webTone(freq, ms, gain); });   // refused: the Web Audio beep instead, so one always sounds
                 return;
             } catch (e) { /* fall through to Web Audio */ }
         }
+        webTone(freq, ms, gain);
+    }
+    // One <audio> element, started inside the Start / Resume tap (iOS only lets an element play later if a tap started it), then reused for every beep.
+    var beepEl = null, beepReady = false;
+    function unlockBeep() {
+        if (!isIos() || !soundOn()) return;
+        try {
+            if (!beepEl) { beepEl = new Audio(); beepEl.setAttribute('playsinline', ''); }
+            beepEl.src = toneWavUrl(440, 30, 0.0001);
+            var p = beepEl.play();
+            if (p && p.then) p.then(function () { beepReady = true; }).catch(function () { beepReady = false; }); else beepReady = true;
+        } catch (e) { beepReady = false; }
+    }
+    function webTone(freq, ms, gain) {
         if (!audio) return;
         try {
             var o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
@@ -286,6 +299,7 @@ window.WorkoutTimer = (function () {
     function begin(mode, cfg) {
         end();   // first: it gives the audio session back, which the lines below then claim again
         ensureAudio();
+        unlockBeep();
         unlockVoice();
         S = { mode: mode, cfg: cfg, base: 0, t0: performance.now(), state: 'running', laps: [], last: null, paint: null };
         if (mode === 'emom') S.plan = emomPlan(cfg);
@@ -303,6 +317,7 @@ window.WorkoutTimer = (function () {
     function resume() {
         if (!S || S.state !== 'paused') return;
         ensureAudio();
+        unlockBeep();
         keepOn();
         unlockVoice();
         S.t0 = performance.now(); S.state = 'running'; wakeOn();
@@ -425,7 +440,7 @@ window.WorkoutTimer = (function () {
                     if (o[0] === 'off') keepOff();   // let go of the phone's audio at once: other apps' music can carry on
                     else if (S && S.state === 'running') { ensureAudio(); keepOn(); }
                     if (o[0] === 'voice' || o[0] === 'both') { unlockVoice(); speak(T('Rest', 'Hvil')); }   // a sample, and the unlock iOS needs
-                    else if (o[0] === 'beep') { ensureAudio(); tone(988, 200, 0.4); }
+                    else if (o[0] === 'beep') { ensureAudio(); unlockBeep(); tone(988, 200, 0.4); }
                 }));
             });
             row.appendChild(seg);
