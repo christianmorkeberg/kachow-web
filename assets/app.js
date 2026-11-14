@@ -2491,7 +2491,29 @@
             });
             var nSets = lanes[0] ? lanes[0].sets.length : 0;
             for (var i = 0; i < nSets; i++) {
-                grid.appendChild(setEl('span', 'tr-n', String(i + 1)));
+                // The set number ticks the whole row: every shown person who can log, done together (all done already: it unticks them).
+                var rowBtn = setEl('button', 'tr-n'); rowBtn.type = 'button'; rowBtn.textContent = String(i + 1);
+                (function (idx, btnEl) {
+                    var able = lanes.filter(function (l) { var p = people.filter(function (x) { return x.id === l.person_id; })[0]; return p && p.can_log; });
+                    if (able.length < 2) { btnEl.disabled = true; return; }
+                    btnEl.setAttribute('aria-label', daText('Tick both', 'Afkryds begge'));
+                    btnEl.addEventListener('click', function () {
+                        var allDone = able.every(function (l) { return l.sets[idx].done; });
+                        var jobs = [];
+                        able.forEach(function (l) {
+                            var c2 = l.sets[idx];
+                            if (allDone) { delete st.ov[l.person_id + '|' + l.exercise + '|' + c2.n]; jobs.push({ action: 'untick', person_id: l.person_id, workout_id: c2.workout_id }); return; }
+                            if (c2.done) return;
+                            var e2 = cellOf(l, c2);
+                            if (e2.weight === null && l.sets.some(function (x) { return x.target_pct !== null; })) return;   // a percentage with no max: that one needs its weight set first
+                            jobs.push({ action: 'tick', person_id: l.person_id, exercise: ex.name, set_no: c2.n, weight: e2.weight, reps: e2.reps, planned_percent: c2.target_pct, planned_weight: c2.planned_weight, note: st.pend[l.person_id + '|' + ex.name] || undefined });
+                        });
+                        if (!jobs.length) return;
+                        wrap.classList.add('loading');
+                        jobs.reduce(function (pr, body) { return pr.then(function () { return trainPost(wrap, st, body); }); }, Promise.resolve());
+                    });
+                })(i, rowBtn);
+                grid.appendChild(rowBtn);
                 lanes.forEach(function (l) {
                     var p = people.filter(function (x) { return x.id === l.person_id; })[0];
                     var c = l.sets[i];

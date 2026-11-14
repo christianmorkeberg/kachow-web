@@ -64,7 +64,9 @@ window.WorkoutTimer = (function () {
     /** Sound that ignores the phone's silent switch, where the browser lets a page ask for it (the Audio Session API: iPhone Safari / Home Screen apps).
      *  'playback' = heard even on silent (and other apps' music pauses); 'auto' = the browser's default (muted by the switch). */
     function silentOk() { return loadCfg().silent !== false; }
+    function soundOn() { return soundMode() !== 'off'; }   // with sound off the timer never touches the phone's audio: other apps' music keeps playing
     function applyAudioSession() {
+        if (!soundOn()) return;
         try {
             var as = navigator.audioSession;
             if (!as || as.type === 'play-and-record') return;   // a voice session is using the mic: leave its audio session alone
@@ -76,6 +78,7 @@ window.WorkoutTimer = (function () {
         try { var as = navigator.audioSession; if (as && as.type === 'playback') as.type = 'auto'; } catch (e) { /* unsupported */ }
     }
     function ensureAudio() {
+        if (!soundOn()) return;
         applyAudioSession();
         try {
             if (!audio) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) audio = new AC(); }
@@ -98,7 +101,7 @@ window.WorkoutTimer = (function () {
         return keepUrl;
     }
     function keepOn() {
-        if (!isIos() || !silentOk()) return;
+        if (!isIos() || !silentOk() || !soundOn()) return;
         try {
             if (!keep) { keep = new Audio(); keep.loop = true; keep.setAttribute('playsinline', ''); keep.src = silentWavUrl(); }
             var p = keep.play();
@@ -361,7 +364,7 @@ window.WorkoutTimer = (function () {
             inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = lo; inp.max = hi; inp.value = get();
             var hint = el('div', 'wt-hint');
             function showHint() { hint.textContent = unit === 's' && get() >= 60 ? '= ' + formatMs(get() * 1000) : ''; }
-            function commit(v) { set(clamp(v, lo, hi)); inp.value = get(); showHint(); sum(); }
+            function commit(v) { set(clamp(v, lo, hi)); inp.value = get(); showHint(); sum(); saveCfg({ emom: emom, timer: cd }); }   // every change is remembered, not only the ones that get started
             ctl.appendChild(btn('wt-pm', icon('minus'), T('Less', 'Mindre'), function () { commit(get() - step); }));
             inp.addEventListener('change', function () { commit(inp.value); });
             var mid = el('div', 'wt-mid');
@@ -390,6 +393,8 @@ window.WorkoutTimer = (function () {
                     saveCfg({ sound: o[0] });
                     seg.querySelectorAll('.wt-segb').forEach(function (b) { b.classList.remove('on'); });
                     this.classList.add('on');
+                    if (o[0] === 'off') keepOff();   // let go of the phone's audio at once: other apps' music can carry on
+                    else if (S && S.state === 'running') { ensureAudio(); keepOn(); }
                     if (o[0] === 'voice' || o[0] === 'both') { unlockVoice(); speak(T('Rest', 'Hvil')); }   // a sample, and the unlock iOS needs
                     else if (o[0] === 'beep') { ensureAudio(); tone(988, 200, 0.4); }
                 }));
