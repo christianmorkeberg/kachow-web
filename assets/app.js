@@ -757,6 +757,8 @@
         notify_me: ['Setting up the notification', 'Sætter notifikationen op'],
         rate_vinyl: ['Rating the record', 'Bedømmer pladen'],
         record_cash_movement: ['Recording the cash movement', 'Registrerer kassebevægelsen'],
+        update_cash_movement: ['Correcting the cash movement', 'Retter kassebevægelsen'],
+        delete_cash_movement: ['Deleting the cash movement', 'Sletter kassebevægelsen'],
         refresh_home_devices: ['Refreshing your home devices', 'Opdaterer dine hjemmeenheder'],
         remember_instruction: ['Saving the preference', 'Gemmer præferencen'],
         remove_connection: ['Removing the connection', 'Fjerner forbindelsen'],
