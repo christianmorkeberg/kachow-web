@@ -762,6 +762,7 @@
         update_work_session: ['Changing the work session', 'Ændrer arbejdssessionen'],
         get_change_log: ['Checking what was changed', 'Tjekker hvad der er ændret'],
         restore_change: ['Restoring the change', 'Gendanner ændringen'],
+        get_call_log: ['Reading the log', 'Læser loggen'],
         refresh_home_devices: ['Refreshing your home devices', 'Opdaterer dine hjemmeenheder'],
         remember_instruction: ['Saving the preference', 'Gemmer præferencen'],
         remove_connection: ['Removing the connection', 'Fjerner forbindelsen'],
