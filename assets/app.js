@@ -1746,6 +1746,47 @@
         if (expand)  expand.addEventListener('click', toggleExpand);
         if (refresh) refresh.addEventListener('click', manualRefresh);
         if (close)   close.addEventListener('click', function (e) { e.stopPropagation(); hidePanel(); });
+
+        // Phone: pull a card down while it is already scrolled to the top and it closes (like the X). The card follows the finger; letting go past ~110px closes,
+        // less springs back. Not on maps, fields, or anything else that handles its own drag.
+        var pull = null;
+        var body = document.getElementById('cardPanelBody');
+        function pullFree(t) { return !(t && t.closest && t.closest('.leaflet-container, input, textarea, select, [data-nodrag], canvas, svg.prog-svg')); }
+        if (body) {
+            body.addEventListener('touchstart', function (e) {
+                pull = null;
+                if (isDesktopLayout() || e.touches.length !== 1 || body.scrollTop > 0 || cardPanel.getAttribute('data-state') !== 'open' || !pullFree(e.target)) return;
+                pull = { y: e.touches[0].clientY, x: e.touches[0].clientX, dy: 0, on: false };
+            }, { passive: true });
+            body.addEventListener('touchmove', function (e) {
+                if (!pull) return;
+                var dy = e.touches[0].clientY - pull.y, dx = Math.abs(e.touches[0].clientX - pull.x);
+                if (!pull.on) {
+                    if (dy < 8 || dx > dy || body.scrollTop > 0) { if (dy < -4 || body.scrollTop > 0) pull = null; return; }   // a scroll or a sideways swipe, not a pull
+                    pull.on = true;
+                }
+                pull.dy = Math.max(0, dy);
+                if (e.cancelable) e.preventDefault();   // no page bounce / pull-to-refresh under the finger
+                cardPanel.style.transition = 'none';
+                cardPanel.style.transform = 'translateY(' + Math.round(pull.dy * 0.7) + 'px)';
+                cardPanel.style.opacity = String(Math.max(.4, 1 - pull.dy / 500));
+            }, { passive: false });
+            var pullEnd = function () {
+                if (!pull) return;
+                var p = pull; pull = null;
+                if (!p.on) return;
+                cardPanel.style.transition = 'transform .18s ease, opacity .18s ease';
+                if (p.dy * 0.7 > 77) {
+                    hidePanel();
+                    setTimeout(function () { cardPanel.style.transform = ''; cardPanel.style.opacity = ''; cardPanel.style.transition = ''; }, 200);
+                } else {
+                    cardPanel.style.transform = ''; cardPanel.style.opacity = '';
+                    setTimeout(function () { cardPanel.style.transition = ''; }, 200);
+                }
+            };
+            body.addEventListener('touchend', pullEnd, { passive: true });
+            body.addEventListener('touchcancel', pullEnd, { passive: true });
+        }
     })();
 
     // Draggable divider: resize the desktop chat rail between 23% and 60% of the width,

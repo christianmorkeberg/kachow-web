@@ -3675,3 +3675,5 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
     .composer textarea, .composer input { font-size: calc(16px / var(--ui-scale)); }
 }
 @media (max-width: 700px) { .card-panel-body { padding: calc(8px * var(--ui-scale)) calc(10px * var(--ui-scale)); } }
+
+.card-panel-body { overscroll-behavior-y: contain; }
