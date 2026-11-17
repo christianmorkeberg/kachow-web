@@ -3659,3 +3659,19 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 .tr-back { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 13px; padding: 0 0 8px; cursor: pointer; }
 .tr-back svg { width: 15px; height: 15px; }
 .tr-n.all.done:hover { color: var(--bg); background: var(--text); }
+
+/* ---------- Interface size (per device): the whole app a little smaller, padding included, so more fits ---------- */
+:root { --ui-scale: 1; }
+:root[data-ui-size="compact"] { --ui-scale: .92; }
+:root[data-ui-size="small"]   { --ui-scale: .84; }
+.topbar > *, .composer > *, .card-panel-head > *, .card-rail > *, .messages > * { zoom: var(--ui-scale); }   /* the contents, so bars and panels keep their place */
+.topbar { padding: calc(12px * var(--ui-scale)) calc(16px * var(--ui-scale)); padding-top: max(calc(12px * var(--ui-scale)), env(safe-area-inset-top)); gap: calc(12px * var(--ui-scale)); }
+.composer { padding: calc(12px * var(--ui-scale)) calc(16px * var(--ui-scale)); padding-bottom: max(calc(12px * var(--ui-scale)), env(safe-area-inset-bottom)); gap: calc(8px * var(--ui-scale)); }
+.messages { padding: calc(18px * var(--ui-scale)) calc(16px * var(--ui-scale)); gap: calc(12px * var(--ui-scale)); }
+.card-panel-body { padding: calc(12px * var(--ui-scale)); }
+.msg { max-width: calc(82% / var(--ui-scale)); }
+@media (max-width: 700px) {
+    /* typed text stays a real 16px after the zoom (iOS never zooms the page on focus) */
+    .composer textarea, .composer input { font-size: calc(16px / var(--ui-scale)); }
+}
+@media (max-width: 700px) { .card-panel-body { padding: calc(8px * var(--ui-scale)) calc(10px * var(--ui-scale)); } }

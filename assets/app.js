@@ -5037,6 +5037,29 @@
         });
         wrap.appendChild(seg);
 
+        // The whole app (top bar, chat, composer, panel header, rail), padding included — also per device.
+        var uiHead = document.createElement('div');
+        uiHead.className = 'persona-intro appearance-sub';
+        uiHead.textContent = daText('Interface size on this device', 'Grænsefladestørrelse på denne enhed');
+        wrap.appendChild(uiHead);
+        var uiSeg = document.createElement('div');
+        uiSeg.className = 'prog-seg';
+        var curUi = document.documentElement.getAttribute('data-ui-size') || 'normal';
+        CARD_SIZES.forEach(function (z) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'prog-seg-btn' + (z.id === curUi ? ' on' : '');
+            b.textContent = daText(z.en2 || z.en, z.da2 || z.da);
+            b.addEventListener('click', function () {
+                document.documentElement.setAttribute('data-ui-size', z.id);
+                try { localStorage.setItem('kachow-ui-size', z.id); } catch (e) { /* private mode */ }
+                Array.prototype.forEach.call(uiSeg.children, function (c) { c.classList.remove('on'); });
+                b.classList.add('on');
+            });
+            uiSeg.appendChild(b);
+        });
+        wrap.appendChild(uiSeg);
+
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
