@@ -11232,6 +11232,16 @@
         if (card.range && card.range !== card.title) head.appendChild(wkEl('div', 'wk-range', card.range));
         wrap.appendChild(head);
 
+        // Ahead / behind the work schedule, counted from its start (only when a schedule is set up).
+        if (!shared && card.balance) {
+            var bal = wkEl('div', 'wk-balance' + (card.balance.minutes < 0 ? ' behind' : ''));
+            bal.appendChild(wkEl('b', null, card.balance.label));
+            bal.appendChild(document.createTextNode(' ' + (card.balance.minutes < 0 ? daText('behind schedule', 'bagud i forhold til planen') : daText('ahead of schedule', 'foran planen'))));
+            var sinceD = new Date(card.balance.since + 'T12:00:00');
+            bal.appendChild(wkEl('span', 'wk-balance-since', ' · ' + daText('since ', 'siden ') + (isNaN(sinceD.getTime()) ? card.balance.since : sinceD.toLocaleDateString(daText('en-GB', 'da-DK'), { day: 'numeric', month: 'short' }))));
+            wrap.appendChild(bal);
+        }
+
         // Clock in / Clock out by hand (the same as saying it in the chat): one button per open workplace, or Clock in when nobody is open.
         if (!shared && card.clock) {
             var clockBar = wkEl('div', 'wk-clock');

@@ -3677,3 +3677,8 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 @media (max-width: 700px) { .card-panel-body { padding: calc(8px * var(--ui-scale)) calc(10px * var(--ui-scale)); } }
 
 .card-panel-body { overscroll-behavior-y: contain; }
+
+.wk-balance { font-size: 13px; padding: 2px 0 8px; }
+.wk-balance b { font-size: 15px; }
+.wk-balance.behind b { color: var(--error); }
+.wk-balance-since { color: var(--muted); }
