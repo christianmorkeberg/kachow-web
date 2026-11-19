@@ -4597,13 +4597,20 @@
                 svg.appendChild(g);
             });
             holder.appendChild(svg);
-            body.appendChild(holder);
+            // Narrow: plan, then the room under it. Wide (desktop panel): plan on the left, the room's controls beside it, so a tap is never answered below the fold.
+            var layout = el('div', 'home-plan-layout');
+            layout.appendChild(holder);
+            var side = el('div', 'home-plan-side');
+            layout.appendChild(side);
+            body.appendChild(layout);
             var area = (cfg.areas || []).filter(function (a) { return a.key === st.sel; })[0];
             var room = area ? roomFor(area) : null;
-            if (area && room) body.appendChild(roomBox(room));
-            else if (area) body.appendChild(el('div', 'home-note', daText('No room in the lights is called like this area yet.', 'Intet rum i lysene hedder noget der ligner dette område.')));
+            if (area && room) { var rb = roomBox(room); rb.classList.add('home-plan-sel'); side.appendChild(rb); }
+            else if (area) side.appendChild(el('div', 'home-note', daText('No room in the lights is called like this area yet.', 'Intet rum i lysene hedder noget der ligner dette område.')));
+            else side.appendChild(el('div', 'home-note home-plan-hint', daText('Tap a room.', 'Tryk på et rum.')));
             // rooms the plan has no area for stay reachable below
-            (st.lights ? st.lights.rooms : []).forEach(function (r) { if (!placed[r.name]) body.appendChild(roomBox(r)); });
+            (st.lights ? st.lights.rooms : []).forEach(function (r) { if (!placed[r.name]) side.appendChild(roomBox(r)); });
+            if (area && !isDesktopLayout()) setTimeout(function () { var t = side.firstChild; if (t && t.scrollIntoView) t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 50);
         }
         // Add / replace the floor plan: pick the image (shrunk here, so the upload stays small) and paste the areas.
         function planSetup() {

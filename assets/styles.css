@@ -3696,3 +3696,13 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 .home-plan-add { align-self: flex-start; margin-top: 6px; }
 .home-plan-setup { flex: 1 0 100%; display: flex; flex-direction: column; gap: 8px; }
 .home-plan-json { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 0; padding: 6px 8px; }
+
+.home-plan-layout { flex: 1 0 100%; display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
+.home-plan-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.home-plan-side .home-room { flex: 0 0 auto; width: 100%; }
+.home-plan-hint { color: var(--muted); }
+@container cardpanel (min-width: 720px) {
+    .home-plan-layout { grid-template-columns: minmax(300px, 46%) minmax(0, 1fr); }
+    .home-plan-svg { max-height: calc(100vh - 240px); }
+}
+.home-plan-side .home-room { height: auto; min-height: 0; align-self: stretch; }
