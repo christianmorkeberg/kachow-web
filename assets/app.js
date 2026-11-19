@@ -4126,6 +4126,7 @@
         return '#' + t(r) + t(g) + t(b);
     }
 
+    function homePlanView() { try { return localStorage.getItem('kachow-home-view') === 'plan' ? 'plan' : 'list'; } catch (e) { return 'list'; } }
     function renderHome(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');
@@ -4139,13 +4140,18 @@
         sync.className = 'home-sync';
         head.appendChild(title);
         head.appendChild(sync);
+        var viewSeg = document.createElement('div');
+        viewSeg.className = 'prog-seg home-view';
+        viewSeg.hidden = true;
+        head.appendChild(viewSeg);
         wrap.appendChild(head);
         var body = document.createElement('div');
         body.className = 'home-body';
         wrap.appendChild(body);
 
         var st = { lights: null, lightsErr: null, thermos: null, thermoErr: null, panel: null, panelShown: null, known: null,
-            fresh: { lights: false, thermos: false }, dragging: 0, pending: false };
+            fresh: { lights: false, thermos: false }, dragging: 0, pending: false,
+            plan: null, canEdit: false, view: homePlanView(), sel: null, setup: false };
         // Last-known state is kept in this browser and shown at once, then replaced in place by the fresh answer — the card opens complete
         // and nothing jumps when the (slower) thermostats arrive.
         var cached = homeCacheRead();
@@ -4505,6 +4511,158 @@
             drawNow();
             if (host) host.scrollTop = y;
         }
+        // ---- the floor plan: the household's own image (private, served by api/home-plan.php) with tappable areas tied to Hue rooms by name ----
+        function paintViewSeg() {
+            var has = !!(st.plan && st.plan.has_image && st.plan.config);
+            viewSeg.hidden = !has;
+            viewSeg.innerHTML = '';
+            if (!has) return;
+            [['list', daText('List', 'Liste')], ['plan', daText('Plan', 'Plan')]].forEach(function (o) {
+                var b = el('button', 'prog-seg-btn' + (st.view === o[0] ? ' on' : ''), o[1]);
+                b.type = 'button';
+                b.addEventListener('click', function () {
+                    st.view = o[0];
+                    try { localStorage.setItem('kachow-home-view', o[0]); } catch (e) { /* private mode */ }
+                    paintViewSeg(); draw();
+                });
+                viewSeg.appendChild(b);
+            });
+        }
+        function loadPlan() {
+            fetch('/api/home-plan.php', { credentials: 'same-origin' }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (j) {
+                st.canEdit = !!(j && j.can_edit);
+                st.plan = j && j.plan ? j.plan : null;
+                paintViewSeg();
+                draw();
+            }).catch(function () { /* no plan: the list as before */ });
+        }
+        function roomFor(area) {
+            var rooms = st.lights ? st.lights.rooms : [];
+            return rooms.filter(function (r) {
+                var n = String(r.name).toLowerCase();
+                return (area.match || []).some(function (m) { return n.indexOf(m) !== -1; });
+            })[0] || null;
+        }
+        function polyD(polys) { return polys.map(function (p) { return 'M' + p.map(function (q) { return q[0] + ' ' + q[1]; }).join('L') + 'Z'; }).join(''); }
+        function centroid(polys) {
+            var best = null, bestA = -1;
+            polys.forEach(function (p) {   // the biggest piece carries the label
+                var a = 0, cx = 0, cy = 0;
+                for (var i = 0; i < p.length; i++) {
+                    var q = p[i], r = p[(i + 1) % p.length], f = q[0] * r[1] - r[0] * q[1];
+                    a += f; cx += (q[0] + r[0]) * f; cy += (q[1] + r[1]) * f;
+                }
+                if (Math.abs(a) > bestA) { bestA = Math.abs(a); best = a === 0 ? p[0] : [cx / (3 * a), cy / (3 * a)]; }
+            });
+            return best;
+        }
+        function drawPlan(roomBox, thermosFor, used) {
+            var cfg = st.plan.config, NS = 'http://www.w3.org/2000/svg';
+            var holder = el('div', 'home-plan');
+            var svg = document.createElementNS(NS, 'svg');
+            svg.setAttribute('viewBox', '0 0 ' + cfg.w + ' ' + cfg.h);
+            svg.setAttribute('class', 'home-plan-svg');
+            svg.setAttribute('role', 'img');
+            var img = document.createElementNS(NS, 'image');
+            img.setAttribute('href', '/api/home-plan.php?image=1&v=' + encodeURIComponent(st.plan.version || ''));
+            img.setAttribute('width', cfg.w); img.setAttribute('height', cfg.h);
+            svg.appendChild(img);
+            var fs = Math.round(cfg.w / 38);
+            var placed = {};
+            (cfg.areas || []).forEach(function (area) {
+                var room = roomFor(area);
+                var ts = room ? thermosFor(room.name) : [];
+                ts.forEach(function (t) { used[t.id] = true; });
+                if (room) placed[room.name] = true;
+                var g = document.createElementNS(NS, 'g');
+                var on = !!(room && room.on);
+                g.setAttribute('class', 'hp-area' + (on ? ' on' : '') + (room ? '' : ' none') + (st.sel === area.key ? ' sel' : ''));
+                var path = document.createElementNS(NS, 'path');
+                path.setAttribute('d', polyD(area.polygons));
+                path.setAttribute('fill-rule', 'evenodd');
+                g.appendChild(path);
+                var c = centroid(area.polygons);
+                var temps = ts.filter(function (t) { return t.current_c != null; }).map(function (t) { return Number(t.current_c).toFixed(1) + '°'; });
+                var lines = [area.label].concat(temps.length ? [temps.join(' · ')] : []);
+                lines.forEach(function (ln, i) {
+                    var tx = document.createElementNS(NS, 'text');
+                    tx.setAttribute('x', c[0]); tx.setAttribute('y', c[1] + (i - (lines.length - 1) / 2) * fs * 1.25);
+                    tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('dominant-baseline', 'middle');
+                    tx.setAttribute('font-size', i === 0 ? fs : Math.round(fs * .85));
+                    tx.setAttribute('class', i === 0 ? 'hp-name' : 'hp-temp');
+                    tx.textContent = ln;
+                    g.appendChild(tx);
+                });
+                g.addEventListener('click', function () { st.sel = st.sel === area.key ? null : area.key; draw(); });
+                svg.appendChild(g);
+            });
+            holder.appendChild(svg);
+            body.appendChild(holder);
+            var area = (cfg.areas || []).filter(function (a) { return a.key === st.sel; })[0];
+            var room = area ? roomFor(area) : null;
+            if (area && room) body.appendChild(roomBox(room));
+            else if (area) body.appendChild(el('div', 'home-note', daText('No room in the lights is called like this area yet.', 'Intet rum i lysene hedder noget der ligner dette område.')));
+            // rooms the plan has no area for stay reachable below
+            (st.lights ? st.lights.rooms : []).forEach(function (r) { if (!placed[r.name]) body.appendChild(roomBox(r)); });
+        }
+        // Add / replace the floor plan: pick the image (shrunk here, so the upload stays small) and paste the areas.
+        function planSetup() {
+            var box = el('div', 'home-room home-plan-setup');
+            box.appendChild(el('div', 'home-room-name', daText('Floor plan', 'Plantegning')));
+            var file = document.createElement('input');
+            file.type = 'file'; file.accept = 'image/*';
+            var ta = document.createElement('textarea');
+            ta.rows = 6; ta.className = 'home-plan-json';
+            ta.placeholder = daText('Areas (JSON): {"w":…,"h":…,"areas":[{"label":"Kitchen","match":["køk"],"polygons":[[[x,y],…]]}]}', 'Områder (JSON): {"w":…,"h":…,"areas":[…]}');
+            if (st.plan && st.plan.config) ta.value = JSON.stringify(st.plan.config);
+            var status = el('div', 'home-note');
+            var actions = el('div', 'sched-actions');
+            var save = el('button', 'sched-btn primary', daText('Save', 'Gem')); save.type = 'button';
+            var cancel = el('button', 'sched-btn', daText('Cancel', 'Annullér')); cancel.type = 'button';
+            cancel.addEventListener('click', function () { st.setup = false; draw(); });
+            function shrink(f) {
+                return new Promise(function (resolve, reject) {
+                    var im = new Image(), url = URL.createObjectURL(f);
+                    im.onload = function () {
+                        var k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight));
+                        var c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+                        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+                        URL.revokeObjectURL(url);
+                        c.toBlob(function (b) { b ? resolve({ blob: b, w: c.width, h: c.height }) : reject(new Error('image')); }, 'image/jpeg', 0.86);
+                    };
+                    im.onerror = function () { reject(new Error('image')); };
+                    im.src = url;
+                });
+            }
+            save.addEventListener('click', function () {
+                var cfg = null;
+                if (ta.value.trim()) { try { cfg = JSON.parse(ta.value); } catch (e) { status.textContent = daText('The areas are not valid JSON.', 'Områderne er ikke gyldig JSON.'); return; } }
+                save.disabled = true; status.textContent = '…';
+                var go = file.files && file.files[0] ? shrink(file.files[0]) : Promise.resolve(null);
+                go.then(function (sh) {
+                    var fd = new FormData();
+                    if (sh) {
+                        fd.append('image', sh.blob, 'plan.jpg');
+                        if (cfg && sh.w && cfg.w && Math.abs(cfg.w / cfg.h - sh.w / sh.h) < 0.01 && cfg.w !== sh.w) {   // the areas were drawn on a differently sized image: scale them
+                            var k = sh.w / cfg.w;
+                            cfg.areas.forEach(function (a) { a.polygons = a.polygons.map(function (p) { return p.map(function (q) { return [Math.round(q[0] * k * 10) / 10, Math.round(q[1] * k * 10) / 10]; }); }); });
+                            cfg.w = sh.w; cfg.h = sh.h;
+                        }
+                    }
+                    if (cfg) fd.append('config', JSON.stringify(cfg));
+                    return fetch('/api/home-plan.php', { method: 'POST', credentials: 'same-origin', body: fd });
+                }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (j) {
+                    save.disabled = false;
+                    if (j && j.ok) { st.plan = j.plan; st.canEdit = true; st.setup = false; if (st.plan && st.plan.has_image) { st.view = 'plan'; try { localStorage.setItem('kachow-home-view', 'plan'); } catch (e) { /* ignore */ } } paintViewSeg(); draw(); }
+                    else status.textContent = (j && j.error) || daText('That did not work.', 'Det virkede ikke.');
+                }).catch(function () { save.disabled = false; status.textContent = daText('Could not read the image.', 'Kunne ikke læse billedet.'); });
+            });
+            actions.appendChild(save); actions.appendChild(cancel);
+            [file, ta, status, actions].forEach(function (x) { box.appendChild(x); });
+
+            return box;
+        }
+
         function drawNow() {
             body.innerHTML = '';
             var used = {};
@@ -4517,8 +4675,8 @@
             }
             if (st.lightsErr) body.appendChild(el('div', 'home-note', daText('Lights: ', 'Lys: ') + st.lightsErr));
             if (!st.lights && !st.lightsErr) body.appendChild(homeLoader('lights'));
-            if (st.lights) {
-                st.lights.rooms.forEach(function (room) {
+            function roomBox(room) {
+                {
                     var box = el('div', 'home-room' + (room.on ? ' is-on' : ''));
                     var h = el('div', 'home-room-head');
                     h.appendChild(el('span', 'home-room-name', room.name));
@@ -4539,13 +4697,27 @@
                     box.style.flexBasis = roomWidth(ts.length, room.lights.length) + 'px';
                     var pnl = panelFor(room.lights);
                     if (pnl) box.appendChild(pnl);
-                    body.appendChild(box);
-                });
+                    return box;
+                }
+            }
+            var planOn = st.view === 'plan' && st.plan && st.plan.has_image && st.plan.config;
+            if (planOn && st.lights) {
+                drawPlan(roomBox, thermosFor, used);
+            } else if (st.lights) {
+                st.lights.rooms.forEach(function (room) { body.appendChild(roomBox(room)); });
+            }
+            if (st.setup) body.appendChild(planSetup());
+            else if (st.canEdit && !(st.plan && st.plan.has_image)) {
+                var addPlan = el('button', 'sched-btn home-plan-add', daText('Add floor plan', 'Tilføj plantegning'));
+                addPlan.type = 'button';
+                addPlan.addEventListener('click', function () { st.setup = true; draw(); });
+                body.appendChild(addPlan);
             }
             if (st.thermoErr) body.appendChild(el('div', 'home-note', daText('Thermostats: ', 'Termostater: ') + st.thermoErr));
             if (!st.thermos && !st.thermoErr && !(st.known && st.known.length)) body.appendChild(homeLoader('thermo'));
             var rest = thermos.filter(function (t) { return !used[t.id]; });
             var other = st.lights ? st.lights.other : [];
+            if (planOn) { /* the plan lists what it could not place below */ }
             if (rest.length || other.length) {
                 var ob = el('div', 'home-room');
                 ob.appendChild(el('div', 'home-room-head')).appendChild(el('span', 'home-room-name', daText('Other', 'Andet')));
@@ -4652,6 +4824,7 @@
         draw();
         loadLights();
         loadThermos();
+        loadPlan();
         messages.appendChild(wrap);
         messages.scrollTop = messages.scrollHeight;
     }
