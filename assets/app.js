@@ -1481,9 +1481,9 @@
         } else {
             setPanelState('open');
         }
-        // Train and the timer are used mid-workout: they open full screen (a phone: over the chat; desktop: over the chat rail). Coming back to the same
+        // Train, the timer and Home (the floor plan wants the room) open full screen (a phone: over the chat; desktop: over the chat rail). Coming back to the same
         // card (a refresh) leaves whatever the user chose.
-        if ((!sameKind || !hadCard) && (card.kind === 'train' || card.kind === 'workout_timer') && mode !== 'min') {
+        if ((!sameKind || !hadCard) && (card.kind === 'train' || card.kind === 'workout_timer' || card.kind === 'home') && mode !== 'min') {
             if (isDesktopLayout()) {
                 var wsEl = document.getElementById('workspace');
                 if (wsEl) { wsEl.classList.add('ws-focus-card'); setExpandIcon(true); }
