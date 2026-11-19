@@ -4126,7 +4126,7 @@
         return '#' + t(r) + t(g) + t(b);
     }
 
-    function homePlanView() { try { return localStorage.getItem('kachow-home-view') === 'plan' ? 'plan' : 'list'; } catch (e) { return 'list'; } }
+    function homePlanView() { try { return localStorage.getItem('kachow-home-view') === 'list' ? 'list' : 'plan'; } catch (e) { return 'plan'; } }   // the plan, unless the list was chosen (no plan set up: the list shows anyway)
     function renderHome(card) {
         clearEmptyHint();
         var wrap = document.createElement('div');
@@ -4346,7 +4346,19 @@
             t.setAttribute('role', 'button');
             t.tabIndex = 0;
             function toggle() { l.on = !l.on; paintLight(l); send({ action: 'light', id: l.id, on: l.on }); }
-            t.addEventListener('click', toggle);
+            // tap = on/off; press and hold = this lamp's settings (brightness, colour), same as the slider button
+            var holdT = null, held = false, hx = 0, hy = 0;
+            function openSettings() { st.panel = st.panel === l.id ? null : l.id; st.panelShown = null; draw(); }
+            t.addEventListener('pointerdown', function (e) {
+                if (e.button > 0) return;
+                held = false; hx = e.clientX; hy = e.clientY;
+                clearTimeout(holdT);
+                holdT = setTimeout(function () { held = true; if (navigator.vibrate) { try { navigator.vibrate(12); } catch (x) { /* unsupported */ } } openSettings(); }, 450);
+            });
+            ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { t.addEventListener(ev, function () { clearTimeout(holdT); }); });
+            t.addEventListener('pointermove', function (e) { if (holdT && (Math.abs(e.clientX - hx) > 8 || Math.abs(e.clientY - hy) > 8)) clearTimeout(holdT); });
+            t.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+            t.addEventListener('click', function (e) { if (held) { held = false; e.preventDefault(); return; } toggle(); });
             t.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
             if (st.panel === l.id) t.classList.add('is-selected');
             paintLight(l);
@@ -4705,6 +4717,13 @@
                     pop.appendChild(x0);
                 }
                 pop.addEventListener('click', function (e) { e.stopPropagation(); });
+                if (st.docDown) document.removeEventListener('pointerdown', st.docDown, true);
+                st.docDown = function (e) {   // a press anywhere outside the popup (not on a room, which switches) closes it
+                    if (!pop.isConnected) { document.removeEventListener('pointerdown', st.docDown, true); st.docDown = null; return; }
+                    if (pop.contains(e.target) || (e.target.closest && e.target.closest('path.hp-area'))) return;
+                    closePop();
+                };
+                setTimeout(function () { if (st.docDown) document.addEventListener('pointerdown', st.docDown, true); }, 0);
                 svg.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('path.hp-area')) return; e.stopImmediatePropagation(); closePop(); }, true);   // a tap on the plan itself closes it, with the exit animation
                 holder.appendChild(pop);
                 var place = function () {
@@ -4714,20 +4733,20 @@
                     // beside the tapped room, not on top of it: to its right if there is space, else to its left
                     var bx0 = 1e9, bx1 = 0;
                     area.polygons.forEach(function (p) { p.forEach(function (q) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); }); });
-                    var scale = Math.min(hw / vw, hh / vh), offX = (hw - vw * scale) / 2;
+                    var sw = svg.clientWidth, sh = svg.clientHeight, scale = Math.min(sw / vw, sh / vh), offX = svg.offsetLeft + (sw - vw * scale) / 2;
                     var left0 = offX + (bx0 - vx) * scale, right0 = offX + (bx1 - vx) * scale;
                     var pw = Math.min(room && room.lights.length > 6 ? 430 : 340, hw - 16), ph = pop.offsetHeight;
                     var toRight = right0 + 12 + pw <= hw - 8;
                     var left = toRight ? right0 + 12 : (left0 - 12 - pw >= 8 ? left0 - 12 - pw : Math.max(8, Math.min(hw - pw - 8, (hw - pw) / 2)));
                     pop.style.width = pw + 'px';
                     pop.style.left = Math.max(8, Math.min(hw - pw - 8, left)) + 'px';
-                    pop.style.top = Math.max(8, Math.min(Math.max(8, hh - ph - 8), py - ph / 2)) + 'px';
+                    pop.style.top = Math.max(8, (hh - ph) / 2) + 'px';   // centred on the plan, vertically
                     pop.style.transformOrigin = (toRight ? 'left' : 'right') + ' center';
                     if (fresh) pop.classList.add('is-entering');
                 };
                 pop.style.visibility = 'hidden';
                 requestAnimationFrame(function () { place(); pop.style.visibility = ''; });
-            } else st.popShown = null;
+            } else { st.popShown = null; if (st.docDown) { document.removeEventListener('pointerdown', st.docDown, true); st.docDown = null; } }
             // rooms the plan has no area for stay reachable below
             (st.lights ? st.lights.rooms : []).forEach(function (r) { if (!placed[r.name]) body.appendChild(roomBox(r)); });
         }

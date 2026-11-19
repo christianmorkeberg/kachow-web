@@ -3748,3 +3748,9 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 .home-plan-pop .home-panel-wrap { margin-top: 0; }
 
 :root:not([data-theme="paper"]):not([data-theme="blush"]):not([data-theme="sun"]) .hp-area.on { fill: rgba(255, 190, 70, .28); }
+
+/* a lamp is pressed-and-held for its settings: no text selection / callout while holding */
+.home-tile-light { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* full screen: the plan is centred in the space, so the popup (centred on it) sits in the middle of the screen */
+body.card-full .home-plan { min-height: calc(100vh - 200px); display: flex; align-items: center; justify-content: center; }
+body.card-full .home-plan-svg { max-height: calc(100vh - 220px); }
