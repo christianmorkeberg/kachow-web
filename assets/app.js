@@ -1760,7 +1760,16 @@
         // less springs back. Not on maps, fields, or anything else that handles its own drag.
         var pull = null;
         var body = document.getElementById('cardPanelBody');
-        function pullFree(t) { return !(t && t.closest && t.closest('.leaflet-container, input, textarea, select, [data-nodrag], canvas, svg.prog-svg')); }
+        function pullFree(t) {
+            if (t && t.closest && t.closest('.leaflet-container, input, textarea, select, [data-nodrag], canvas, svg.prog-svg, .home-plan-pop')) return false;
+            // anything inside that can scroll on its own (a popup, a long list in a card) keeps its drag: the card is only pulled when the touch started on plain card content
+            for (var n = t; n && n !== body; n = n.parentElement) {
+                if (n.nodeType !== 1) continue;
+                var oy = getComputedStyle(n).overflowY;
+                if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return false;
+            }
+            return true;
+        }
         if (body) {
             body.addEventListener('touchstart', function (e) {
                 pull = null;
