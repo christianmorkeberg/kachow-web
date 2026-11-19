@@ -4654,8 +4654,16 @@
                 var temps = ts.filter(function (t) { return t.current_c != null; }).map(function (t) { return Number(t.current_c).toFixed(1) + '°'; });
                 var lines = [area.label].concat(temps.length ? [temps.join(' · ')] : []);
                 lines.forEach(function (ln, i) {
+                    var ty = c[1] + (i - (lines.length - 1) / 2) * fs * 1.25;
+                    if (i > 0) {   // the temperature sits on a flat colour chip: readable on any room fill, any theme
+                        var tfs = Math.round(fs * .85), cw = ln.length * tfs * .56 + tfs * 1.1, chip = document.createElementNS(NS, 'rect');
+                        chip.setAttribute('x', c[0] - cw / 2); chip.setAttribute('y', ty - tfs * .72);
+                        chip.setAttribute('width', cw); chip.setAttribute('height', tfs * 1.44);
+                        chip.setAttribute('class', 'hp-chip');
+                        labels.appendChild(chip);
+                    }
                     var tx = document.createElementNS(NS, 'text');
-                    tx.setAttribute('x', c[0]); tx.setAttribute('y', c[1] + (i - (lines.length - 1) / 2) * fs * 1.25);
+                    tx.setAttribute('x', c[0]); tx.setAttribute('y', ty);
                     tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('dominant-baseline', 'middle');
                     tx.setAttribute('font-size', i === 0 ? fs : Math.round(fs * .85));
                     tx.setAttribute('class', i === 0 ? 'hp-name' : 'hp-temp');
