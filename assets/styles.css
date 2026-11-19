@@ -3685,24 +3685,27 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 
 /* ---- Home card: floor plan view ---- */
 .home-view { margin-left: auto; }
-.home-plan { flex: 1 0 100%; }
-.home-plan-svg { width: 100%; height: auto; display: block; background: #1e1e1e; touch-action: manipulation; }
-.hp-area path { fill: transparent; stroke: rgba(255, 255, 255, .35); stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .2s; }
-.hp-area.on path { fill: rgba(255, 196, 60, .38); }
-.hp-area.sel path { stroke: var(--accent); stroke-width: 3; }
-.hp-area.none path { stroke-dasharray: 6 5; }
-.hp-name { fill: #fff; font-weight: 700; paint-order: stroke; stroke: rgba(0, 0, 0, .75); stroke-width: 6px; stroke-linejoin: round; pointer-events: none; }
-.hp-temp { fill: #ffe38a; paint-order: stroke; stroke: rgba(0, 0, 0, .75); stroke-width: 5px; stroke-linejoin: round; pointer-events: none; }
+.home-plan { flex: 1 0 100%; position: relative; }
+.home-plan-svg { width: 100%; height: auto; max-height: min(640px, calc(100vh - 200px)); display: block; margin: 0 auto; background: transparent; touch-action: manipulation; }
+.hp-walls { pointer-events: none; }
+.hp-area { fill: color-mix(in srgb, var(--text) 7%, transparent); stroke: none; cursor: pointer; transition: fill .25s; }
+.hp-area:hover { fill: color-mix(in srgb, var(--text) 13%, transparent); }
+.hp-area.on { fill: rgba(255, 190, 70, .42); }
+.hp-area.on:hover { fill: rgba(255, 190, 70, .55); }
+.hp-area.sel { stroke: var(--accent); stroke-width: 4; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.hp-area.none { fill: color-mix(in srgb, var(--text) 3%, transparent); }
+.hp-name { fill: var(--text-strong, var(--text)); font-weight: 700; paint-order: stroke; stroke: var(--panel, var(--bg)); stroke-width: 7px; stroke-linejoin: round; pointer-events: none; }
+.hp-temp { fill: var(--muted); font-weight: 600; paint-order: stroke; stroke: var(--panel, var(--bg)); stroke-width: 6px; stroke-linejoin: round; pointer-events: none; }
 .home-plan-add { align-self: flex-start; margin-top: 6px; }
 .home-plan-setup { flex: 1 0 100%; display: flex; flex-direction: column; gap: 8px; }
 .home-plan-json { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 0; padding: 6px 8px; }
-
-.home-plan-layout { flex: 1 0 100%; display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
-.home-plan-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.home-plan-side .home-room { flex: 0 0 auto; width: 100%; }
-.home-plan-hint { color: var(--muted); }
-@container cardpanel (min-width: 720px) {
-    .home-plan-layout { grid-template-columns: minmax(300px, 46%) minmax(0, 1fr); }
-    .home-plan-svg { max-height: calc(100vh - 240px); }
-}
-.home-plan-side .home-room { height: auto; min-height: 0; align-self: stretch; }
+/* the room card that floats over the plan */
+.home-plan-pop { position: absolute; z-index: 5; max-height: calc(100% - 16px); overflow: auto; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 10px 34px rgba(0, 0, 0, .28); padding: 6px; animation: hp-pop .16s ease-out; }
+.home-plan-pop.is-sheet { left: 8px; right: 8px; bottom: 8px; top: auto; max-height: 75%; }
+.home-plan-pop .home-room { width: 100%; margin: 0; }
+.home-plan-pop-x { position: absolute; top: 6px; right: 6px; z-index: 2; width: 28px; height: 28px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.home-plan-pop-x svg { width: 16px; height: 16px; }
+.home-plan-pop .home-room-head { padding-right: 30px; }
+@keyframes hp-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.home-plan-pop .home-tile { height: auto; }
+.home-plan-pop .home-sections { align-items: flex-start; }

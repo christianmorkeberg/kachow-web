@@ -4556,32 +4556,65 @@
             });
             return best;
         }
+        // The scan's own colours (dark background, pastel fills) are dropped: only its white lines (walls, doors, furniture outlines) are kept, recoloured to the theme's
+        // text colour, so the plan sits on the card like a drawing. Room fills come from the areas, so they follow the theme too. Computed once per image version + colour.
+        var wallsCache = {};
+        function wallsUrl(version, color) {
+            var key = version + '|' + color;
+            if (wallsCache[key]) return wallsCache[key];
+            wallsCache[key] = new Promise(function (resolve, reject) {
+                var im = new Image();
+                im.onload = function () {
+                    var c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+                    var x = c.getContext('2d', { willReadFrequently: true });
+                    x.drawImage(im, 0, 0);
+                    var rgb = (function () { var t = document.createElement('canvas').getContext('2d'); t.fillStyle = color; t.fillRect(0, 0, 1, 1); return t.getImageData(0, 0, 1, 1).data; })();
+                    var d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+                    for (var k = 0; k < p.length; k += 4) {
+                        var m = Math.min(p[k], p[k + 1], p[k + 2]);                // whiteness: pure white lines stay, pastel fills and the dark background go
+                        var a = Math.max(0, Math.min(1, (m - 222) / 28));
+                        p[k] = rgb[0]; p[k + 1] = rgb[1]; p[k + 2] = rgb[2]; p[k + 3] = Math.round(a * 255);
+                    }
+                    x.putImageData(d, 0, 0);
+                    resolve(c.toDataURL('image/png'));
+                };
+                im.onerror = reject;
+                im.src = '/api/home-plan.php?image=1&v=' + encodeURIComponent(version || '');
+            });
+            return wallsCache[key];
+        }
         function drawPlan(roomBox, thermosFor, used) {
             var cfg = st.plan.config, NS = 'http://www.w3.org/2000/svg';
+            // crop to the rooms (+ a margin), so no empty background around the drawing
+            var minX = 1e9, minY = 1e9, maxX = 0, maxY = 0;
+            (cfg.areas || []).forEach(function (a) { a.polygons.forEach(function (p) { p.forEach(function (q) { minX = Math.min(minX, q[0]); maxX = Math.max(maxX, q[0]); minY = Math.min(minY, q[1]); maxY = Math.max(maxY, q[1]); }); }); });
+            var mg = Math.round(cfg.w / 30);
+            var vx = Math.max(0, minX - mg), vy = Math.max(0, minY - mg), vw = Math.min(cfg.w, maxX + mg) - vx, vh = Math.min(cfg.h, maxY + mg) - vy;
             var holder = el('div', 'home-plan');
             var svg = document.createElementNS(NS, 'svg');
-            svg.setAttribute('viewBox', '0 0 ' + cfg.w + ' ' + cfg.h);
+            svg.setAttribute('viewBox', vx + ' ' + vy + ' ' + vw + ' ' + vh);
             svg.setAttribute('class', 'home-plan-svg');
             svg.setAttribute('role', 'img');
-            var img = document.createElementNS(NS, 'image');
-            img.setAttribute('href', '/api/home-plan.php?image=1&v=' + encodeURIComponent(st.plan.version || ''));
-            img.setAttribute('width', cfg.w); img.setAttribute('height', cfg.h);
-            svg.appendChild(img);
             var fs = Math.round(cfg.w / 38);
             var placed = {};
+            var anchors = {};
+            // fills first (under the walls), then the walls, then the labels on top
+            var fills = document.createElementNS(NS, 'g'), labels = document.createElementNS(NS, 'g');
             (cfg.areas || []).forEach(function (area) {
                 var room = roomFor(area);
                 var ts = room ? thermosFor(room.name) : [];
                 ts.forEach(function (t) { used[t.id] = true; });
                 if (room) placed[room.name] = true;
-                var g = document.createElementNS(NS, 'g');
                 var on = !!(room && room.on);
-                g.setAttribute('class', 'hp-area' + (on ? ' on' : '') + (room ? '' : ' none') + (st.sel === area.key ? ' sel' : ''));
+                var cls = 'hp-area' + (on ? ' on' : '') + (room ? '' : ' none') + (st.sel === area.key ? ' sel' : '');
                 var path = document.createElementNS(NS, 'path');
                 path.setAttribute('d', polyD(area.polygons));
                 path.setAttribute('fill-rule', 'evenodd');
-                g.appendChild(path);
+                path.setAttribute('class', cls);
+                path.addEventListener('click', function (e) { e.stopPropagation(); st.sel = st.sel === area.key ? null : area.key; draw(); });
+                fills.appendChild(path);
                 var c = centroid(area.polygons);
+                anchors[area.key] = c;
                 var temps = ts.filter(function (t) { return t.current_c != null; }).map(function (t) { return Number(t.current_c).toFixed(1) + '°'; });
                 var lines = [area.label].concat(temps.length ? [temps.join(' · ')] : []);
                 lines.forEach(function (ln, i) {
@@ -4591,26 +4624,53 @@
                     tx.setAttribute('font-size', i === 0 ? fs : Math.round(fs * .85));
                     tx.setAttribute('class', i === 0 ? 'hp-name' : 'hp-temp');
                     tx.textContent = ln;
-                    g.appendChild(tx);
+                    labels.appendChild(tx);
                 });
-                g.addEventListener('click', function () { st.sel = st.sel === area.key ? null : area.key; draw(); });
-                svg.appendChild(g);
             });
+            svg.appendChild(fills);
+            var walls = document.createElementNS(NS, 'image');
+            walls.setAttribute('width', cfg.w); walls.setAttribute('height', cfg.h);
+            walls.setAttribute('class', 'hp-walls');
+            svg.appendChild(walls);
+            svg.appendChild(labels);
+            var color = (getComputedStyle(document.documentElement).getPropertyValue('--text') || '#888').trim() || '#888';
+            wallsUrl(st.plan.version, color).then(function (u) { walls.setAttribute('href', u); }).catch(function () { /* the areas still work without the lines */ });
+            svg.addEventListener('click', function () { if (st.sel) { st.sel = null; draw(); } });
             holder.appendChild(svg);
-            // Narrow: plan, then the room under it. Wide (desktop panel): plan on the left, the room's controls beside it, so a tap is never answered below the fold.
-            var layout = el('div', 'home-plan-layout');
-            layout.appendChild(holder);
-            var side = el('div', 'home-plan-side');
-            layout.appendChild(side);
-            body.appendChild(layout);
+            body.appendChild(holder);
+
+            // the tapped room opens as a card floating over the plan, next to the room (a bottom card on a phone)
             var area = (cfg.areas || []).filter(function (a) { return a.key === st.sel; })[0];
             var room = area ? roomFor(area) : null;
-            if (area && room) { var rb = roomBox(room); rb.classList.add('home-plan-sel'); side.appendChild(rb); }
-            else if (area) side.appendChild(el('div', 'home-note', daText('No room in the lights is called like this area yet.', 'Intet rum i lysene hedder noget der ligner dette område.')));
-            else side.appendChild(el('div', 'home-note home-plan-hint', daText('Tap a room.', 'Tryk på et rum.')));
+            if (area) {
+                var pop = el('div', 'home-plan-pop');
+                var x = el('button', 'home-plan-pop-x'); x.type = 'button'; x.innerHTML = icon('x'); x.setAttribute('aria-label', daText('Close', 'Luk'));
+                x.addEventListener('click', function (e) { e.stopPropagation(); st.sel = null; draw(); });
+                pop.appendChild(x);
+                if (room) pop.appendChild(roomBox(room));
+                else pop.appendChild(el('div', 'home-note', daText('No room in the lights is called like this area yet.', 'Intet rum i lysene hedder noget der ligner dette område.')));
+                pop.addEventListener('click', function (e) { e.stopPropagation(); });
+                holder.appendChild(pop);
+                var place = function () {
+                    var hw = holder.clientWidth, hh = holder.clientHeight;
+                    if (hw < 560) { pop.classList.add('is-sheet'); pop.style.left = pop.style.top = ''; return; }   // narrow: a card along the bottom
+                    var c = anchors[area.key], py = (c[1] - vy) / vh * hh;
+                    // beside the tapped room, not on top of it: to its right if there is space, else to its left
+                    var bx0 = 1e9, bx1 = 0;
+                    area.polygons.forEach(function (p) { p.forEach(function (q) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); }); });
+                    var sx = hw / vw * (svg.clientHeight / hh < 1 ? 1 : 1);
+                    var scale = Math.min(hw / vw, hh / vh), offX = (hw - vw * scale) / 2;
+                    var left0 = offX + (bx0 - vx) * scale, right0 = offX + (bx1 - vx) * scale;
+                    var pw = Math.min(340, hw - 16), ph = pop.offsetHeight;
+                    var left = right0 + 12 + pw <= hw - 8 ? right0 + 12 : (left0 - 12 - pw >= 8 ? left0 - 12 - pw : Math.max(8, Math.min(hw - pw - 8, (hw - pw) / 2)));
+                    pop.style.width = pw + 'px';
+                    pop.style.left = Math.max(8, Math.min(hw - pw - 8, left)) + 'px';
+                    pop.style.top = Math.max(8, Math.min(Math.max(8, hh - ph - 8), py - ph / 2)) + 'px';
+                };
+                requestAnimationFrame(place);
+            }
             // rooms the plan has no area for stay reachable below
-            (st.lights ? st.lights.rooms : []).forEach(function (r) { if (!placed[r.name]) side.appendChild(roomBox(r)); });
-            if (area && !isDesktopLayout()) setTimeout(function () { var t = side.firstChild; if (t && t.scrollIntoView) t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 50);
+            (st.lights ? st.lights.rooms : []).forEach(function (r) { if (!placed[r.name]) body.appendChild(roomBox(r)); });
         }
         // Add / replace the floor plan: pick the image (shrunk here, so the upload stays small) and paste the areas.
         function planSetup() {
