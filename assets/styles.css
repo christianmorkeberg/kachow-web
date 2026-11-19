@@ -3699,13 +3699,51 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 .home-plan-add { align-self: flex-start; margin-top: 6px; }
 .home-plan-setup { flex: 1 0 100%; display: flex; flex-direction: column; gap: 8px; }
 .home-plan-json { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 0; padding: 6px 8px; }
-/* the room card that floats over the plan */
-.home-plan-pop { position: absolute; z-index: 5; max-height: calc(100% - 16px); overflow: auto; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 10px 34px rgba(0, 0, 0, .28); padding: 6px; animation: hp-pop .16s ease-out; }
-.home-plan-pop.is-sheet { left: 8px; right: 8px; bottom: 8px; top: auto; max-height: 75%; }
-.home-plan-pop .home-room { width: 100%; margin: 0; }
-.home-plan-pop-x { position: absolute; top: 6px; right: 6px; z-index: 2; width: 28px; height: 28px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-.home-plan-pop-x svg { width: 16px; height: 16px; }
-.home-plan-pop .home-room-head { padding-right: 30px; }
-@keyframes hp-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.home-plan-pop .home-tile { height: auto; }
-.home-plan-pop .home-sections { align-items: flex-start; }
+/* the room card that floats over the plan: flat, glassy, icon-led */
+.home-plan-pop { position: absolute; z-index: 5; max-height: calc(100% - 16px); overflow: auto; overscroll-behavior: contain; background: color-mix(in srgb, var(--panel) 90%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); box-shadow: 0 14px 40px rgba(0, 0, 0, .26); padding: 12px; scrollbar-width: thin; }
+.home-plan-pop.is-sheet { left: 8px; right: 8px; bottom: 8px; top: auto; max-height: 72%; transform-origin: bottom center; }
+.home-plan-pop.is-entering { animation: hp-in .22s cubic-bezier(.2, .8, .2, 1) both; }
+.home-plan-pop.is-sheet.is-entering { animation-name: hp-sheet-in; }
+.home-plan-pop.is-leaving { animation: hp-out .15s ease-in both; pointer-events: none; }
+.home-plan-pop.is-sheet.is-leaving { animation-name: hp-sheet-out; }
+@keyframes hp-in { from { opacity: 0; transform: translateX(-8px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes hp-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.95); } }
+@keyframes hp-sheet-in { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes hp-sheet-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(28px); } }
+@media (prefers-reduced-motion: reduce) { .home-plan-pop.is-entering, .home-plan-pop.is-leaving { animation: none; } }
+.hp-card { display: flex; flex-direction: column; gap: 12px; }
+.hp-head { display: flex; align-items: center; gap: 10px; }
+.hp-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.hp-title-ic { color: var(--muted); transition: color .2s; display: inline-flex; }
+.hp-title-ic svg { width: 18px; height: 18px; }
+.hp-card.is-on .hp-title-ic { color: var(--amber); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--amber) 60%, transparent)); }
+.hp-title-name { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hp-x { border: 0; background: transparent; color: var(--muted); width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
+.hp-x:hover { color: var(--text); }
+.hp-x svg { width: 16px; height: 16px; }
+.hp-x-abs { position: absolute; top: 8px; right: 8px; }
+.hp-bright { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.hp-bright .home-ic svg { width: 16px; height: 16px; }
+.hp-bright input[type=range] { flex: 1; }
+.hp-rows { display: flex; flex-direction: column; gap: 6px; }
+.hp-lights { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+/* radiators: one slim row each (icon · name · temperature · − set +) instead of a big tile */
+.home-plan-pop .home-tile-heat { width: auto; height: auto; min-height: 0; padding: 8px 10px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 2px 10px; }
+.home-plan-pop .home-tile-heat .home-tile-top { display: inline-flex; }
+.home-plan-pop .home-tile-heat .home-tile-name { font-size: 12px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-plan-pop .home-tile-heat .home-big { font-size: 18px; }
+.home-plan-pop .home-tile-heat .home-thermo-ctl { margin: 0; }
+.home-plan-pop .home-tile-heat .home-tile-sub { grid-column: 1 / -1; font-size: 11px; min-height: 0; }
+.home-plan-pop .home-tile-heat .home-tile-sub:empty { display: none; }
+.home-plan-pop .home-tile-heat.is-placeholder .home-skel-bar { display: none; }
+/* lamps: small chips in a grid that wraps to however many there are */
+.home-plan-pop .home-tile-light { width: auto; height: auto; min-height: 0; padding: 8px 10px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0 8px; }
+.home-plan-pop .home-tile-light .home-tile-top { display: contents; }
+.home-plan-pop .home-tile-light .home-more { order: 3; }
+.home-plan-pop .home-tile-light .home-tile-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-plan-pop .home-tile-light .home-tile-sub { grid-column: 2 / -1; font-size: 11px; min-height: 0; }
+.home-plan-pop .home-tile-light .home-bar { display: none; }
+.home-plan-pop .home-panel-wrap { margin-top: 0; }
+
+:root:not([data-theme="paper"]):not([data-theme="blush"]):not([data-theme="sun"]) .hp-area.on { fill: rgba(255, 190, 70, .28); }

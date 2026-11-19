@@ -4583,6 +4583,42 @@
             });
             return wallsCache[key];
         }
+        // The room as it appears in the plan's popup: a compact, icon-led card that fits however many lamps there are (a grid that wraps; the popup scrolls when it must).
+        function planRoom(room, ts, onClose) {
+            var card = el('div', 'hp-card' + (room.on ? ' is-on' : ''));
+            var h = el('div', 'hp-head');
+            var name = el('div', 'hp-title');
+            var bulb = ic('lightbulb'); bulb.classList.add('hp-title-ic');
+            name.appendChild(bulb);
+            name.appendChild(el('span', 'hp-title-name', room.name));
+            var onCount = room.lights.filter(function (l) { return l.on; }).length;
+            if (room.lights.length) name.appendChild(el('span', 'hp-count', onCount + '/' + room.lights.length));
+            h.appendChild(name);
+            if (room.group_id) h.appendChild(sw(room.on, function (on) { room.on = on; send({ action: 'group', id: room.group_id, on: on }, loadLights); }, room.name));
+            var x = el('button', 'hp-x'); x.type = 'button'; x.innerHTML = icon('x', ''); x.setAttribute('aria-label', daText('Close', 'Luk'));
+            x.addEventListener('click', function (e) { e.stopPropagation(); onClose(); });
+            h.appendChild(x);
+            card.appendChild(h);
+            if (room.group_id && room.brightness != null) {
+                var br = el('div', 'hp-bright');
+                br.appendChild(ic('sun'));
+                br.appendChild(range(1, 100, Math.max(1, room.brightness), 'home-room-range', null, function (v) { room.on = true; send({ action: 'group', id: room.group_id, brightness: v, on: true }, loadLights); }));
+                card.appendChild(br);
+            }
+            if (ts.length) {
+                var cl = el('div', 'hp-rows');
+                ts.forEach(function (t) { cl.appendChild(thermoTile(t)); });
+                card.appendChild(cl);
+            }
+            if (room.lights.length) {
+                var grid = el('div', 'hp-lights');
+                room.lights.forEach(function (l) { grid.appendChild(lightTile(l)); });
+                card.appendChild(grid);
+            }
+            var pnl = panelFor(room.lights);
+            if (pnl) card.appendChild(pnl);
+            return card;
+        }
         function drawPlan(roomBox, thermosFor, used) {
             var cfg = st.plan.config, NS = 'http://www.w3.org/2000/svg';
             // crop to the rooms (+ a margin), so no empty background around the drawing
@@ -4644,31 +4680,46 @@
             var room = area ? roomFor(area) : null;
             if (area) {
                 var pop = el('div', 'home-plan-pop');
-                var x = el('button', 'home-plan-pop-x'); x.type = 'button'; x.innerHTML = icon('x'); x.setAttribute('aria-label', daText('Close', 'Luk'));
-                x.addEventListener('click', function (e) { e.stopPropagation(); st.sel = null; draw(); });
-                pop.appendChild(x);
-                if (room) pop.appendChild(roomBox(room));
-                else pop.appendChild(el('div', 'home-note', daText('No room in the lights is called like this area yet.', 'Intet rum i lysene hedder noget der ligner dette område.')));
+                var fresh = st.popShown !== area.key;      // a redraw while it is open (a slider, a state update) must not replay the entrance
+                st.popShown = area.key;
+                function closePop() {
+                    if (pop.classList.contains('is-leaving')) return;
+                    pop.classList.add('is-leaving');
+                    var done = function () { st.sel = null; st.popShown = null; draw(); };
+                    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { done(); return; }
+                    pop.addEventListener('animationend', done, { once: true });
+                    setTimeout(function () { if (pop.isConnected && pop.classList.contains('is-leaving')) done(); }, 400);   // never stuck if the animation does not run
+                }
+                if (room) pop.appendChild(planRoom(room, thermosFor(room.name), closePop));
+                else {
+                    pop.appendChild(el('div', 'home-note', daText('No room in the lights is called like this area yet.', 'Intet rum i lysene hedder noget der ligner dette område.')));
+                    var x0 = el('button', 'hp-x hp-x-abs'); x0.type = 'button'; x0.innerHTML = icon('x', ''); x0.addEventListener('click', function (e) { e.stopPropagation(); closePop(); });
+                    pop.appendChild(x0);
+                }
                 pop.addEventListener('click', function (e) { e.stopPropagation(); });
+                svg.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('path.hp-area')) return; e.stopImmediatePropagation(); closePop(); }, true);   // a tap on the plan itself closes it, with the exit animation
                 holder.appendChild(pop);
                 var place = function () {
                     var hw = holder.clientWidth, hh = holder.clientHeight;
-                    if (hw < 560) { pop.classList.add('is-sheet'); pop.style.left = pop.style.top = ''; return; }   // narrow: a card along the bottom
+                    if (hw < 560) { pop.classList.add('is-sheet'); pop.style.left = pop.style.top = ''; if (fresh) pop.classList.add('is-entering'); return; }   // narrow: a card along the bottom
                     var c = anchors[area.key], py = (c[1] - vy) / vh * hh;
                     // beside the tapped room, not on top of it: to its right if there is space, else to its left
                     var bx0 = 1e9, bx1 = 0;
                     area.polygons.forEach(function (p) { p.forEach(function (q) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); }); });
-                    var sx = hw / vw * (svg.clientHeight / hh < 1 ? 1 : 1);
                     var scale = Math.min(hw / vw, hh / vh), offX = (hw - vw * scale) / 2;
                     var left0 = offX + (bx0 - vx) * scale, right0 = offX + (bx1 - vx) * scale;
-                    var pw = Math.min(340, hw - 16), ph = pop.offsetHeight;
-                    var left = right0 + 12 + pw <= hw - 8 ? right0 + 12 : (left0 - 12 - pw >= 8 ? left0 - 12 - pw : Math.max(8, Math.min(hw - pw - 8, (hw - pw) / 2)));
+                    var pw = Math.min(room && room.lights.length > 6 ? 430 : 340, hw - 16), ph = pop.offsetHeight;
+                    var toRight = right0 + 12 + pw <= hw - 8;
+                    var left = toRight ? right0 + 12 : (left0 - 12 - pw >= 8 ? left0 - 12 - pw : Math.max(8, Math.min(hw - pw - 8, (hw - pw) / 2)));
                     pop.style.width = pw + 'px';
                     pop.style.left = Math.max(8, Math.min(hw - pw - 8, left)) + 'px';
                     pop.style.top = Math.max(8, Math.min(Math.max(8, hh - ph - 8), py - ph / 2)) + 'px';
+                    pop.style.transformOrigin = (toRight ? 'left' : 'right') + ' center';
+                    if (fresh) pop.classList.add('is-entering');
                 };
-                requestAnimationFrame(place);
-            }
+                pop.style.visibility = 'hidden';
+                requestAnimationFrame(function () { place(); pop.style.visibility = ''; });
+            } else st.popShown = null;
             // rooms the plan has no area for stay reachable below
             (st.lights ? st.lights.rooms : []).forEach(function (r) { if (!placed[r.name]) body.appendChild(roomBox(r)); });
         }
