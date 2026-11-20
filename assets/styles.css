@@ -3754,3 +3754,6 @@ button.worklog-job { color: var(--text); cursor: pointer; font-family: inherit; 
 /* full screen: the plan is centred in the space, so the popup (centred on it) sits in the middle of the screen */
 body.card-full .home-plan { min-height: calc(100vh - 200px); display: flex; align-items: center; justify-content: center; }
 body.card-full .home-plan-svg { max-height: calc(100vh - 220px); }
+.wk-balances { padding: 0 0 8px; }
+.wk-balances .wk-balance { padding: 2px 0; }
+.wk-balance-place { display: inline-block; min-width: 3.2em; margin-right: 6px; color: var(--muted); font-weight: 600; }

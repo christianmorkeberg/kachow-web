@@ -11559,14 +11559,19 @@
         if (card.range && card.range !== card.title) head.appendChild(wkEl('div', 'wk-range', card.range));
         wrap.appendChild(head);
 
-        // Ahead / behind the work schedule, counted from its start (only when a schedule is set up).
-        if (!shared && card.balance) {
-            var bal = wkEl('div', 'wk-balance' + (card.balance.minutes < 0 ? ' behind' : ''));
-            bal.appendChild(wkEl('b', null, card.balance.label));
-            bal.appendChild(document.createTextNode(' ' + (card.balance.minutes < 0 ? daText('behind schedule', 'bagud i forhold til planen') : daText('ahead of schedule', 'foran planen'))));
-            var sinceD = new Date(card.balance.since + 'T12:00:00');
-            bal.appendChild(wkEl('span', 'wk-balance-since', ' · ' + daText('since ', 'siden ') + (isNaN(sinceD.getTime()) ? card.balance.since : sinceD.toLocaleDateString(daText('en-GB', 'da-DK'), { day: 'numeric', month: 'short' }))));
-            wrap.appendChild(bal);
+        // Ahead / behind the work schedule, one line per workplace that has a schedule (counted from its start; never added together).
+        if (!shared && card.balances && card.balances.length) {
+            var balBox = wkEl('div', 'wk-balances');
+            card.balances.forEach(function (b) {
+                var line = wkEl('div', 'wk-balance' + (b.minutes < 0 ? ' behind' : ''));
+                if (b.place || card.balances.length > 1) line.appendChild(wkEl('span', 'wk-balance-place', b.place || daText('All', 'Alle')));
+                line.appendChild(wkEl('b', null, b.label));
+                line.appendChild(document.createTextNode(' ' + (b.minutes < 0 ? daText('behind schedule', 'bagud i forhold til planen') : daText('ahead of schedule', 'foran planen'))));
+                var sinceD = new Date(b.since + 'T12:00:00');
+                line.appendChild(wkEl('span', 'wk-balance-since', ' · ' + daText('since ', 'siden ') + (isNaN(sinceD.getTime()) ? b.since : sinceD.toLocaleDateString(daText('en-GB', 'da-DK'), { day: 'numeric', month: 'short' }))));
+                balBox.appendChild(line);
+            });
+            wrap.appendChild(balBox);
         }
 
         // Clock in / Clock out by hand (the same as saying it in the chat): one button per open workplace, or Clock in when nobody is open.
