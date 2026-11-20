@@ -11346,7 +11346,7 @@
         en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
         da: ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
     };
-    var WK_MODES = [['today', 'Today', 'I dag'], ['week', 'Week', 'Uge'], ['month', 'Month', 'Måned'], ['4w', '4 wks', '4 uger'], ['12w', '12 wks', '12 uger'], ['year', 'Year', 'År']];
+    var WK_MODES = [['today', 'Today', 'I dag'], ['week', 'Week', 'Uge'], ['month', 'Month', 'Måned'], ['year', 'Year', 'År']];
     var WK_WORDS = { day: ['day', 'days', 'dag', 'dage'], week: ['week', 'weeks', 'uge', 'uger'], month: ['month', 'months', 'måned', 'måneder'] };
 
     function wkIsoToDate(iso) {
@@ -11518,14 +11518,127 @@
             toast(daText('Could not load that period.', 'Kunne ikke hente den periode.'));
         });
     }
+    // The card's range as a week (Mon–Sun), a calendar month or a calendar year — each can be paged with ‹ ›. `a` is the first day, as a local Date.
+    function wkRangeKind(card) {
+        if (!card.from || !card.to || card.from === card.to) return null;
+        var a = wkIsoToDate(card.from), b = wkIsoToDate(card.to);
+        if (!a || !b) return null;
+        var days = Math.round((b - a) / 86400000) + 1;
+        if (days === 7 && a.getDay() === 1) return { kind: 'week', a: a };
+        if (a.getDate() === 1 && b.getDate() === new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) return { kind: 'month', a: a };
+        if (a.getMonth() === 0 && a.getDate() === 1 && b.getMonth() === 11 && b.getDate() === 31 && a.getFullYear() === b.getFullYear()) return { kind: 'year', a: a };
+        return null;
+    }
+    function wkIsoWeek(d) {
+        var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        var day = t.getUTCDay() || 7;
+        t.setUTCDate(t.getUTCDate() + 4 - day);
+        return Math.ceil(((t - new Date(Date.UTC(t.getUTCFullYear(), 0, 1))) / 86400000 + 1) / 7);
+    }
+    function wkBodyFor(kind, a, place) {
+        var first, last, bucket = 'day';
+        if (kind === 'week') { first = a; last = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6); }
+        else if (kind === 'month') { first = new Date(a.getFullYear(), a.getMonth(), 1); last = new Date(a.getFullYear(), a.getMonth() + 1, 0); }
+        else { first = new Date(a.getFullYear(), 0, 1); last = new Date(a.getFullYear(), 11, 31); bucket = 'month'; }
+        return { date: wkDateToIso(first), to: wkDateToIso(last), bucket: bucket, place: place || undefined };
+    }
+    function wkStep(kind, a, dir) {
+        if (kind === 'week') return new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7 * dir);
+        if (kind === 'month') return new Date(a.getFullYear(), a.getMonth() + dir, 1);
+        return new Date(a.getFullYear() + dir, 0, 1);
+    }
     function wkSwitchPeriod(wrap, card, key) {
         var q = card.query || {};
-        if (key === 'month') {   // this calendar month (1st – last day)
-            var now = new Date();
-            wkLoad(wrap, card, wkMonthBody(now.getFullYear(), now.getMonth(), q.place));
-            return;
+        var now = new Date();
+        if (key === 'today') { wkLoad(wrap, card, { period: 'today', place: q.place || undefined }); return; }
+        var a = key === 'week' ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)) : now;
+        wkLoad(wrap, card, wkBodyFor(key, a, q.place));
+    }
+    // "−1h 12m" / "+3h 05m" as plain minutes → text
+    function wkSigned(m) { var a = Math.abs(m); return (m < 0 ? '−' : '+') + Math.floor(a / 60) + 'h ' + ('0' + (a % 60)).slice(-2) + 'm'; }
+    function wkHM(m) { return Math.floor(m / 60) + 'h ' + ('0' + (m % 60)).slice(-2) + 'm'; }
+
+    function wkOverviewEl(card, bars) {
+        var box = wkEl('div', 'wk-ov');
+        var any = false;
+        var word = card.bucket_word || 'day';
+        // facts about the hours themselves
+        if (bars.length > 1) {
+            var act = bars.filter(function (b) { return b.minutes > 0; });
+            if (act.length) {
+                any = true;
+                var best = act.reduce(function (m, b) { return b.minutes > m.minutes ? b : m; }, act[0]);
+                var facts = wkEl('div', 'wk-ov-facts');
+                [[daText(word === 'day' ? 'Days worked' : (word === 'week' ? 'Weeks worked' : 'Months worked'), word === 'day' ? 'Arbejdsdage' : (word === 'week' ? 'Uger' : 'Måneder')), String(act.length)],
+                 [daText('Average', 'Gennemsnit'), wkHM(Math.round((card.total_minutes || 0) / act.length)) + ' / ' + wkWord(word, 1)],
+                 [daText('Longest', 'Længste'), wkHM(best.minutes) + ' · ' + (best.from && best.from === best.to ? wkDayLabel(best.from, best.sub || best.label).replace(/^[A-Za-zæøåÆØÅ]{2,4}\.? /, '') : (word === 'month' ? best.label : (best.sub || best.label)))]].forEach(function (f) {
+                    var c = wkEl('div', 'wk-ov-fact');
+                    c.appendChild(wkEl('b', null, f[1]));
+                    c.appendChild(wkEl('span', null, f[0]));
+                    facts.appendChild(c);
+                });
+                box.appendChild(facts);
+            }
         }
-        wkLoad(wrap, card, { period: key, place: q.place || undefined });
+        var scopes = card.schedule && card.schedule.scopes;
+        (scopes || []).forEach(function (sc, si) {
+            any = true;
+            var blk = wkEl('div', 'wk-ov-scope');
+            if (sc.place || scopes.length > 1) blk.appendChild(wkEl('div', 'wk-ov-place', sc.place || daText('All workplaces', 'Alle arbejdssteder')));
+            var r = sc.range;
+            var grid = wkEl('div', 'wk-ov-grid');
+            [[daText('Worked', 'Arbejdet'), wkHM(r.worked), ''], [daText('Days off', 'Fridage'), wkHM(r.credited), ''], [daText('Target', 'Mål'), wkHM(r.target), ''],
+             [daText('Balance', 'Saldo'), wkSigned(r.balance), r.balance < 0 ? 'behind' : 'ahead']].forEach(function (g) {
+                var c = wkEl('div', 'wk-ov-cell ' + g[2]);
+                c.appendChild(wkEl('b', null, g[1]));
+                c.appendChild(wkEl('span', null, g[0]));
+                grid.appendChild(c);
+            });
+            blk.appendChild(grid);
+            var since = wkIsoToDate(sc.running.since);
+            blk.appendChild(wkEl('div', 'wk-ov-run' + (sc.running.balance < 0 ? ' behind' : ''),
+                daText('Running balance ', 'Løbende saldo ') + wkSigned(sc.running.balance) + (since ? ' · ' + daText('since ', 'siden ') + since.toLocaleDateString(daText('en-GB', 'da-DK'), { day: 'numeric', month: 'short', year: 'numeric' }) : '')));
+            // per bucket (a month's days are folded into weeks so the table stays short)
+            var rows = [];
+            if (bars.length > 1 && bars.every(function (b) { return b.sch && b.sch[si]; })) {
+                if (word === 'day' && bars.length > 8) {
+                    var byWeek = {};
+                    bars.forEach(function (b) {
+                        var d = wkIsoToDate(b.from), k = d ? wkIsoWeek(d) : b.from;
+                        var g = byWeek[k] || (byWeek[k] = { label: daText('W', 'U') + k, sub: '', from: b.from, to: b.to, worked: 0, credited: 0, target: 0 });
+                        g.to = b.to; g.worked += b.sch[si].worked; g.credited += b.sch[si].credited; g.target += b.sch[si].target;
+                    });
+                    Object.keys(byWeek).forEach(function (k) {
+                        var g = byWeek[k], a = wkIsoToDate(g.from), z = wkIsoToDate(g.to), lc = daText('en-GB', 'da-DK');
+                        g.sub = a && z ? a.toLocaleDateString(lc, { day: 'numeric' }) + '–' + z.toLocaleDateString(lc, { day: 'numeric', month: 'short' }) : '';
+                        rows.push(g);
+                    });
+                } else {
+                    bars.forEach(function (b) { rows.push({ label: String(b.label), sub: word === 'day' ? (b.sub || '') : '', worked: b.sch[si].worked, credited: b.sch[si].credited, target: b.sch[si].target }); });
+                }
+            }
+            rows = rows.filter(function (x) { return x.worked || x.credited || x.target; });
+            if (rows.length) {
+                var tb = wkEl('div', 'wk-ov-table');
+                var hd = wkEl('div', 'wk-ov-row wk-ov-head');
+                ['', daText('Worked', 'Arbejdet'), daText('Target', 'Mål'), daText('Balance', 'Saldo')].forEach(function (t) { hd.appendChild(wkEl('span', null, t)); });
+                tb.appendChild(hd);
+                rows.forEach(function (x) {
+                    var bal = x.worked + x.credited - x.target;
+                    var row = wkEl('div', 'wk-ov-row');
+                    var nm = wkEl('span', 'wk-ov-name', x.label);
+                    if (x.sub) nm.appendChild(wkEl('em', null, ' ' + x.sub));
+                    row.appendChild(nm);
+                    row.appendChild(wkEl('span', null, wkHM(x.worked + x.credited)));
+                    row.appendChild(wkEl('span', 'muted', wkHM(x.target)));
+                    row.appendChild(wkEl('span', 'wk-ov-bal ' + (bal < 0 ? 'behind' : 'ahead'), wkSigned(bal)));
+                    tb.appendChild(row);
+                });
+                blk.appendChild(tb);
+            }
+            box.appendChild(blk);
+        });
+        return any ? box : null;
     }
 
     function renderWorkHours(card) {
@@ -11629,8 +11742,8 @@
         if (!shared && card.query) {
             var ctl = wkEl('div', 'prog-controls wk-modes');
             var seg = wkEl('div', 'prog-seg');
-            var calMonth = card.mode ? null : wkMonthOf(card);
-            var curMode = card.mode || (calMonth ? 'month' : null);
+            var rk = card.mode === 'today' || (card.from && card.from === card.to) ? { kind: 'today' } : wkRangeKind(card);
+            var curMode = rk ? rk.kind : (card.mode || null);
             WK_MODES.forEach(function (m) {
                 var btn = wkEl('button', 'prog-seg-btn' + (m[0] === curMode ? ' on' : ''), daText(m[1], m[2]));
                 btn.type = 'button';
@@ -11639,18 +11752,22 @@
             });
             ctl.appendChild(seg);
             wrap.appendChild(ctl);
-            if (calMonth) {   // ‹ November 2026 › — page through calendar months (never into the future)
+            if (rk && rk.a) {   // ‹ 2–8 Nov › / ‹ November 2026 › / ‹ 2026 › — page through weeks, months or years (never into the future)
                 var nav = wkEl('div', 'wk-monthnav');
-                var cur = new Date();
-                var atNow = calMonth.y > cur.getFullYear() || (calMonth.y === cur.getFullYear() && calMonth.m >= cur.getMonth());
-                var go = function (dm) { var d = new Date(calMonth.y, calMonth.m + dm, 1); wkLoad(wrap, card, wkMonthBody(d.getFullYear(), d.getMonth(), (card.query || {}).place)); };
-                var prevB = wkEl('button', 'wk-navbtn', '‹'); prevB.type = 'button'; prevB.setAttribute('aria-label', daText('Previous month', 'Forrige måned'));
+                var now0 = new Date();
+                var nextA = wkStep(rk.kind, rk.a, 1);
+                var atNow = nextA > now0;
+                var go = function (dir) { wkLoad(wrap, card, wkBodyFor(rk.kind, wkStep(rk.kind, rk.a, dir), (card.query || {}).place)); };
+                var prevB = wkEl('button', 'wk-navbtn', '‹'); prevB.type = 'button'; prevB.setAttribute('aria-label', daText('Previous', 'Forrige'));
                 prevB.addEventListener('click', function () { go(-1); });
-                var nextB = wkEl('button', 'wk-navbtn', '›'); nextB.type = 'button'; nextB.setAttribute('aria-label', daText('Next month', 'Næste måned'));
+                var nextB = wkEl('button', 'wk-navbtn', '›'); nextB.type = 'button'; nextB.setAttribute('aria-label', daText('Next', 'Næste'));
                 nextB.disabled = atNow;
                 nextB.addEventListener('click', function () { go(1); });
-                var lbl = new Date(calMonth.y, calMonth.m, 1).toLocaleDateString(daText('en-GB', 'da-DK'), { month: 'long', year: 'numeric' });
-                nav.appendChild(prevB); nav.appendChild(wkEl('span', 'wk-monthlbl', lbl.charAt(0).toUpperCase() + lbl.slice(1))); nav.appendChild(nextB);
+                var loc = daText('en-GB', 'da-DK'), lbl;
+                if (rk.kind === 'week') { var endD = new Date(rk.a.getFullYear(), rk.a.getMonth(), rk.a.getDate() + 6); lbl = daText('Week ', 'Uge ') + wkIsoWeek(rk.a) + ' · ' + rk.a.toLocaleDateString(loc, { day: 'numeric', month: 'short' }) + ' – ' + endD.toLocaleDateString(loc, { day: 'numeric', month: 'short' }); }
+                else if (rk.kind === 'month') { lbl = rk.a.toLocaleDateString(loc, { month: 'long', year: 'numeric' }); lbl = lbl.charAt(0).toUpperCase() + lbl.slice(1); }
+                else lbl = String(rk.a.getFullYear());
+                nav.appendChild(prevB); nav.appendChild(wkEl('span', 'wk-monthlbl', lbl)); nav.appendChild(nextB);
                 wrap.appendChild(nav);
             }
         }
@@ -11697,7 +11814,8 @@
         }
         if (bars.length > 1) {
             var todayIso = wkDateToIso(new Date());
-            var H = 56, max = Math.max.apply(null, bars.map(function (b) { return b.minutes; }).concat([1]));
+            var oneSc = card.schedule && card.schedule.scopes && card.schedule.scopes.length === 1;
+            var H = 56, max = Math.max.apply(null, bars.map(function (b) { return b.minutes; }).concat(oneSc ? bars.map(function (b) { return b.sch && b.sch[0] ? b.sch[0].target : 0; }) : []).concat([1]));
             var every = bars.length <= 12 ? 1 : Math.ceil(bars.length / 8);
             barsBox = wkEl('div', 'wk-viz');
             var grid = wkEl('div', 'wk-bars' + (bars.length > 16 ? ' dense' : ''));
@@ -11719,6 +11837,12 @@
                     });
                 }
                 col.appendChild(bar);
+                if (oneSc && b.sch && b.sch[0] && b.sch[0].target > 0) {   // the schedule's target for that bar: a thin mark across it
+                    var tick = wkEl('i', 'wk-tick');
+                    tick.style.bottom = (17 + Math.round(H * b.sch[0].target / max)) + 'px';
+                    tick.title = daText('Target ', 'Mål ') + wkHM(b.sch[0].target);
+                    col.appendChild(tick);
+                }
                 col.appendChild(wkEl('span', 'wk-lab', (idx % every === 0 || idx === bars.length - 1) ? String(b.label) : ''));
                 col.addEventListener('click', function () { choose(idx === sel && complete ? null : idx); });
                 cols.push(col);
@@ -11756,6 +11880,10 @@
             br.appendChild(legend);
             side.appendChild(br);
         }
+
+        // The overview: the period's facts, the schedule (worked + days off against the target, and the running balance), and a breakdown per day / week / month.
+        var ov = wkOverviewEl(card, bars);
+        if (ov) side.appendChild(ov);
 
         // A forgotten clock-out.
         if ((card.needs_fix || []).length) {
@@ -11842,7 +11970,7 @@
         }
         function swapTile() {
             var next = buildTile();
-            if (tile && tile.parentNode === wrap) wrap.replaceChild(next, tile);
+            if (tile && tile.parentNode) tile.parentNode.replaceChild(next, tile);
             tile = next;
         }
         function choose(i) {
@@ -11852,8 +11980,20 @@
             swapTile();
         }
 
+        // The raw list of work days folds away (open for a single day, or when a bar is tapped): the overview above is the answer, the lines are the detail.
+        var det = wkEl('details', 'wk-details');
+        var dsum = wkEl('summary', null);
+        det.appendChild(dsum);
+        function dsumText() {
+            var n = sessions.length;
+            dsum.textContent = daText('Sessions', 'Sessioner') + (multiDay ? ' · ' + n : '');
+        }
+        dsumText();
+        det.open = !multiDay || sel !== null || card._open === true;
+        det.addEventListener('toggle', function () { card._open = det.open; });
         tile = buildTile();
-        wrap.appendChild(tile);
+        det.appendChild(tile);
+        wrap.appendChild(det);
         paintSel();
     }
 

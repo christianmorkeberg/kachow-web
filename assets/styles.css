@@ -2504,11 +2504,9 @@ svg.cyc-emoji { overflow: visible; }
 
     /* ---- work hours: summary tile left, sessions tile right ---- */
     .work-card { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 14px 22px; align-items: start; }
-    .work-card > .wk-head { grid-column: 1 / -1; }
-    .work-card > .wk-modes { grid-column: 1 / -1; }
-    .work-card > .work-side { grid-column: 1; grid-row: 3; }
-    .work-card > .work-sessions { grid-column: 2; grid-row: 3; }
-    .work-card.no-modes > .work-side, .work-card.no-modes > .work-sessions { grid-row: 2; }   /* a shared card has no toggle row */
+    .work-card > .wk-head, .work-card > .wk-modes, .work-card > .wk-clock, .work-card > .wk-monthnav { grid-column: 1 / -1; }
+    .work-card > .work-side { grid-column: 1; }            /* rows follow the order of the card; the overview on the left, the (folding) sessions on the right */
+    .work-card > .wk-details { grid-column: 2; margin-top: 0; border-top: 0; }
     .wk-modes .prog-seg { display: inline-flex; width: auto; }
     .wk-modes .prog-seg-btn { flex: 0 0 auto; padding: 7px 16px; }
     .work-total { font-size: 58px; }
@@ -3757,3 +3755,31 @@ body.card-full .home-plan-svg { max-height: calc(100vh - 220px); }
 .wk-balances { padding: 0 0 8px; }
 .wk-balances .wk-balance { padding: 2px 0; }
 .wk-balance-place { display: inline-block; min-width: 3.2em; margin-right: 6px; color: var(--muted); font-weight: 600; }
+
+/* Work card: the overview (facts, schedule, breakdown) and the folding session list */
+.wk-col { position: relative; }
+.wk-tick { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--text); opacity: .55; pointer-events: none; }
+.wk-ov { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.wk-ov-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.wk-ov-fact, .wk-ov-cell { background: var(--panel); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wk-ov-fact b, .wk-ov-cell b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.wk-ov-fact span, .wk-ov-cell span { font-size: 11px; color: var(--muted); }
+.wk-ov-scope { display: flex; flex-direction: column; gap: 8px; }
+.wk-ov-place { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.wk-ov-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.wk-ov-cell.ahead b, .wk-ov-bal.ahead { color: var(--success, #2f9e6b); }
+.wk-ov-cell.behind b, .wk-ov-bal.behind, .wk-ov-run.behind { color: var(--error, #d9534f); }
+.wk-ov-run { font-size: 12px; color: var(--muted); }
+.wk-ov-table { display: flex; flex-direction: column; }
+.wk-ov-row { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.wk-ov-row > span:not(:first-child) { text-align: right; }
+.wk-ov-head { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-top: 0; }
+.wk-ov-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-ov-name em { font-style: normal; color: var(--muted); font-weight: 400; }
+.wk-ov-row .muted { color: var(--muted); }
+.wk-ov-bal { font-weight: 700; }
+.wk-details { margin-top: 12px; border-top: 1px solid var(--line); }
+.wk-details > summary { cursor: pointer; padding: 10px 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 6px; }
+.wk-details > summary::-webkit-details-marker { display: none; }
+.wk-details > summary::before { content: '›'; display: inline-block; transition: transform .15s; font-size: 14px; }
+.wk-details[open] > summary::before { transform: rotate(90deg); }
