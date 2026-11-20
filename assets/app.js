@@ -1566,6 +1566,12 @@
             case 'cash':            return '/api/cash.php';
             case 'reminders':       return '/api/reminders.php';
             case 'recruiter':       return '/api/recruiter.php';
+            case 'cycle':           return '/api/card.php?for=cycle';
+            case 'power_prices':    return '/api/card.php?for=power_prices';
+            case 'training_program': return card.person ? null : '/api/card.php?for=training_program';
+            case 'weather':         return card.refresh_url || null;     // the card says where its own place is (see GetCurrentWeather)
+            case 'email_list':      return '/api/email-list.php?limit=' + enc(Math.min(25, (card.items || []).length || 12)) + (card.account_id ? '&account=' + enc(card.account_id) : '') + (card.query ? '&q=' + enc(card.query) : '');
+            case 'settings':        return '/api/settings.php?card=1';
             case 'loan_pack':       return '/api/loanpack.php?year=' + enc(card.year || '');
             case 'calendar_month':  return (card.view && card.view !== 'month') ? calLoadUrl(card.view, card.anchor) : (card.month ? '/api/calendar-month.php?month=' + enc(card.month) : null);
         }
@@ -1574,7 +1580,7 @@
     // Can the refresh button re-read this card? (Chat answers such as the weather are snapshots: ask again for fresh data.)
     function canFreshen(card) {
         if (!card) return false;
-        if (card.kind === 'location_day' && card.date === locToday()) return true;
+        if (card.kind === 'location_day' || card.kind === 'places' || (card.kind === 'progression' && !card.person)) return true;
         if ((card.kind === 'income' || card.kind === 'receipt') && card.id) return true;
         if (['bookkeeping', 'feedback', 'scheduled_tasks', 'dev_ideas', 'home', 'train'].indexOf(card.kind) !== -1) return true;
         if (refreshUrlFor(card)) return true;
@@ -1606,7 +1612,16 @@
         // The Home card reads its own parts: opening it and the automatic refresh leave it alone (it keeps its valve status current itself and does not poll the lights);
         // only the header ↻ (manualRefresh) asks it to re-read the lights and the radiators live.
         if (card && (card.kind === 'home' || card.kind === 'train')) return;
-        if (card && card.kind === 'location_day' && card.date === locToday()) {
+        if (card && card.kind === 'settings' && live) return;    // a form: never redrawn under the user's hands by the background refresh; only the ↻ re-reads it
+        if (card && card.kind === 'places') {
+            postJson('/api/places.php', { action: 'list' }).then(function (j) { if (j && j.kind && panelCard === card) applyFresh(j, live); }).catch(function () { /* keep the snapshot */ });
+            return;
+        }
+        if (card && card.kind === 'progression' && !card.person) {
+            postJson('/api/workout-progress.php', { exercise: card.exercise, metric: card.metric, weeks: card.weeks }).then(function (j) { var c = j && (j.card || (j.kind ? j : null)); if (c && panelCard === card) applyFresh(c, live); }).catch(function () { /* keep the snapshot */ });
+            return;
+        }
+        if (card && card.kind === 'location_day') {
             fetchLocationDay(card.date).then(function (j) {
                 if (j && j.card && panelCard === card) applyFresh(j.card, live);
             }).catch(function () { /* keep the snapshot */ });

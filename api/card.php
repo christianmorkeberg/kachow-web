@@ -107,6 +107,12 @@ try {
             $lat = 55.68;
             $lon = 12.57;
             $label = 'Copenhagen';
+            if (isset($_GET['lat'], $_GET['lon']) && is_numeric($_GET['lat']) && is_numeric($_GET['lon']) && abs((float) $_GET['lat']) <= 90 && abs((float) $_GET['lon']) <= 180) {
+                // a weather card from the chat refreshes ITS place, not the Home place
+                $res  = (new \App\Tools\GetCurrentWeather(\App\Weather\WeatherService::fromEnv()))->execute(['latitude' => (float) $_GET['lat'], 'longitude' => (float) $_GET['lon'], 'place' => mb_substr(trim((string) ($_GET['place'] ?? '')), 0, 60) ?: 'Weather'], $userId);
+                $card = $res['_render'] ?? null;
+                break;
+            }
             foreach ((new \App\Data\Places())->list($userId) as $pl) {
                 if ((string) ($pl['type'] ?? '') === 'home' && isset($pl['lat'], $pl['lon']) && $pl['lat'] !== null) {
                     $lat = (float) $pl['lat'];
