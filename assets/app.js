@@ -11569,6 +11569,10 @@
                 line.appendChild(document.createTextNode(' ' + (b.minutes < 0 ? daText('behind schedule', 'bagud i forhold til planen') : daText('ahead of schedule', 'foran planen'))));
                 var sinceD = new Date(b.since + 'T12:00:00');
                 line.appendChild(wkEl('span', 'wk-balance-since', ' · ' + daText('since ', 'siden ') + (isNaN(sinceD.getTime()) ? b.since : sinceD.toLocaleDateString(daText('en-GB', 'da-DK'), { day: 'numeric', month: 'short' }))));
+                if (b.today && (b.today.target > 0 || b.today.worked > 0)) {   // today so far against today's full target (already in the number above)
+                    var fm = function (m) { return Math.floor(m / 60) + 'h ' + ('0' + (m % 60)).slice(-2) + 'm'; };
+                    line.appendChild(wkEl('span', 'wk-balance-since', ' · ' + daText('today ', 'i dag ') + fm(b.today.worked) + daText(' of ', ' af ') + fm(b.today.target)));
+                }
                 balBox.appendChild(line);
             });
             wrap.appendChild(balBox);
