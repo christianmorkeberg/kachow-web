@@ -52,7 +52,7 @@
     let sendController = null;  // AbortController for the in-flight chat request (Stop button)
     let quickActions = null;   // cached suggestions for the empty-screen chips
     let resumeConversation = null;      // {id,title} offered as a "pick up where you left off" pill
-    const IDLE_RESUME_SECONDS = 3600;   // only auto-resume the last chat if <1h since its last message
+    const IDLE_RESUME_SECONDS = 900;    // only auto-resume the last chat if <15 min since its last message (an older one: the app opens on a fresh chat)
     let deviceLocation = null; // {lat, lon, acc, at} from the browser, for weather, "here" etc.
 
     function showEmptyHint() {
