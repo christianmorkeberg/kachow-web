@@ -3783,3 +3783,8 @@ body.card-full .home-plan-svg { max-height: calc(100vh - 220px); }
 .wk-details > summary::-webkit-details-marker { display: none; }
 .wk-details > summary::before { content: '›'; display: inline-block; transition: transform .15s; font-size: 14px; }
 .wk-details[open] > summary::before { transform: rotate(90deg); }
+
+/* start-screen suggestions: a pinned one carries a pin; press and hold toggles it (no text selection while holding) */
+.chip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.chip.is-pinned { border-color: var(--accent); }
+.chip.is-pinned svg { width: 13px; height: 13px; color: var(--accent); }

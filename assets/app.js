@@ -51,6 +51,7 @@
     let busy = false;
     let sendController = null;  // AbortController for the in-flight chat request (Stop button)
     let quickActions = null;   // cached suggestions for the empty-screen chips
+    let pinnedActions = [];    // the ones the user pinned (they lead; press and hold a suggestion to pin / unpin it)
     let resumeConversation = null;      // {id,title} offered as a "pick up where you left off" pill
     const IDLE_RESUME_SECONDS = 900;    // only auto-resume the last chat if <15 min since its last message (an older one: the app opens on a fresh chat)
     let deviceLocation = null; // {lat, lon, acc, at} from the browser, for weather, "here" etc.
@@ -117,11 +118,39 @@
         (quickActions || []).forEach(function (text) {
             const b = document.createElement('button');
             b.type = 'button';
-            b.className = 'chip';
-            b.textContent = text;
-            b.addEventListener('click', function () { onChip(text); });
+            const isPinned = pinnedActions.some(function (p) { return p.toLowerCase() === String(text).toLowerCase(); });
+            b.className = 'chip' + (isPinned ? ' is-pinned' : '');
+            if (isPinned) { setIconText(b, 'pin', text); } else { b.textContent = text; }
+            // press and hold (or right-click) pins / unpins; a tap does what it always did
+            let holdT = null, held = false, hx = 0, hy = 0;
+            const toggle = function () { pinQuickAction(text, !isPinned, container); };
+            b.addEventListener('pointerdown', function (e) {
+                if (e.button > 0) return;
+                held = false; hx = e.clientX; hy = e.clientY;
+                clearTimeout(holdT);
+                holdT = setTimeout(function () { held = true; if (navigator.vibrate) { try { navigator.vibrate(12); } catch (x) { /* unsupported */ } } toggle(); }, 500);
+            });
+            ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { b.addEventListener(ev, function () { clearTimeout(holdT); }); });
+            b.addEventListener('pointermove', function (e) { if (holdT && (Math.abs(e.clientX - hx) > 8 || Math.abs(e.clientY - hy) > 8)) clearTimeout(holdT); });
+            b.addEventListener('contextmenu', function (e) { e.preventDefault(); clearTimeout(holdT); held = true; toggle(); });
+            b.addEventListener('click', function (e) { if (held) { held = false; e.preventDefault(); return; } onChip(text); });
             container.appendChild(b);
         });
+    }
+
+    // Pins / unpins a suggestion: the server keeps it (so every device shows it) and answers with the new list.
+    function pinQuickAction(text, pin, container) {
+        fetch('/api/quick-actions.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ action: pin ? 'pin' : 'unpin', text: text }) })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data) { toast(daText('Could not save that.', 'Kunne ikke gemme det.')); return; }
+                if (Array.isArray(data.actions)) quickActions = data.actions;
+                pinnedActions = Array.isArray(data.pinned) ? data.pinned : [];
+                toast(pin ? daText('Pinned.', 'Fastgjort.') : daText('Unpinned.', 'Frigjort.'));
+                const box = container && container.isConnected ? container : messages.querySelector('.empty .chips');
+                if (box) renderChips(box);
+            })
+            .catch(function () { toast(daText('Could not save that.', 'Kunne ikke gemme det.')); });
     }
 
     function onChip(text) {
@@ -142,6 +171,7 @@
             .then(function (data) {
                 if (data && Array.isArray(data.actions)) {
                     quickActions = data.actions;
+                    pinnedActions = Array.isArray(data.pinned) ? data.pinned : [];
                     const chips = messages.querySelector('.empty .chips');
                     if (chips) renderChips(chips);
                 }
