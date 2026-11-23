@@ -3758,7 +3758,7 @@ body.card-full .home-plan-svg { max-height: calc(100vh - 220px); }
 
 /* Work card: the overview (facts, schedule, breakdown) and the folding session list */
 .wk-col { position: relative; }
-.wk-tick { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--text); opacity: .55; pointer-events: none; }
+.wk-target { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--text); opacity: .55; pointer-events: none; }   /* a bar's target mark (the timeline's hour labels are .wk-tick) */
 .wk-ov { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 .wk-ov-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .wk-ov-fact, .wk-ov-cell { background: var(--panel); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }

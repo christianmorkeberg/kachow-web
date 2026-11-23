@@ -11868,7 +11868,7 @@
                 }
                 col.appendChild(bar);
                 if (oneSc && b.sch && b.sch[0] && b.sch[0].target > 0) {   // the schedule's target for that bar: a thin mark across it
-                    var tick = wkEl('i', 'wk-tick');
+                    var tick = wkEl('i', 'wk-target');
                     tick.style.bottom = (17 + Math.round(H * b.sch[0].target / max)) + 'px';
                     tick.title = daText('Target ', 'Mål ') + wkHM(b.sch[0].target);
                     col.appendChild(tick);
