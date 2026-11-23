@@ -3788,3 +3788,6 @@ body.card-full .home-plan-svg { max-height: calc(100vh - 220px); }
 .chip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .chip.is-pinned { border-color: var(--accent); }
 .chip.is-pinned svg { width: 13px; height: 13px; color: var(--accent); }
+.tr-cm-who { font-weight: 700; }
+.tr-cm.tr-p0 .tr-cm-who { color: var(--tr-p0); }
+.tr-cm.tr-p1 .tr-cm-who { color: var(--tr-p1); }

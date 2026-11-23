@@ -86,6 +86,9 @@ try {
         case 'comment':
             $res = $train->comment($userId, $date, $person, (string) ($in['exercise'] ?? ''), (string) ($in['text'] ?? ''));
             break;
+        case 'override':
+            $res = $train->override($userId, $date, is_array($in['items'] ?? null) ? array_values($in['items']) : []);
+            break;
         case 'max':
             $res = $train->setMax($userId, $person, (string) ($in['exercise'] ?? ''), $num($in['max'] ?? null));
             break;

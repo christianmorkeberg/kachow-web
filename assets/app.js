@@ -2668,16 +2668,31 @@
             }
             blk.appendChild(grid);
 
-            // comments: today's, or last time's when there is none today
-            var notes = [];
+            // under the sets: today's note, else what each person did LAST TIME (weight × reps, and the note they left then)
+            var infos = [];
             lanes.forEach(function (l) {
                 var p = people.filter(function (x) { return x.id === l.person_id; })[0];
-                var t = st.pend[l.person_id + '|' + ex.name] || l.comment || (l.last && l.last.note) || '';
-                if (t) notes.push((people.length > 1 ? p.first + ': ' : '') + t);
+                var today = st.pend[l.person_id + '|' + ex.name] || l.comment || '';
+                var bits = [];
+                if (today) bits.push(today);
+                else if (l.last) {
+                    var lw = l.last.weight !== null && l.last.weight !== undefined ? trainFmt(l.last.weight) + ' kg' : '';
+                    var lr = l.last.reps ? '× ' + l.last.reps : '';
+                    var ld = l.last.date ? new Date(l.last.date + 'T12:00:00').toLocaleDateString(daText('en-GB', 'da-DK'), { day: 'numeric', month: 'short' }) : '';
+                    bits.push((daText('last ', 'sidst ')) + [lw, lr].filter(Boolean).join(' ') + (ld ? ' (' + ld + ')' : ''));
+                    if (l.last.note) bits.push('“' + l.last.note + '”');
+                }
+                if (bits.length) infos.push({ who: people.length > 1 ? p.first : '', text: bits.join(' · '), lane: lane(p) });
             });
-            if (notes.length) {
-                var cm = setEl('div', 'tr-cm'); cm.innerHTML = icon('message-square'); cm.appendChild(setEl('span', null, notes.join(' · '))); blk.appendChild(cm);
-            }
+            infos.forEach(function (n) {
+                var cm = setEl('div', 'tr-cm ' + n.lane);
+                cm.innerHTML = icon('history');
+                var sp = setEl('span');
+                if (n.who) sp.appendChild(setEl('b', 'tr-cm-who', n.who + ' '));
+                sp.appendChild(document.createTextNode(n.text));
+                cm.appendChild(sp);
+                blk.appendChild(cm);
+            });
 
             if (st.edit && st.edit.ex === exIdx && lanes.some(function (l) { return l.person_id === st.edit.person; })) {
                 blk.appendChild(trainEditor(wrap, card, st, ex, lanes.filter(function (l) { return l.person_id === st.edit.person; })[0], people, cellOf));
@@ -2804,6 +2819,16 @@
             if (noteChanged) st.pend[pk] = note;
             st.edit = null;
             var after = [];
+            // weights / reps changed on sets that are not ticked yet are saved at once too (they survive a reload, the timer trip, another device)
+            var changed = [];
+            Object.keys(st.ov).forEach(function (k) {
+                if (k.indexOf(key) !== 0) return;
+                var n = parseInt(k.slice(key.length), 10), set = ln.sets[n - 1];
+                if (!set || set.done) return;
+                var oe = cellOf(ln, set);
+                changed.push({ person_id: ln.person_id, exercise: ex.name, set_no: n, weight: oe.weight, reps: oe.reps });
+            });
+            if (changed.length) after.push({ action: 'override', items: changed });
             if (c.done) {   // a set already ticked: the correction is saved at once
                 var ee = cellOf(ln, c);
                 after.push({ action: 'tick', person_id: ln.person_id, exercise: ex.name, set_no: c.n, weight: ee.weight, reps: ee.reps, planned_percent: c.target_pct, planned_weight: c.planned_weight, note: note || undefined });
@@ -2812,7 +2837,14 @@
                 after.push({ action: 'comment', person_id: ln.person_id, exercise: ex.name, text: note });
             }
             if (!after.length) { buildTrain(wrap, card, st); return; }
-            after.reduce(function (pr, body) { return pr.then(function () { return trainPost(wrap, st, body); }); }, Promise.resolve());
+            after.reduce(function (pr, body) {
+                return pr.then(function () {
+                    return trainPost(wrap, st, body).then(function (j) {
+                        if (j && body.action === 'override') body.items.forEach(function (it) { delete st.ov[key + it.set_no]; });   // the server has them now
+                        return j;
+                    });
+                });
+            }, Promise.resolve());
         });
         acts.appendChild(cancel); acts.appendChild(apply);
         box.appendChild(acts);
