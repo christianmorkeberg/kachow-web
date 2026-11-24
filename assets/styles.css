@@ -3791,3 +3791,7 @@ body.card-full .home-plan-svg { max-height: calc(100vh - 220px); }
 .tr-cm-who { font-weight: 700; }
 .tr-cm.tr-p0 .tr-cm-who { color: var(--tr-p0); }
 .tr-cm.tr-p1 .tr-cm-who { color: var(--tr-p1); }
+
+/* the attach button on an expense / invoice card: a small flat button, not a full-width bold block */
+button.att-add { width: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 13px; font-weight: 600; }
+button.att-add svg { width: 14px; height: 14px; }

@@ -8550,7 +8550,8 @@
         var add = document.createElement('button');
         add.type = 'button';
         add.className = 'ghost att-add';
-        setIconText(add, 'paperclip', daText('Add file (timesheet, contract, Excel …)', 'Tilføj fil (timeseddel, kontrakt, Excel …)'));
+        add.title = daText('A timesheet, contract, spreadsheet …', 'En timeseddel, kontrakt, regneark …');
+        setIconText(add, 'paperclip', daText('Add file', 'Tilføj fil'));
         box.appendChild(add);
 
         function size(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
@@ -8588,7 +8589,7 @@
                     .then(function (j) {
                         if (j && j.ok) draw(j.items); else toast((j && j.error) || daText('Upload failed — try again', 'Upload mislykkedes — prøv igen'));
                     }).catch(function () { toast(daText('Upload failed — try again', 'Upload mislykkedes — prøv igen')); })
-                    .then(function () { add.disabled = false; setIconText(add, 'paperclip', daText('Add file (timesheet, contract, Excel …)', 'Tilføj fil (timeseddel, kontrakt, Excel …)')); });
+                    .then(function () { add.disabled = false; setIconText(add, 'paperclip', daText('Add file', 'Tilføj fil')); });
             });
         });
         parent.appendChild(box);
